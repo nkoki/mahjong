@@ -184,7 +184,76 @@ class SessionLogic {
     if (s.riichiSticks > 0) {
       scores[s.ranking.first] += s.riichiSticks * 1000;
     }
-    return s.copyWith(scores: scores, riichiSticks: 0, finished: true);
+    return s.copyWith(
+        scores: scores, riichiSticks: 0, finished: true, settledSticks: s.riichiSticks);
+  }
+
+  /// 局の修正内容のチェック（問題なければ null）。
+  /// 合計を元と同じにするのは、供託リーチ棒の出入り（場に出した分・受け取った分）を変えないため。
+  static String? validateRoundEdit(GameSession s, int index, List<int?> deltas) {
+    if (index < 0 || index >= s.records.length) return '修正する局が見つかりません';
+    if (deltas.length != 4 || deltas.any((d) => d == null)) {
+      return '4人すべての増減を入力してください';
+    }
+    if (deltas.any((d) => d! % 100 != 0)) return '100点単位で入力してください';
+    final original = s.records[index].deltas.fold<int>(0, (a, d) => a + d);
+    final sum = deltas.fold<int>(0, (a, d) => a + d!);
+    if (sum != original) {
+      return '4人の合計を${_signed(original)}にしてください（今の合計: ${_signed(sum)}）';
+    }
+    return null;
+  }
+
+  static String _signed(int v) => v > 0 ? '+$v' : '$v';
+
+  /// 過去の局の点数増減と内容を修正する。
+  ///
+  /// 修正した差分は、その局以降の「局終了後の点数」と今の点数にそのまま反映する。
+  /// 局の進行（親・本場・終局したかどうか）は変えない。
+  /// 終局時にトップへ渡した供託は、修正後のトップに付け替える。
+  /// 修正前の状態は「元に戻す」で戻せる。
+  static GameSession editRound(
+    GameSession s,
+    int index, {
+    required List<int> deltas,
+    String? description,
+  }) {
+    final error = validateRoundEdit(s, index, deltas);
+    if (error != null) throw ArgumentError(error);
+
+    final old = s.records[index];
+    final diff = [for (var i = 0; i < 4; i++) deltas[i] - old.deltas[i]];
+    List<int> add(List<int> a) => [for (var i = 0; i < 4; i++) a[i] + diff[i]];
+
+    final records = <RoundRecord>[
+      for (var j = 0; j < s.records.length; j++)
+        if (j < index)
+          s.records[j]
+        else if (j == index)
+          old.copyWith(
+            deltas: List.unmodifiable(deltas),
+            scoresAfter: List.unmodifiable(add(old.scoresAfter)),
+            description: description,
+            edited: true,
+          )
+        else
+          s.records[j].copyWith(scoresAfter: List.unmodifiable(add(s.records[j].scoresAfter))),
+    ];
+
+    var scores = add(s.scores);
+    if (s.finished && s.settledSticks > 0) {
+      // 供託を一度もとのトップから外し、修正後の点数でのトップに渡し直す
+      final bonus = s.settledSticks * 1000;
+      scores[s.ranking.first] -= bonus;
+      scores[GameSession.rankingOf(scores).first] += bonus;
+    }
+
+    return s.copyWith(
+      records: List.unmodifiable(records),
+      scores: List.unmodifiable(scores),
+      roundStartScores: List.unmodifiable(add(s.roundStartScores)),
+      previous: s,
+    );
   }
 
   /// 元に戻す（お気に入り・ウマは対局の進行とは別に変えられるので、今の設定を残す）

@@ -87,6 +87,13 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
 
   void toggleFavorite(String id) => _update(id, SessionLogic.toggleFavorite);
 
+  void editRound(String id, int index,
+          {required List<int> deltas, String? description}) =>
+      _update(
+          id,
+          (s) => SessionLogic.editRound(s, index,
+              deltas: deltas, description: description));
+
   void updateUma(String id, List<int> uma) =>
       _update(id, (s) => SessionLogic.updateUma(s, uma));
 

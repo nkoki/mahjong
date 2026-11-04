@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../shared/widgets/rule_inputs.dart';
 import '../session/domain/models.dart';
 import '../session/session_providers.dart';
+import 'round_edit_screen.dart';
 
 /// 戦績詳細（順位・ポイント・局ごとの記録）
 class HistoryDetailScreen extends ConsumerWidget {
@@ -113,6 +114,15 @@ class HistoryDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text('局の記録（${s.records.length}局）', style: theme.textTheme.titleMedium),
+          if (s.records.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                '下の一覧の局をタップすると、その局の点数の増減を修正できます'
+                '${s.records.any((r) => r.edited) ? "（* は修正済みの局）" : ""}。',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
           if (s.records.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
@@ -130,7 +140,7 @@ class HistoryDetailScreen extends ConsumerWidget {
               rows: [
                 for (final r in s.records)
                   DataRow(cells: [
-                    DataCell(Text(r.roundLabel)),
+                    DataCell(Text('${r.roundLabel}${r.edited ? " *" : ""}')),
                     for (final d in r.deltas)
                       DataCell(Text(formatDelta(d),
                           style: TextStyle(
@@ -150,13 +160,22 @@ class HistoryDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          for (final r in s.records.reversed)
+          for (var i = s.records.length - 1; i >= 0; i--)
             Card(
               child: ListTile(
                 dense: true,
-                leading: Icon(r.kind == 'win' ? Icons.emoji_events : Icons.water_drop_outlined),
-                title: Text(r.roundLabel),
-                subtitle: Text(r.description),
+                leading: Icon(s.records[i].kind == 'win'
+                    ? Icons.emoji_events
+                    : Icons.water_drop_outlined),
+                title: Text(
+                    '${s.records[i].roundLabel}${s.records[i].edited ? "（修正済み）" : ""}'),
+                subtitle: Text(s.records[i].description),
+                trailing: IconButton(
+                  tooltip: 'この局を修正',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _openEdit(context, sessionId, i),
+                ),
+                onTap: () => _openEdit(context, sessionId, i),
               ),
             ),
         ],
@@ -228,5 +247,24 @@ class _UmaDialogState extends State<_UmaDialog> {
         ),
       ],
     );
+  }
+}
+
+Future<void> _openEdit(BuildContext context, String sessionId, int index) async {
+  final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(
+    builder: (_) => RoundEditScreen(sessionId: sessionId, index: index),
+  ));
+  if (saved == true && context.mounted) {
+    final container = ProviderScope.containerOf(context, listen: false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: const Text('局を修正しました'),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: '元に戻す',
+          onPressed: () => container.read(sessionsProvider.notifier).undo(sessionId),
+        ),
+      ));
   }
 }

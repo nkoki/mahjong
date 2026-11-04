@@ -143,13 +143,32 @@ class RoundRecord {
   /// 局終了後の点数
   final List<int> scoresAfter;
 
+  /// あとから修正した局かどうか
+  final bool edited;
+
   const RoundRecord({
     required this.roundLabel,
     required this.kind,
     required this.description,
     required this.deltas,
     required this.scoresAfter,
+    this.edited = false,
   });
+
+  RoundRecord copyWith({
+    String? description,
+    List<int>? deltas,
+    List<int>? scoresAfter,
+    bool? edited,
+  }) =>
+      RoundRecord(
+        roundLabel: roundLabel,
+        kind: kind,
+        description: description ?? this.description,
+        deltas: deltas ?? this.deltas,
+        scoresAfter: scoresAfter ?? this.scoresAfter,
+        edited: edited ?? this.edited,
+      );
 
   Map<String, dynamic> toJson() => {
         'roundLabel': roundLabel,
@@ -157,6 +176,8 @@ class RoundRecord {
         'description': description,
         'deltas': deltas,
         'scoresAfter': scoresAfter,
+        // 修正していない局（ほとんど）は保存しない。古いデータにも無いので、無ければ false
+        if (edited) 'edited': true,
       };
 
   factory RoundRecord.fromJson(Map<String, dynamic> j) => RoundRecord(
@@ -165,6 +186,7 @@ class RoundRecord {
         description: j['description'] as String,
         deltas: _intList(j['deltas']),
         scoresAfter: _intList(j['scoresAfter']),
+        edited: j['edited'] as bool? ?? false,
       );
 }
 
@@ -215,6 +237,9 @@ class GameSession {
   /// お気に入り（保存件数の上限を超えても自動で削除されない）
   final bool favorite;
 
+  /// 終局時にトップへ渡した供託リーチ棒の本数（局の修正でトップが変わったときに付け替える）
+  final int settledSticks;
+
   /// 1つ前の状態（「元に戻す」用）
   final GameSession? previous;
 
@@ -232,6 +257,7 @@ class GameSession {
     required this.records,
     required this.finished,
     this.favorite = false,
+    this.settledSticks = 0,
     this.previous,
   });
 
@@ -285,6 +311,7 @@ class GameSession {
         'riichi': riichi,
         'roundStartScores': roundStartScores,
         'finished': finished,
+        if (settledSticks > 0) 'settledSticks': settledSticks,
       };
 
   /// 「元に戻す」用のスナップショット。[newerRecords] は1つ新しい状態の記録。
@@ -368,6 +395,7 @@ class GameSession {
       records: records,
       finished: j['finished'] as bool,
       favorite: favorite,
+      settledSticks: j['settledSticks'] as int? ?? 0,
       previous: previous,
     );
   }
@@ -383,6 +411,7 @@ class GameSession {
     List<RoundRecord>? records,
     bool? finished,
     bool? favorite,
+    int? settledSticks,
     GameSession? previous,
     bool clearPrevious = false,
   }) {
@@ -400,6 +429,7 @@ class GameSession {
       records: records ?? this.records,
       finished: finished ?? this.finished,
       favorite: favorite ?? this.favorite,
+      settledSticks: settledSticks ?? this.settledSticks,
       previous: clearPrevious ? null : (previous ?? this.previous),
     );
   }
@@ -435,7 +465,10 @@ class GameSession {
   bool get isAllLast => roundIndex == settings.totalRounds - 1;
 
   /// 順位（同点は起家に近い方が上位）。返り値は player 番号の順位順リスト。
-  List<int> get ranking {
+  List<int> get ranking => rankingOf(scores);
+
+  /// 点数から順位を求める（同点は起家に近い方が上位）
+  static List<int> rankingOf(List<int> scores) {
     final order = [0, 1, 2, 3];
     order.sort((a, b) {
       final c = scores[b].compareTo(scores[a]);
