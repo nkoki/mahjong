@@ -9,7 +9,8 @@
 ## 実行方法
 
 ```bash
-cd mahjong_app
+git clone https://github.com/nkoki/mahjong.git
+cd mahjong
 flutter pub get
 flutter run            # 実機・エミュレータで起動
 flutter test           # アプリのテスト（対局進行ロジック・画面操作）
@@ -44,7 +45,7 @@ cd packages/mahjong_score_engine && dart test   # 点数計算エンジンのテ
 ## ディレクトリ構成
 
 ```text
-mahjong_app/
+mahjong/
 ├── lib/
 │   ├── main.dart                      アプリの入口（ProviderScope・テーマ）
 │   ├── core/                          テーマ・点数の表示形式・画面遷移
