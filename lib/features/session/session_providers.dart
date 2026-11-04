@@ -87,6 +87,9 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
 
   void toggleFavorite(String id) => _update(id, SessionLogic.toggleFavorite);
 
+  void updateUma(String id, List<int> uma) =>
+      _update(id, (s) => SessionLogic.updateUma(s, uma));
+
   GameSession? _get(String id) {
     for (final s in state) {
       if (s.id == id) return s;

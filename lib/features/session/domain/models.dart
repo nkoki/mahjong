@@ -29,6 +29,17 @@ class GameSettings {
   /// オカ（トップ取り、千点単位）
   double get oka => (returnPoints - startingPoints) * 4 / 1000;
 
+  /// ウマの表記（例: [20, 10, -10, -20] → "10-20"、全部0 → "なし"）
+  String get umaLabel => formatUma(uma);
+
+  GameSettings copyWith({List<int>? uma}) => GameSettings(
+        startingPoints: startingPoints,
+        returnPoints: returnPoints,
+        uma: uma ?? this.uma,
+        tonpuu: tonpuu,
+        tobi: tobi,
+      );
+
   Map<String, dynamic> toJson() => {
         'startingPoints': startingPoints,
         'returnPoints': returnPoints,
@@ -44,6 +55,51 @@ class GameSettings {
         tonpuu: j['tonpuu'] as bool,
         tobi: j['tobi'] as bool,
       );
+}
+
+/// よく使われるウマ（1位〜4位、千点単位）
+const umaPresets = <(String, List<int>)>[
+  ('なし', [0, 0, 0, 0]),
+  ('5-10', [10, 5, -5, -10]),
+  ('10-20', [20, 10, -10, -20]),
+  ('10-30', [30, 10, -10, -30]),
+  ('20-30', [30, 20, -20, -30]),
+];
+
+/// ウマの表記。「1位+大 / 2位+小 / 3位-小 / 4位-大」の形なら "小-大"、
+/// それ以外は "+30 / +10 / -10 / -30" のように4つ並べる
+String formatUma(List<int> uma) {
+  if (uma.every((v) => v == 0)) return 'なし';
+  final big = uma[0], small = uma[1];
+  if (uma[2] == -small && uma[3] == -big && big >= small && small >= 0) {
+    return '$small-$big';
+  }
+  return uma.map((v) => v > 0 ? '+$v' : '$v').join(' / ');
+}
+
+/// 持ち点・返しの入力チェック（問題なければ null）
+String? validatePoints(int? v) {
+  if (v == null) return '数字を入力してください';
+  if (v < 1000 || v > 1000000) return '1,000〜1,000,000点の範囲で入力してください';
+  if (v % 100 != 0) return '100点単位で入力してください';
+  return null;
+}
+
+/// 返しの入力チェック（持ち点より小さいとオカがマイナスになるので不可）
+String? validateReturnPoints(int? ret, int? starting) {
+  final e = validatePoints(ret);
+  if (e != null) return e;
+  if (starting != null && ret! < starting) return '持ち点以上の値を入力してください';
+  return null;
+}
+
+/// ウマの入力チェック（問題なければ null）
+String? validateUma(List<int?> uma) {
+  if (uma.length != 4 || uma.any((v) => v == null)) return '1位〜4位のすべてに数字を入力してください';
+  if (uma.any((v) => v!.abs() > 1000)) return '-1000〜1000の範囲で入力してください';
+  final sum = uma.fold<int>(0, (a, v) => a + v!);
+  if (sum != 0) return '合計が0になるようにしてください（今の合計: ${sum > 0 ? "+" : ""}$sum）';
+  return null;
 }
 
 List<int> _intList(Object? v) =>
@@ -317,6 +373,7 @@ class GameSession {
   }
 
   GameSession copyWith({
+    GameSettings? settings,
     List<int>? scores,
     int? roundIndex,
     int? honba,
@@ -333,7 +390,7 @@ class GameSession {
       id: id,
       createdAt: createdAt,
       playerNames: playerNames,
-      settings: settings,
+      settings: settings ?? this.settings,
       scores: scores ?? this.scores,
       roundIndex: roundIndex ?? this.roundIndex,
       honba: honba ?? this.honba,

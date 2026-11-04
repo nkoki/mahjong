@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/routes.dart';
+import '../../../core/theme.dart';
+import '../../../shared/widgets/rule_inputs.dart';
 import '../domain/models.dart';
 import '../domain/session_logic.dart';
 import '../session_providers.dart';
@@ -19,16 +21,15 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
       4, (i) => TextEditingController(text: 'プレイヤー${i + 1}'));
   bool _tonpuu = false;
   bool _tobi = true;
-  int _starting = 25000;
-  int _return = 30000;
-  int _umaIndex = 1;
+  int? _starting = 25000;
+  int? _return = 30000;
+  List<int?> _uma = const [20, 10, -10, -20];
 
-  static const _umaOptions = [
-    ('なし', [0, 0, 0, 0]),
-    ('10-20', [20, 10, -10, -20]),
-    ('10-30', [30, 10, -10, -30]),
-    ('5-10', [10, 5, -5, -10]),
-  ];
+  String? get _startingError => validatePoints(_starting);
+  String? get _returnError => validateReturnPoints(_return, _starting);
+  String? get _umaError => validateUma(_uma);
+  bool get _isValid =>
+      _startingError == null && _returnError == null && _umaError == null;
 
   @override
   void dispose() {
@@ -45,10 +46,11 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             ? 'プレイヤー${i + 1}'
             : _controllers[i].text.trim()
     ];
+    if (!_isValid) return;
     final settings = GameSettings(
-      startingPoints: _starting,
-      returnPoints: _return < _starting ? _starting : _return,
-      uma: _umaOptions[_umaIndex].$2,
+      startingPoints: _starting!,
+      returnPoints: _return!,
+      uma: List.unmodifiable(_uma.map((v) => v!)),
       tonpuu: _tonpuu,
       tobi: _tobi,
     );
@@ -137,32 +139,36 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             onSelectionChanged: (v) => setState(() => _tonpuu = v.first),
           ),
           const SizedBox(height: 12),
-          _label(context, '持ち点'),
-          SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 25000, label: Text('25,000')),
-              ButtonSegment(value: 30000, label: Text('30,000')),
-            ],
-            selected: {_starting},
-            onSelectionChanged: (v) => setState(() => _starting = v.first),
+          _label(context, '持ち点（配給原点）'),
+          PointsInput(
+            label: '持ち点',
+            initialValue: 25000,
+            presets: const [25000, 30000],
+            errorText: _startingError,
+            onChanged: (v) => setState(() => _starting = v),
           ),
           _label(context, '返し（オカの基準）'),
-          SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 25000, label: Text('25,000')),
-              ButtonSegment(value: 30000, label: Text('30,000')),
-            ],
-            selected: {_return},
-            onSelectionChanged: (v) => setState(() => _return = v.first),
+          PointsInput(
+            label: '返し',
+            initialValue: 30000,
+            presets: const [25000, 30000],
+            errorText: _returnError,
+            onChanged: (v) => setState(() => _return = v),
           ),
+          if (_startingError == null && _returnError == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 4),
+              child: Text(
+                'オカ（トップが受け取る分）: '
+                '${formatPoint((_return! - _starting!) * 4 / 1000)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           _label(context, 'ウマ'),
-          SegmentedButton<int>(
-            segments: [
-              for (var i = 0; i < _umaOptions.length; i++)
-                ButtonSegment(value: i, label: Text(_umaOptions[i].$1)),
-            ],
-            selected: {_umaIndex},
-            onSelectionChanged: (v) => setState(() => _umaIndex = v.first),
+          UmaInput(
+            initialValue: const [20, 10, -10, -20],
+            errorText: _umaError,
+            onChanged: (v) => setState(() => _uma = v),
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -171,7 +177,17 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             onChanged: (v) => setState(() => _tobi = v),
           ),
           const SizedBox(height: 16),
-          FilledButton(onPressed: _start, child: const Text('対局開始')),
+          FilledButton(
+            onPressed: _isValid ? _start : null,
+            child: const Text('対局開始'),
+          ),
+          if (!_isValid)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('入力内容を確認してください',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
         ],
       ),
     );

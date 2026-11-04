@@ -187,9 +187,13 @@ class SessionLogic {
     return s.copyWith(scores: scores, riichiSticks: 0, finished: true);
   }
 
-  /// 元に戻す（お気に入りの設定は対局の進行とは別なので、今の設定を残す）
+  /// 元に戻す（お気に入り・ウマは対局の進行とは別に変えられるので、今の設定を残す）
   static GameSession undo(GameSession s) =>
-      s.previous?.copyWith(favorite: s.favorite) ?? s;
+      s.previous?.copyWith(favorite: s.favorite, settings: s.settings) ?? s;
+
+  /// ウマの変更（最終ポイントは表示のたびに計算するので、ウマを変えるだけで反映される）
+  static GameSession updateUma(GameSession s, List<int> uma) =>
+      s.copyWith(settings: s.settings.copyWith(uma: List.unmodifiable(uma)));
 
   /// お気に入りの切り替え
   static GameSession toggleFavorite(GameSession s) =>
