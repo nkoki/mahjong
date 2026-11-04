@@ -1,11 +1,11 @@
 {
-    "name": "mahjong_app",
-    "short_name": "mahjong_app",
+    "name": "麻雀点数計算",
+    "short_name": "麻雀点数計算",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "4人打ちリーチ麻雀の点数計算・対局管理アプリ",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
