@@ -124,7 +124,7 @@ void main() {
           if (x.previous != null) 'previous': v1(x.previous!),
         };
     SharedPreferences.setMockInitialValues({
-      SharedPrefsSessionRepository.storageKey: jsonEncode({
+      SharedPrefsSessionRepository.legacyKey: jsonEncode({
         'version': 1,
         'sessions': [v1(s)],
       }),
@@ -133,6 +133,70 @@ void main() {
     final loaded = SharedPrefsSessionRepository(prefs).loadAll();
     expectSameSession(s, loaded.single);
     expect(loaded.single.previous!.records.length, s.previous!.records.length);
+
+    // 新しい形式（対局ごとのキー）に移行され、古いデータは消える
+    await Future<void>.delayed(Duration.zero);
+    expect(prefs.getString(SharedPrefsSessionRepository.legacyKey), isNull);
+    expect(prefs.getString(SharedPrefsSessionRepository.sessionKey(s.id)), isNotNull);
+    expectSameSession(s, SharedPrefsSessionRepository(prefs).loadAll().single);
+  });
+
+  test('以前の形式（version 2）のデータも移行される', () async {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    final s = playedSession(c);
+    SharedPreferences.setMockInitialValues({
+      SharedPrefsSessionRepository.legacyKey: jsonEncode({
+        'version': 2,
+        'sessions': [s.toJson()],
+      }),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    expectSameSession(s, SharedPrefsSessionRepository(prefs).loadAll().single);
+    await Future<void>.delayed(Duration.zero);
+    expect(prefs.getString(SharedPrefsSessionRepository.legacyKey), isNull);
+    expectSameSession(s, SharedPrefsSessionRepository(prefs).loadAll().single);
+  });
+
+  test('変更があった対局だけを書き込む', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final c = ProviderContainer(overrides: [
+      sessionRepositoryProvider.overrideWithValue(SharedPrefsSessionRepository(prefs)),
+    ]);
+    addTearDown(c.dispose);
+    final n = c.read(sessionsProvider.notifier);
+    final a = n.create(['A', 'B', 'C', 'D'], const GameSettings());
+    final b = n.create(['E', 'F', 'G', 'H'], const GameSettings());
+    await Future<void>.delayed(Duration.zero);
+
+    // 対局 b の保存データに目印を付けておき、対局 a だけ変更する
+    const mark = 'まだ書き換えられていない';
+    await prefs.setString(SharedPrefsSessionRepository.sessionKey(b), mark);
+    n.toggleRiichi(a, 0);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(prefs.getString(SharedPrefsSessionRepository.sessionKey(b)), mark);
+    final savedA = jsonDecode(prefs.getString(SharedPrefsSessionRepository.sessionKey(a))!)
+        as Map<String, dynamic>;
+    expect((savedA['session'] as Map)['riichi'], [true, false, false, false]);
+  });
+
+  test('100対局あっても1回の保存は対局1つ分だけ', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final repo = SharedPrefsSessionRepository(prefs);
+    var sessions = [
+      for (var i = 0; i < 100; i++)
+        GameSession.start(
+            id: 'g$i', playerNames: ['A', 'B', 'C', 'D'], settings: const GameSettings())
+    ];
+    await repo.saveAll(sessions);
+    for (var i = 1; i < 100; i++) {
+      await prefs.setString(SharedPrefsSessionRepository.sessionKey('g$i'), 'x');
+    }
+    sessions = [sessions.first.copyWith(honba: 1), ...sessions.skip(1)];
+    await repo.saveAll(sessions);
+    expect(prefs.getString(SharedPrefsSessionRepository.sessionKey('g1')), 'x');
+    expect(prefs.getString(SharedPrefsSessionRepository.sessionKey('g0')), contains('"honba":1'));
   });
 
   test('アプリを再起動しても対局が残っている', () async {
@@ -171,13 +235,47 @@ void main() {
     expect(repo.saved, isEmpty);
   });
 
-  test('壊れたデータがあっても起動でき、元のデータは退避される', () async {
-    SharedPreferences.setMockInitialValues(
-        {SharedPrefsSessionRepository.storageKey: '{壊れたJSON'});
+  test('壊れた対局があっても他の対局は読み込め、壊れたデータは退避される', () async {
     final prefs = await SharedPreferences.getInstance();
     final repo = SharedPrefsSessionRepository(prefs);
-    expect(repo.loadAll(), isEmpty);
-    expect(prefs.getString(SharedPrefsSessionRepository.corruptKey), '{壊れたJSON');
-    expect(prefs.getString(SharedPrefsSessionRepository.storageKey), isNull);
+    final good = GameSession.start(
+        id: 'good', playerNames: ['A', 'B', 'C', 'D'], settings: const GameSettings());
+    final bad = GameSession.start(
+        id: 'bad', playerNames: ['A', 'B', 'C', 'D'], settings: const GameSettings());
+    await repo.saveAll([good, bad]);
+    final badKey = SharedPrefsSessionRepository.sessionKey('bad');
+    await prefs.setString(badKey, '{壊れたJSON');
+
+    final loaded = SharedPrefsSessionRepository(prefs).loadAll();
+    expect(loaded.map((s) => s.id), ['good']);
+    expect(prefs.getString('${SharedPrefsSessionRepository.corruptKeyPrefix}$badKey'),
+        '{壊れたJSON');
+    expect(prefs.getString(badKey), isNull);
+  });
+
+  test('以前の形式のデータが壊れていても起動でき、退避される', () async {
+    SharedPreferences.setMockInitialValues(
+        {SharedPrefsSessionRepository.legacyKey: '{壊れたJSON'});
+    final prefs = await SharedPreferences.getInstance();
+    expect(SharedPrefsSessionRepository(prefs).loadAll(), isEmpty);
+    expect(
+        prefs.getString(
+            '${SharedPrefsSessionRepository.corruptKeyPrefix}${SharedPrefsSessionRepository.legacyKey}'),
+        '{壊れたJSON');
+  });
+
+  test('目次がなくなっても対局データから作り直せる', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final old = GameSession.start(
+        id: 'old', playerNames: ['A', 'B', 'C', 'D'], settings: const GameSettings(),
+        now: DateTime(2026, 1, 1));
+    final latest = GameSession.start(
+        id: 'new', playerNames: ['A', 'B', 'C', 'D'], settings: const GameSettings(),
+        now: DateTime(2026, 2, 1));
+    await SharedPrefsSessionRepository(prefs).saveAll([latest, old]);
+    await prefs.setString(SharedPrefsSessionRepository.indexKey, '{壊れた目次');
+
+    final loaded = SharedPrefsSessionRepository(prefs).loadAll();
+    expect(loaded.map((s) => s.id), ['new', 'old']); // 新しい順
   });
 }

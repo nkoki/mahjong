@@ -17,53 +17,199 @@ abstract class SessionRepository {
 /// 端末内に保存する実装（shared_preferences）
 ///
 /// - Android: SharedPreferences / iOS: NSUserDefaults / Web: localStorage
-/// - 全対局を1つの JSON 文字列として保存する
+/// - 対局ごとに別のキーへ保存し、並び順は目次（[indexKey]）に保存する
+/// - 保存時は前回保存したときから変わった対局だけを書き込む。対局データは
+///   変更のたびに新しいオブジェクトに置き換わるので、同じオブジェクトか
+///   どうか（identical）で変更の有無が分かる
 class SharedPrefsSessionRepository implements SessionRepository {
   final SharedPreferences prefs;
 
   SharedPrefsSessionRepository(this.prefs);
 
-  /// 保存キー
-  static const storageKey = 'mahjong_sessions';
+  /// 目次（対局IDの並び）のキー
+  static const indexKey = 'mahjong_session_index';
 
-  /// 読み込めなかったデータの退避先（消さずに残しておく）
-  static const corruptKey = 'mahjong_sessions_corrupt';
+  /// 対局1つ分のキーの先頭部分（後ろに対局IDが付く）
+  static const sessionKeyPrefix = 'mahjong_session_';
+
+  /// 読み込めなかったデータの退避先の先頭部分（消さずに残しておく）
+  static const corruptKeyPrefix = 'mahjong_corrupt_';
+
+  /// 以前（version 1・2）の、全対局を1つにまとめて保存していたキー
+  static const legacyKey = 'mahjong_sessions';
 
   /// データ形式のバージョン（将来、形式を変えたときの移行用）
-  /// - 1: 元に戻す履歴に局の記録を丸ごと保存
-  /// - 2: 元に戻す履歴は局の記録の件数だけ保存（version 1 も読み込める）
-  static const formatVersion = 2;
+  /// - 1: 全対局を1つのキーに保存。元に戻す履歴に局の記録を丸ごと保存
+  /// - 2: 全対局を1つのキーに保存。元に戻す履歴は局の記録の件数だけ保存
+  /// - 3: 対局ごとに別のキーに保存（version 1・2 のデータは起動時に自動で移行）
+  static const formatVersion = 3;
 
+  static String sessionKey(String id) => '$sessionKeyPrefix$id';
+
+  /// 前回保存した状態（対局ID → 対局）。変更の有無の判定に使う
+  final Map<String, GameSession> _saved = {};
+
+  /// 前回保存した目次
+  List<String> _savedOrder = const [];
+
+  // ---------------------------------------------------------------------
+  // 読み込み
+  // ---------------------------------------------------------------------
   @override
   List<GameSession> loadAll() {
-    final raw = prefs.getString(storageKey);
+    if (prefs.getString(indexKey) == null && prefs.getString(legacyKey) != null) {
+      return _migrateLegacy();
+    }
+
+    final order = _readIndex();
+    // 目次に載っていない対局データ（目次の保存前にアプリが終了した場合など）も拾う
+    final known = order.toSet();
+    final orphans = prefs
+        .getKeys()
+        .where((k) => k.startsWith(sessionKeyPrefix) && k != indexKey)
+        .map((k) => k.substring(sessionKeyPrefix.length))
+        .where((id) => !known.contains(id));
+
+    final sessions = <GameSession>[];
+    final orphanSessions = <GameSession>[];
+    for (final id in [...order, ...orphans]) {
+      final s = _readSession(id);
+      if (s == null) continue;
+      (known.contains(id) ? sessions : orphanSessions).add(s);
+    }
+    orphanSessions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final all = [...sessions, ...orphanSessions];
+
+    for (final s in all) {
+      _saved[s.id] = s;
+    }
+    _savedOrder = [for (final s in all) s.id];
+    if (orphanSessions.isNotEmpty || all.length != order.length) {
+      _writeIndex(_savedOrder);
+    }
+    return List.unmodifiable(all);
+  }
+
+  List<String> _readIndex() {
+    final raw = prefs.getString(indexKey);
     if (raw == null) return const [];
     try {
       final data = jsonDecode(raw) as Map<String, dynamic>;
-      final version = data['version'] as int? ?? 0;
-      if (version > formatVersion) {
-        // 新しいバージョンのアプリで保存されたデータは読めないので、
-        // 下の catch で退避用のキーに残してから空で起動する
-        throw FormatException('未対応のデータ形式です（version $version）');
-      }
-      return List<GameSession>.unmodifiable((data['sessions'] as List)
-          .map((e) => GameSession.fromJson(e as Map<String, dynamic>)));
-    } catch (e, st) {
-      debugPrint('対局データの読み込みに失敗しました: $e\n$st');
-      // 壊れたデータは別のキーに退避して、空の状態で起動する
-      prefs.setString(corruptKey, raw);
-      prefs.remove(storageKey);
+      _checkVersion(data);
+      return (data['ids'] as List).map((e) => e as String).toList();
+    } catch (e) {
+      debugPrint('目次の読み込みに失敗しました（対局データから作り直します）: $e');
+      _backup(indexKey, raw);
       return const [];
     }
   }
 
+  GameSession? _readSession(String id) {
+    final key = sessionKey(id);
+    final raw = prefs.getString(key);
+    if (raw == null) return null;
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      _checkVersion(data);
+      return GameSession.fromJson(data['session'] as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('対局データ($id)の読み込みに失敗しました: $e');
+      // 壊れた対局だけを退避し、他の対局はそのまま使う
+      _backup(key, raw);
+      prefs.remove(key);
+      return null;
+    }
+  }
+
+  static void _checkVersion(Map<String, dynamic> data) {
+    final version = data['version'] as int? ?? 0;
+    if (version > formatVersion) {
+      // 新しいバージョンのアプリで保存されたデータは読めないので、退避用のキーに残す
+      throw FormatException('未対応のデータ形式です（version $version）');
+    }
+  }
+
+  void _backup(String key, String raw) {
+    prefs.setString('$corruptKeyPrefix$key', raw);
+  }
+
+  /// version 1・2（全対局を1つのキーに保存）からの移行
+  List<GameSession> _migrateLegacy() {
+    final raw = prefs.getString(legacyKey)!;
+    List<GameSession> sessions;
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      final version = data['version'] as int? ?? 0;
+      if (version > 2) throw FormatException('未対応のデータ形式です（version $version）');
+      sessions = List<GameSession>.unmodifiable((data['sessions'] as List)
+          .map((e) => GameSession.fromJson(e as Map<String, dynamic>)));
+    } catch (e) {
+      debugPrint('以前の形式の対局データを読み込めませんでした: $e');
+      _backup(legacyKey, raw);
+      prefs.remove(legacyKey);
+      return const [];
+    }
+    // 新しい形式で書き込み、目次まで書けたら古いデータを消す。
+    // 途中でアプリが終了しても、目次がなければ次の起動でもう一度移行する。
+    () async {
+      try {
+        for (final s in sessions) {
+          await prefs.setString(sessionKey(s.id), _encodeSession(s));
+        }
+        await _writeIndex([for (final s in sessions) s.id]);
+        await prefs.remove(legacyKey);
+      } catch (e) {
+        debugPrint('対局データの移行に失敗しました: $e');
+      }
+    }();
+    for (final s in sessions) {
+      _saved[s.id] = s;
+    }
+    _savedOrder = [for (final s in sessions) s.id];
+    return sessions;
+  }
+
+  // ---------------------------------------------------------------------
+  // 保存
+  // ---------------------------------------------------------------------
+  static String _encodeSession(GameSession s) =>
+      jsonEncode({'version': formatVersion, 'session': s.toJson()});
+
+  Future<void> _writeIndex(List<String> ids) =>
+      prefs.setString(indexKey, jsonEncode({'version': formatVersion, 'ids': ids}));
+
+  /// 前回から変わった対局だけを書き込む
   @override
   Future<void> saveAll(List<GameSession> sessions) async {
-    final raw = jsonEncode({
-      'version': formatVersion,
-      'sessions': [for (final s in sessions) s.toJson()],
-    });
-    await prefs.setString(storageKey, raw);
+    // 先に「保存済み」の記録を更新してから書き込む（連続で呼ばれても二重に書かない）
+    final changed = <GameSession>[
+      for (final s in sessions)
+        if (!identical(_saved[s.id], s)) s
+    ];
+    final ids = [for (final s in sessions) s.id];
+    final removed = _saved.keys.where((id) => !ids.contains(id)).toList();
+    final orderChanged = !listEquals(ids, _savedOrder);
+    for (final s in changed) {
+      _saved[s.id] = s;
+    }
+    for (final id in removed) {
+      _saved.remove(id);
+    }
+    _savedOrder = ids;
+
+    for (final s in changed) {
+      try {
+        await prefs.setString(sessionKey(s.id), _encodeSession(s));
+      } catch (e) {
+        // 失敗した対局は次の保存のときに書き直す
+        if (identical(_saved[s.id], s)) _saved.remove(s.id);
+        rethrow;
+      }
+    }
+    if (orderChanged) await _writeIndex(ids);
+    for (final id in removed) {
+      await prefs.remove(sessionKey(id));
+    }
   }
 }
 
