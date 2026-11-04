@@ -62,14 +62,30 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
     }
   }
 
-  /// 新規対局を作成してIDを返す
+  /// 新規対局を作成してIDを返す。
+  /// 保存件数の上限を超える場合は、お気に入りでない一番古い終局済みの対局から削除する。
   String create(List<String> names, GameSettings settings) {
     final id = '${DateTime.now().millisecondsSinceEpoch}-${_counter++}';
     final session =
         GameSession.start(id: id, playerNames: names, settings: settings);
-    state = [session, ...state];
+    final next = [session, ...state];
+    final pruneIds =
+        SessionLogic.sessionsToPrune(next).map((s) => s.id).toSet();
+    state = [
+      for (final s in next)
+        if (!pruneIds.contains(s.id)) s
+    ];
     return id;
   }
+
+  /// 次に新規対局を作成したときに削除される対局（なければ空）
+  List<GameSession> sessionsRemovedByNextCreate() {
+    // 新しい対局は対局中なので削除対象にならない。1件増える分、上限を1つ減らして判定する
+    return SessionLogic.sessionsToPrune(state,
+        max: SessionLogic.maxSavedSessions - 1);
+  }
+
+  void toggleFavorite(String id) => _update(id, SessionLogic.toggleFavorite);
 
   GameSession? _get(String id) {
     for (final s in state) {

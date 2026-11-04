@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
 
 /// 保存状況の表示（ホーム画面と「データの保存について」画面で使う）
@@ -22,8 +23,18 @@ class StorageUsageView extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('保存中の対局: ${sessions.length}件（${formatBytes(usage.bytes)}）',
+        Text(
+            '保存中の対局: ${sessions.length} / ${SessionLogic.maxSavedSessions}件'
+            '（${formatBytes(usage.bytes)}）',
             style: theme.textTheme.bodyMedium),
+        if (sessions.length >= SessionLogic.maxSavedSessions)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '上限に達しています。新しい対局を始めると、お気に入りにしていない一番古い対局が削除されます。',
+              style: theme.textTheme.bodySmall?.copyWith(color: warnColor),
+            ),
+          ),
         if (usage.ratio != null) ...[
           const SizedBox(height: 6),
           LinearProgressIndicator(
@@ -48,12 +59,7 @@ class StorageUsageView extends ConsumerWidget {
                 style: theme.textTheme.bodySmall?.copyWith(color: warnColor),
               ),
             ),
-        ] else if (detailed)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text('保存できる対局の数に上限はありません（端末の空き容量の範囲で保存できます）。',
-                style: theme.textTheme.bodySmall),
-          ),
+        ],
       ],
     );
   }
@@ -96,6 +102,12 @@ class StorageInfoScreen extends ConsumerWidget {
           item(Icons.save_outlined, '自動で保存されます',
               '立直・和了・流局・元に戻す・削除など、操作のたびに自動で保存されます。'
               '保存ボタンはありません。アプリを閉じても、次に開いたときに「続きから」再開できます。'),
+          item(Icons.inventory_2_outlined, '保存されるのは最新100対局まで',
+              '対局が100件を超えると、新しい対局を始めたときに、お気に入り（★）にしていない'
+              '一番古い対局から自動で削除されます（削除する前に確認が表示されます）。'
+              '残したい対局は、戦績画面で ★ を押してお気に入りにしてください。'
+              '対局中の対局は削除されません。',
+              warn: true),
           item(Icons.phone_android, 'この端末だけに保存されます',
               '保存先はこの端末（Web 版ではこのブラウザ）の中だけです。'
               'インターネット上には保存されないので、他のスマホ・パソコン・ブラウザとは共有されません。'),
@@ -113,8 +125,8 @@ class StorageInfoScreen extends ConsumerWidget {
           if (kIsWeb)
             item(Icons.storage_outlined, '保存容量の上限があります（Web 版）',
                 'ブラウザに保存できる量は1サイトあたり約5MBまでです。'
-                '1対局（半荘）あたり約5KBなので、目安として数百〜1,000対局ほど保存できます。'
-                '上限に近づくとホーム画面でお知らせします。'),
+                '1対局（半荘）あたり約5KBなので、100対局でも約0.5MBで収まります。'
+                'お気に入りを大量に残した場合などで上限に近づくと、ホーム画面でお知らせします。'),
           item(Icons.undo, '「元に戻す」は、開き直すと直近10回まで',
               'アプリを使っている間は何回でも元に戻せますが、アプリを閉じて開き直したあとに'
               '元に戻せるのは、直近10回分の操作までです。'),

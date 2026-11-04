@@ -22,6 +22,20 @@ class HistoryDetailScreen extends ConsumerWidget {
         title: const Text('戦績詳細'),
         actions: [
           IconButton(
+            tooltip: s.favorite ? 'お気に入りを解除' : 'お気に入りにする（自動で削除されなくなります）',
+            icon: Icon(s.favorite ? Icons.star : Icons.star_border),
+            onPressed: () {
+              ref.read(sessionsProvider.notifier).toggleFavorite(sessionId);
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(SnackBar(
+                  content: Text(s.favorite
+                      ? 'お気に入りを解除しました'
+                      : 'お気に入りにしました。保存件数が上限を超えても自動で削除されません'),
+                ));
+            },
+          ),
+          IconButton(
             tooltip: '削除',
             icon: const Icon(Icons.delete_outline),
             onPressed: () async {

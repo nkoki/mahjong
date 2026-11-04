@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/routes.dart';
 import '../domain/models.dart';
+import '../domain/session_logic.dart';
 import '../session_providers.dart';
 
 /// 新規対局の作成画面
@@ -37,7 +38,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
     super.dispose();
   }
 
-  void _start() {
+  Future<void> _start() async {
     final names = [
       for (var i = 0; i < 4; i++)
         _controllers[i].text.trim().isEmpty
@@ -51,8 +52,51 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
       tonpuu: _tonpuu,
       tobi: _tobi,
     );
-    final id = ref.read(sessionsProvider.notifier).create(names, settings);
+    final notifier = ref.read(sessionsProvider.notifier);
+    final removed = notifier.sessionsRemovedByNextCreate();
+    if (removed.isNotEmpty) {
+      final ok = await _confirmRemoval(removed);
+      if (!ok || !mounted) return;
+    }
+    final id = notifier.create(names, settings);
     Navigator.of(context).pushReplacement(dashboardRoute(id));
+  }
+
+  /// 上限を超えて古い対局が削除されることの確認
+  Future<bool> _confirmRemoval(List<GameSession> removed) async {
+    String date(DateTime d) => '${d.year}/${d.month}/${d.day}';
+    final r = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('古い対局が削除されます'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('保存できる対局は${SessionLogic.maxSavedSessions}件までです。'
+                '新しい対局を始めると、お気に入り（★）にしていない一番古い対局'
+                '${removed.length > 1 ? "から${removed.length}件" : ""}が削除されます。'
+                '削除すると元に戻せません。'),
+            const SizedBox(height: 12),
+            for (final s in removed.take(3))
+              Text('・${date(s.createdAt)}  ${s.playerNames.join(" / ")}',
+                  style: Theme.of(ctx).textTheme.bodySmall),
+            if (removed.length > 3)
+              Text('・ほか${removed.length - 3}件', style: Theme.of(ctx).textTheme.bodySmall),
+            const SizedBox(height: 12),
+            Text('残したい対局は、戦績画面で ★ を押してお気に入りにしてください。',
+                style: Theme.of(ctx).textTheme.bodySmall),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true), child: const Text('削除して開始')),
+        ],
+      ),
+    );
+    return r ?? false;
   }
 
   Widget _label(BuildContext context, String text) => Padding(

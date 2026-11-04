@@ -187,6 +187,30 @@ class SessionLogic {
     return s.copyWith(scores: scores, riichiSticks: 0, finished: true);
   }
 
-  /// 元に戻す
-  static GameSession undo(GameSession s) => s.previous ?? s;
+  /// 元に戻す（お気に入りの設定は対局の進行とは別なので、今の設定を残す）
+  static GameSession undo(GameSession s) =>
+      s.previous?.copyWith(favorite: s.favorite) ?? s;
+
+  /// お気に入りの切り替え
+  static GameSession toggleFavorite(GameSession s) =>
+      s.copyWith(favorite: !s.favorite);
+
+  /// 保存しておく対局の最大数
+  static const maxSavedSessions = 100;
+
+  /// 自動で削除してよい対局か（お気に入りでも対局中でもない）
+  static bool isDeletable(GameSession s) => !s.favorite && s.finished;
+
+  /// 対局が [max] 件を超えている分、削除する対局を古い順に返す。
+  /// お気に入りと対局中の対局は削除しないので、それらが多い場合は [max] 件を超えて残る。
+  static List<GameSession> sessionsToPrune(
+    List<GameSession> sessions, {
+    int max = maxSavedSessions,
+  }) {
+    final over = sessions.length - max;
+    if (over <= 0) return const [];
+    final candidates = sessions.where(isDeletable).toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return candidates.take(over).toList();
+  }
 }

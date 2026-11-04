@@ -33,14 +33,14 @@ void main() {
     await pumpApp(tester, InMemorySessionRepository());
     expect(find.text('データの保存について'), findsOneWidget);
     expect(find.textContaining('アプリを削除したり'), findsOneWidget);
-    expect(find.textContaining('保存中の対局: 0件'), findsOneWidget);
+    expect(find.textContaining('保存中の対局: 0 / 100件'), findsOneWidget);
 
     await tester.tap(find.text('データの保存について'));
     await tester.pumpAndSettle();
     expect(find.text('この端末だけに保存されます'), findsOneWidget);
     expect(find.text('削除した対局は元に戻せません'), findsOneWidget);
     expect(find.textContaining('直近10回'), findsWidgets);
-    expect(find.textContaining('上限はありません'), findsOneWidget);
+    expect(find.text('保存されるのは最新100対局まで'), findsOneWidget);
   });
 
   testWidgets('保存に失敗するとお知らせが出る', (tester) async {

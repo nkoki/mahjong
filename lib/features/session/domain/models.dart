@@ -156,6 +156,9 @@ class GameSession {
   final List<RoundRecord> records;
   final bool finished;
 
+  /// お気に入り（保存件数の上限を超えても自動で削除されない）
+  final bool favorite;
+
   /// 1つ前の状態（「元に戻す」用）
   final GameSession? previous;
 
@@ -172,6 +175,7 @@ class GameSession {
     required this.roundStartScores,
     required this.records,
     required this.finished,
+    this.favorite = false,
     this.previous,
   });
 
@@ -209,6 +213,7 @@ class GameSession {
         'createdAt': createdAt.toIso8601String(),
         'playerNames': playerNames,
         'settings': settings.toJson(),
+        'favorite': favorite,
         'records': [for (final r in records) r.toJson()],
         ..._stateJson(),
         if (previous != null && undoDepth > 0)
@@ -253,6 +258,8 @@ class GameSession {
       playerNames: List<String>.unmodifiable(
           (j['playerNames'] as List).map((e) => e as String)),
       settings: GameSettings.fromJson(j['settings'] as Map<String, dynamic>),
+      // お気に入り機能より前に保存したデータには無いので false とする
+      favorite: j['favorite'] as bool? ?? false,
       records: records,
     );
   }
@@ -264,6 +271,7 @@ class GameSession {
     required DateTime createdAt,
     required List<String> playerNames,
     required GameSettings settings,
+    required bool favorite,
     required List<RoundRecord> records,
   }) {
     GameSession? previous;
@@ -286,6 +294,7 @@ class GameSession {
         createdAt: createdAt,
         playerNames: playerNames,
         settings: settings,
+        favorite: favorite,
         records: prevRecords,
       );
     }
@@ -302,6 +311,7 @@ class GameSession {
       roundStartScores: _intList(j['roundStartScores']),
       records: records,
       finished: j['finished'] as bool,
+      favorite: favorite,
       previous: previous,
     );
   }
@@ -315,6 +325,7 @@ class GameSession {
     List<int>? roundStartScores,
     List<RoundRecord>? records,
     bool? finished,
+    bool? favorite,
     GameSession? previous,
     bool clearPrevious = false,
   }) {
@@ -331,6 +342,7 @@ class GameSession {
       roundStartScores: roundStartScores ?? this.roundStartScores,
       records: records ?? this.records,
       finished: finished ?? this.finished,
+      favorite: favorite ?? this.favorite,
       previous: clearPrevious ? null : (previous ?? this.previous),
     );
   }
