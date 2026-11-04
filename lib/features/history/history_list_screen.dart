@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
 import '../session/session_providers.dart';
+import '../storage/storage_info_screen.dart';
 import 'history_detail_screen.dart';
 
 /// 戦績一覧
@@ -16,7 +17,17 @@ class HistoryListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessions = ref.watch(sessionsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('戦績')),
+      appBar: AppBar(
+        title: const Text('戦績'),
+        actions: [
+          IconButton(
+            tooltip: 'データの保存について',
+            icon: const Icon(Icons.info_outline),
+            onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const StorageInfoScreen())),
+          ),
+        ],
+      ),
       body: sessions.isEmpty
           ? const Center(child: Text('まだ対局がありません'))
           : ListView.builder(

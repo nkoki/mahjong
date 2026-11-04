@@ -5,6 +5,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/models.dart';
 
+/// 保存容量の使用状況
+class StorageUsage {
+  /// 保存データの合計サイズ（バイト）
+  final int bytes;
+
+  /// 保存容量の上限の目安（バイト）。上限がない・分からない場合は null
+  final int? limitBytes;
+
+  const StorageUsage({required this.bytes, this.limitBytes});
+
+  /// 上限に対する使用率（0.0〜1.0）。上限がなければ null
+  double? get ratio => limitBytes == null ? null : (bytes / limitBytes!).clamp(0.0, 1.0);
+
+  /// 上限に近づいているか（目安の50%以上）
+  bool get isNearLimit => ratio != null && ratio! >= 0.5;
+}
+
 /// 対局データの保存先
 abstract class SessionRepository {
   /// 保存済みの全対局を読み込む（起動時に1回）
@@ -12,7 +29,16 @@ abstract class SessionRepository {
 
   /// 全対局を保存する
   Future<void> saveAll(List<GameSession> sessions);
+
+  /// 読み込み時に起きた問題（利用者に知らせる内容）
+  List<String> get loadWarnings;
+
+  /// 保存容量の使用状況
+  StorageUsage usage();
 }
+
+/// ブラウザ（Web 版）の保存容量の上限の目安。多くのブラウザで 1サイトあたり約5MB
+const webStorageLimitBytes = 5 * 1000 * 1000;
 
 /// 端末内に保存する実装（shared_preferences）
 ///
@@ -45,6 +71,23 @@ class SharedPrefsSessionRepository implements SessionRepository {
   static const formatVersion = 3;
 
   static String sessionKey(String id) => '$sessionKeyPrefix$id';
+
+  final List<String> _warnings = [];
+
+  @override
+  List<String> get loadWarnings => List.unmodifiable(_warnings);
+
+  /// このアプリが保存しているデータ（退避したデータも含む）の合計サイズ
+  @override
+  StorageUsage usage() {
+    var bytes = 0;
+    for (final k in prefs.getKeys()) {
+      if (!k.startsWith('mahjong_')) continue;
+      final v = prefs.get(k);
+      if (v is String) bytes += utf8.encode(v).length + k.length;
+    }
+    return StorageUsage(bytes: bytes, limitBytes: kIsWeb ? webStorageLimitBytes : null);
+  }
 
   /// 前回保存した状態（対局ID → 対局）。変更の有無の判定に使う
   final Map<String, GameSession> _saved = {};
@@ -99,6 +142,7 @@ class SharedPrefsSessionRepository implements SessionRepository {
       return (data['ids'] as List).map((e) => e as String).toList();
     } catch (e) {
       debugPrint('目次の読み込みに失敗しました（対局データから作り直します）: $e');
+      _warnings.add('対局の一覧（並び順）の保存データが壊れていたため、作り直しました。対局の並び順が変わっている場合があります。');
       _backup(indexKey, raw);
       return const [];
     }
@@ -114,6 +158,9 @@ class SharedPrefsSessionRepository implements SessionRepository {
       return GameSession.fromJson(data['session'] as Map<String, dynamic>);
     } catch (e) {
       debugPrint('対局データ($id)の読み込みに失敗しました: $e');
+      _warnings.add(e is FormatException && e.message.startsWith('未対応')
+          ? '新しいバージョンのアプリで保存された対局が1件あり、このバージョンでは読み込めませんでした。アプリを最新版に更新してください。'
+          : '保存データが壊れていて読み込めない対局が1件ありました。この対局は表示されません。');
       // 壊れた対局だけを退避し、他の対局はそのまま使う
       _backup(key, raw);
       prefs.remove(key);
@@ -145,6 +192,7 @@ class SharedPrefsSessionRepository implements SessionRepository {
           .map((e) => GameSession.fromJson(e as Map<String, dynamic>)));
     } catch (e) {
       debugPrint('以前の形式の対局データを読み込めませんでした: $e');
+      _warnings.add('以前のバージョンで保存した対局データが壊れていて、読み込めませんでした。');
       _backup(legacyKey, raw);
       prefs.remove(legacyKey);
       return const [];
@@ -228,4 +276,10 @@ class InMemorySessionRepository implements SessionRepository {
     saved = sessions;
     saveCount++;
   }
+
+  @override
+  List<String> loadWarnings = [];
+
+  @override
+  StorageUsage usage() => const StorageUsage(bytes: 0);
 }

@@ -20,12 +20,30 @@ Future<void> main() async {
   ));
 }
 
-class MahjongApp extends StatelessWidget {
+class MahjongApp extends ConsumerStatefulWidget {
   const MahjongApp({super.key});
 
   @override
+  ConsumerState<MahjongApp> createState() => _MahjongAppState();
+}
+
+class _MahjongAppState extends ConsumerState<MahjongApp> {
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  @override
   Widget build(BuildContext context) {
+    // 保存に失敗したら、どの画面にいてもお知らせする
+    ref.listen<String?>(saveErrorProvider, (prev, next) {
+      if (next != null && prev == null) {
+        _messengerKey.currentState?.showSnackBar(SnackBar(
+          content: Text(next),
+          duration: const Duration(seconds: 8),
+          showCloseIcon: true,
+        ));
+      }
+    });
     return MaterialApp(
+      scaffoldMessengerKey: _messengerKey,
       title: '麻雀点数計算',
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

@@ -28,7 +28,8 @@ class HistoryDetailScreen extends ConsumerWidget {
               final ok = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  content: const Text('この対局の記録を削除しますか？'),
+                  title: const Text('対局を削除'),
+                  content: const Text('この対局の記録を削除しますか？\n削除すると元に戻せません。'),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(ctx, false),

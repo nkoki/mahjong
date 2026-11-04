@@ -15,6 +15,17 @@ final sessionRepositoryProvider = Provider<SessionRepository>(
 final sessionsProvider =
     NotifierProvider<SessionsNotifier, List<GameSession>>(SessionsNotifier.new);
 
+/// 直近の保存に失敗したときのメッセージ（成功すると null に戻る）
+final saveErrorProvider = StateProvider<String?>((ref) => null);
+
+/// 起動時の読み込みで起きた問題のうち、まだ閉じていないもの
+final loadWarningsProvider = StateProvider<List<String>>((ref) {
+  // 読み込みが終わってから取り出す（watch にすると対局が変わるたびに作り直されて、
+  // 閉じた警告がまた表示されてしまうので read にする）
+  ref.read(sessionsProvider);
+  return ref.read(sessionRepositoryProvider).loadWarnings;
+});
+
 /// IDから対局を取得
 final sessionProvider = Provider.family<GameSession?, String>((ref, id) {
   final sessions = ref.watch(sessionsProvider);
@@ -40,8 +51,14 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
   Future<void> _save(List<GameSession> value) async {
     try {
       await ref.read(sessionRepositoryProvider).saveAll(value);
+      if (ref.read(saveErrorProvider) != null) {
+        ref.read(saveErrorProvider.notifier).state = null;
+      }
     } catch (e, st) {
       debugPrint('対局データの保存に失敗しました: $e\n$st');
+      ref.read(saveErrorProvider.notifier).state =
+          '対局データを保存できませんでした。端末（ブラウザ）の保存容量がいっぱいの可能性があります。'
+          '不要な対局を削除してください。';
     }
   }
 

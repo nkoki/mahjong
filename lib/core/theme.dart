@@ -64,3 +64,10 @@ String formatPoint(double v) {
   final s = v.toStringAsFixed(1);
   return v > 0 ? '+$s' : s;
 }
+
+/// データサイズの表示（例: 523 → "523バイト", 51234 → "約51KB", 1234567 → "約1.2MB"）
+String formatBytes(int bytes) {
+  if (bytes < 1000) return '$bytesバイト';
+  if (bytes < 1000 * 1000) return '約${(bytes / 1000).round()}KB';
+  return '約${(bytes / 1000 / 1000).toStringAsFixed(1)}MB';
+}
