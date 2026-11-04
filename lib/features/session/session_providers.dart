@@ -1,10 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import 'data/session_repository.dart';
 import 'domain/models.dart';
 import 'domain/session_logic.dart';
 
-/// 全対局の一覧（インメモリ保存。アプリ終了で消える）
+/// 対局データの保存先。main() で端末保存の実装に差し替える。
+final sessionRepositoryProvider = Provider<SessionRepository>(
+  (ref) => InMemorySessionRepository(),
+);
+
+/// 全対局の一覧（変更のたびに端末へ自動保存）
 final sessionsProvider =
     NotifierProvider<SessionsNotifier, List<GameSession>>(SessionsNotifier.new);
 
@@ -21,7 +28,22 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
   var _counter = 0;
 
   @override
-  List<GameSession> build() => const [];
+  List<GameSession> build() => ref.read(sessionRepositoryProvider).loadAll();
+
+  /// 状態を更新して保存する
+  @override
+  set state(List<GameSession> value) {
+    super.state = value;
+    _save(value);
+  }
+
+  Future<void> _save(List<GameSession> value) async {
+    try {
+      await ref.read(sessionRepositoryProvider).saveAll(value);
+    } catch (e, st) {
+      debugPrint('対局データの保存に失敗しました: $e\n$st');
+    }
+  }
 
   /// 新規対局を作成してIDを返す
   String create(List<String> names, GameSettings settings) {

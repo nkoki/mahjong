@@ -12,6 +12,7 @@ dependencies:
   flutter_riverpod: ^2.5.1
   mahjong_score_engine:
     path: packages/mahjong_score_engine
+  shared_preferences: ^2.3.0
 
 dev_dependencies:
   flutter_test:

@@ -8,13 +8,17 @@
 
 ## 実行方法
 
+Flutter SDK のインストールと PATH の設定が必要です（`flutter --version` で確認できます）。
+PowerShell でも動くように、1行ずつ実行してください。
+
 ```bash
 git clone https://github.com/nkoki/mahjong.git
 cd mahjong
 flutter pub get
-flutter run            # 実機・エミュレータで起動
-flutter test           # アプリのテスト（対局進行ロジック・画面操作）
-cd packages/mahjong_score_engine && dart test   # 点数計算エンジンのテスト
+flutter run -d chrome   # Chrome で起動（スマホのエミュレータ・実機なら flutter run）
+flutter test            # アプリのテスト（対局進行・保存・画面操作）
+cd packages/mahjong_score_engine
+dart test               # 点数計算エンジンのテスト
 ```
 
 ## 機能
@@ -27,6 +31,7 @@ cd packages/mahjong_score_engine && dart test   # 点数計算エンジンのテ
 | 計算結果 | 役一覧と翻数、符の内訳、満貫などの名称、点数（例: 1300-2600 / 4000オール）、全員の点数移動（本場・供託込み） |
 | 流局入力 | 荒牌平局（ノーテン罰符）、流し満貫、九種九牌、四風連打、四家立直、四開槓、三家和 |
 | 戦績 | 対局一覧、最終順位とポイント（ウマ・オカ込み）、局ごとの点数増減表と内容 |
+| データ保存 | 対局データを端末に自動保存（アプリを閉じても残り、「続きから」再開できる。「元に戻す」も直近10回分まで保存） |
 | カメラ認識 | 設計のみ（`lib/features/camera/tile_recognizer.dart`。Qwen API 用の指示文と応答解析を用意、通信部分は未実装） |
 
 ## 採用しているルール
@@ -54,7 +59,8 @@ mahjong/
 │       ├── session/
 │       │   ├── domain/models.dart         対局・ルール・局の記録のデータ型
 │       │   ├── domain/session_logic.dart  点数移動・連荘・親流れ・終局の処理（UI非依存）
-│       │   ├── session_providers.dart     Riverpod の状態（インメモリ保存）
+│       │   ├── data/session_repository.dart 端末への保存・読み込み（shared_preferences）
+│       │   ├── session_providers.dart     Riverpod の状態（変更のたびに自動保存）
 │       │   └── screens/                   ホーム・新規対局・ダッシュボード
 │       ├── win/                       和了入力・鳴き入力ダイアログ・計算結果
 │       ├── draw/                      流局入力
@@ -72,6 +78,14 @@ mahjong/
 │           └── score_calculator.dart  入力チェック・高点法・点数と支払額の計算
 └── test/                              アプリのテスト
 ```
+
+## データの保存について
+
+- 保存には `shared_preferences` を使っています。保存場所は Android では SharedPreferences、iOS では NSUserDefaults、Web ではブラウザの localStorage です。
+- 対局の状態が変わるたび（立直・和了・流局・元に戻す・削除など）に、全対局を JSON（テキスト形式のデータ）にして自動で保存します。
+- 保存データにはバージョン番号を付けているので、将来データの形を変えるときに移行できます。
+- 保存データが壊れていて読み込めない場合は、アプリが落ちないよう空の状態で起動します。壊れたデータは消さずに別の名前（`mahjong_sessions_corrupt`）で残します。
+- アプリをアンインストールしたり、ブラウザのサイトデータを消したりすると、保存データも消えます。
 
 ## 点数計算エンジンの使い方
 
@@ -106,5 +120,4 @@ print(result); // 役・翻・符・点数
 
 - 3人打ち（3麻）対応
 - カメラによる手牌認識（Qwen API との通信部分）
-- データベースによる永続化（現在はメモリ上のみ。アプリを終了すると記録は消えます）
 - ダブロン（2人同時のロン和了）、包（パオ）、切り上げ満貫などのルール切り替え

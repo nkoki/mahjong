@@ -28,7 +28,29 @@ class GameSettings {
 
   /// オカ（トップ取り、千点単位）
   double get oka => (returnPoints - startingPoints) * 4 / 1000;
+
+  Map<String, dynamic> toJson() => {
+        'startingPoints': startingPoints,
+        'returnPoints': returnPoints,
+        'uma': uma,
+        'tonpuu': tonpuu,
+        'tobi': tobi,
+      };
+
+  factory GameSettings.fromJson(Map<String, dynamic> j) => GameSettings(
+        startingPoints: j['startingPoints'] as int,
+        returnPoints: j['returnPoints'] as int,
+        uma: _intList(j['uma']),
+        tonpuu: j['tonpuu'] as bool,
+        tobi: j['tobi'] as bool,
+      );
 }
+
+List<int> _intList(Object? v) =>
+    List<int>.unmodifiable((v as List).map((e) => e as int));
+
+List<bool> _boolList(Object? v) =>
+    List<bool>.unmodifiable((v as List).map((e) => e as bool));
 
 /// 流局の種類
 enum DrawType {
@@ -72,6 +94,22 @@ class RoundRecord {
     required this.deltas,
     required this.scoresAfter,
   });
+
+  Map<String, dynamic> toJson() => {
+        'roundLabel': roundLabel,
+        'kind': kind,
+        'description': description,
+        'deltas': deltas,
+        'scoresAfter': scoresAfter,
+      };
+
+  factory RoundRecord.fromJson(Map<String, dynamic> j) => RoundRecord(
+        roundLabel: j['roundLabel'] as String,
+        kind: j['kind'] as String,
+        description: j['description'] as String,
+        deltas: _intList(j['deltas']),
+        scoresAfter: _intList(j['scoresAfter']),
+      );
 }
 
 /// 最終結果（1人分）
@@ -159,6 +197,47 @@ class GameSession {
       finished: false,
     );
   }
+
+  /// 保存用の JSON に変換する。
+  ///
+  /// 「元に戻す」用の [previous] は直近 [undoDepth] 段までを含める
+  /// （古い履歴まで全部保存するとデータが大きくなるため）。
+  Map<String, dynamic> toJson({int undoDepth = 10}) => {
+        'id': id,
+        'createdAt': createdAt.toIso8601String(),
+        'playerNames': playerNames,
+        'settings': settings.toJson(),
+        'scores': scores,
+        'roundIndex': roundIndex,
+        'honba': honba,
+        'riichiSticks': riichiSticks,
+        'riichi': riichi,
+        'roundStartScores': roundStartScores,
+        'records': [for (final r in records) r.toJson()],
+        'finished': finished,
+        if (previous != null && undoDepth > 0)
+          'previous': previous!.toJson(undoDepth: undoDepth - 1),
+      };
+
+  factory GameSession.fromJson(Map<String, dynamic> j) => GameSession(
+        id: j['id'] as String,
+        createdAt: DateTime.parse(j['createdAt'] as String),
+        playerNames: List<String>.unmodifiable(
+            (j['playerNames'] as List).map((e) => e as String)),
+        settings: GameSettings.fromJson(j['settings'] as Map<String, dynamic>),
+        scores: _intList(j['scores']),
+        roundIndex: j['roundIndex'] as int,
+        honba: j['honba'] as int,
+        riichiSticks: j['riichiSticks'] as int,
+        riichi: _boolList(j['riichi']),
+        roundStartScores: _intList(j['roundStartScores']),
+        records: List<RoundRecord>.unmodifiable((j['records'] as List)
+            .map((e) => RoundRecord.fromJson(e as Map<String, dynamic>))),
+        finished: j['finished'] as bool,
+        previous: j['previous'] == null
+            ? null
+            : GameSession.fromJson(j['previous'] as Map<String, dynamic>),
+      );
 
   GameSession copyWith({
     List<int>? scores,

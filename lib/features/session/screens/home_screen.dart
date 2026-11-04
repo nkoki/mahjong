@@ -63,7 +63,7 @@ class HomeScreen extends ConsumerWidget {
           ],
           const SizedBox(height: 24),
           Text(
-            '※ データは端末のメモリ上にのみ保存されます（アプリを終了すると消えます）',
+            '※ 対局データはこの端末に自動で保存されます',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall,
           ),
