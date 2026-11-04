@@ -200,44 +200,111 @@ class GameSession {
 
   /// 保存用の JSON に変換する。
   ///
-  /// 「元に戻す」用の [previous] は直近 [undoDepth] 段までを含める
-  /// （古い履歴まで全部保存するとデータが大きくなるため）。
+  /// 「元に戻す」用の [previous] は直近 [undoDepth] 段までを含める。
+  /// 容量を抑えるため、[previous] には局ごとに変わる値だけを保存する:
+  /// - 局の記録は、今の記録の先頭部分と同じなので「何局目まで」([recordCount]) だけ
+  /// - 名前・ルール・作成日時は変わらないので保存しない（読み込み時に引き継ぐ）
   Map<String, dynamic> toJson({int undoDepth = 10}) => {
         'id': id,
         'createdAt': createdAt.toIso8601String(),
         'playerNames': playerNames,
         'settings': settings.toJson(),
+        'records': [for (final r in records) r.toJson()],
+        ..._stateJson(),
+        if (previous != null && undoDepth > 0)
+          'previous': previous!._snapshotJson(records, undoDepth - 1),
+      };
+
+  /// 局ごとに変わる値
+  Map<String, dynamic> _stateJson() => {
         'scores': scores,
         'roundIndex': roundIndex,
         'honba': honba,
         'riichiSticks': riichiSticks,
         'riichi': riichi,
         'roundStartScores': roundStartScores,
-        'records': [for (final r in records) r.toJson()],
         'finished': finished,
-        if (previous != null && undoDepth > 0)
-          'previous': previous!.toJson(undoDepth: undoDepth - 1),
       };
 
-  factory GameSession.fromJson(Map<String, dynamic> j) => GameSession(
-        id: j['id'] as String,
-        createdAt: DateTime.parse(j['createdAt'] as String),
-        playerNames: List<String>.unmodifiable(
-            (j['playerNames'] as List).map((e) => e as String)),
-        settings: GameSettings.fromJson(j['settings'] as Map<String, dynamic>),
-        scores: _intList(j['scores']),
-        roundIndex: j['roundIndex'] as int,
-        honba: j['honba'] as int,
-        riichiSticks: j['riichiSticks'] as int,
-        riichi: _boolList(j['riichi']),
-        roundStartScores: _intList(j['roundStartScores']),
-        records: List<RoundRecord>.unmodifiable((j['records'] as List)
-            .map((e) => RoundRecord.fromJson(e as Map<String, dynamic>))),
-        finished: j['finished'] as bool,
-        previous: j['previous'] == null
-            ? null
-            : GameSession.fromJson(j['previous'] as Map<String, dynamic>),
+  /// 「元に戻す」用のスナップショット。[newerRecords] は1つ新しい状態の記録。
+  Map<String, dynamic> _snapshotJson(List<RoundRecord> newerRecords, int undoDepth) {
+    final isPrefix = records.length <= newerRecords.length &&
+        Iterable<int>.generate(records.length)
+            .every((i) => identical(records[i], newerRecords[i]));
+    return {
+      ..._stateJson(),
+      // 通常は先頭部分なので件数だけ。そうでない場合（想定外）は記録を丸ごと保存する
+      if (isPrefix)
+        'recordCount': records.length
+      else
+        'records': [for (final r in records) r.toJson()],
+      if (previous != null && undoDepth > 0)
+        'previous': previous!._snapshotJson(records, undoDepth - 1),
+    };
+  }
+
+  factory GameSession.fromJson(Map<String, dynamic> j) {
+    final records = List<RoundRecord>.unmodifiable((j['records'] as List)
+        .map((e) => RoundRecord.fromJson(e as Map<String, dynamic>)));
+    return GameSession._fromStateJson(
+      j,
+      id: j['id'] as String,
+      createdAt: DateTime.parse(j['createdAt'] as String),
+      playerNames: List<String>.unmodifiable(
+          (j['playerNames'] as List).map((e) => e as String)),
+      settings: GameSettings.fromJson(j['settings'] as Map<String, dynamic>),
+      records: records,
+    );
+  }
+
+  /// [j] の局ごとの値と、親から引き継ぐ値から組み立てる
+  factory GameSession._fromStateJson(
+    Map<String, dynamic> j, {
+    required String id,
+    required DateTime createdAt,
+    required List<String> playerNames,
+    required GameSettings settings,
+    required List<RoundRecord> records,
+  }) {
+    GameSession? previous;
+    final p = j['previous'] as Map<String, dynamic>?;
+    if (p != null) {
+      List<RoundRecord> prevRecords;
+      if (p['recordCount'] != null) {
+        prevRecords = List<RoundRecord>.unmodifiable(
+            records.sublist(0, p['recordCount'] as int));
+      } else if (p['records'] != null) {
+        prevRecords = List<RoundRecord>.unmodifiable((p['records'] as List)
+            .map((e) => RoundRecord.fromJson(e as Map<String, dynamic>)));
+      } else {
+        throw const FormatException('元に戻す履歴に局の記録がありません');
+      }
+      previous = GameSession._fromStateJson(
+        p,
+        // 旧形式（version 1）は名前・ルールも入っているが、内容は同じなので親のものを使う
+        id: id,
+        createdAt: createdAt,
+        playerNames: playerNames,
+        settings: settings,
+        records: prevRecords,
       );
+    }
+    return GameSession(
+      id: id,
+      createdAt: createdAt,
+      playerNames: playerNames,
+      settings: settings,
+      scores: _intList(j['scores']),
+      roundIndex: j['roundIndex'] as int,
+      honba: j['honba'] as int,
+      riichiSticks: j['riichiSticks'] as int,
+      riichi: _boolList(j['riichi']),
+      roundStartScores: _intList(j['roundStartScores']),
+      records: records,
+      finished: j['finished'] as bool,
+      previous: previous,
+    );
+  }
 
   GameSession copyWith({
     List<int>? scores,

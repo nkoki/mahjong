@@ -59,6 +59,82 @@ void main() {
     expect(depth, 2);
   });
 
+  /// 100局分の記録がある対局（元に戻す履歴つき）
+  GameSession hundredRounds() {
+    var s = GameSession.start(
+        id: 'big',
+        playerNames: ['プレイヤー1', 'プレイヤー2', 'プレイヤー3', 'プレイヤー4'],
+        settings: const GameSettings(tobi: false));
+    for (var i = 0; i < 100; i++) {
+      final rec = RoundRecord(
+        roundLabel: '南4局 12本場',
+        kind: 'win',
+        description: 'プレイヤー2 ロン ← プレイヤー3 3翻 40符 5200  [立直 断么九 赤ドラ]',
+        deltas: const [0, 6200, -5200, -1000],
+        scoresAfter: [25000 + i, 31200, 19800, 24000],
+      );
+      s = s.copyWith(records: [...s.records, rec], previous: s, honba: i + 1);
+    }
+    return s;
+  }
+
+  test('100局＋元に戻す10回分でも約25KB程度に収まる', () {
+    final s = hundredRounds();
+    final full = utf8.encode(jsonEncode(s.toJson())).length;
+    final noUndo = utf8.encode(jsonEncode(s.toJson(undoDepth: 0))).length;
+    // 元に戻す履歴1回分は数百バイト程度
+    expect(full - noUndo, lessThan(10 * 400));
+    expect(full, lessThan(30000));
+  });
+
+  test('元に戻す履歴の記録・点数が正しく復元される', () {
+    final s = hundredRounds();
+    final restored = GameSession.fromJson(
+        jsonDecode(jsonEncode(s.toJson())) as Map<String, dynamic>);
+    var a = s, b = restored;
+    for (var i = 0; i < 10; i++) {
+      a = a.previous!;
+      b = b.previous!;
+      expect(b.records.length, a.records.length);
+      expect(b.honba, a.honba);
+      expect(b.playerNames, a.playerNames);
+      expect(b.records.last.scoresAfter, a.records.last.scoresAfter);
+    }
+    expect(b.previous, isNull); // 11段目以降は保存しない
+  });
+
+  test('以前の形式（version 1）のデータも読み込める', () async {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    final s = playedSession(c);
+    // version 1: 元に戻す履歴にも名前・ルール・記録を丸ごと保存していた
+    Map<String, dynamic> v1(GameSession x) => {
+          'id': x.id,
+          'createdAt': x.createdAt.toIso8601String(),
+          'playerNames': x.playerNames,
+          'settings': x.settings.toJson(),
+          'scores': x.scores,
+          'roundIndex': x.roundIndex,
+          'honba': x.honba,
+          'riichiSticks': x.riichiSticks,
+          'riichi': x.riichi,
+          'roundStartScores': x.roundStartScores,
+          'records': [for (final r in x.records) r.toJson()],
+          'finished': x.finished,
+          if (x.previous != null) 'previous': v1(x.previous!),
+        };
+    SharedPreferences.setMockInitialValues({
+      SharedPrefsSessionRepository.storageKey: jsonEncode({
+        'version': 1,
+        'sessions': [v1(s)],
+      }),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final loaded = SharedPrefsSessionRepository(prefs).loadAll();
+    expectSameSession(s, loaded.single);
+    expect(loaded.single.previous!.records.length, s.previous!.records.length);
+  });
+
   test('アプリを再起動しても対局が残っている', () async {
     final prefs = await SharedPreferences.getInstance();
     final c1 = ProviderContainer(overrides: [

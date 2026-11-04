@@ -30,7 +30,9 @@ class SharedPrefsSessionRepository implements SessionRepository {
   static const corruptKey = 'mahjong_sessions_corrupt';
 
   /// データ形式のバージョン（将来、形式を変えたときの移行用）
-  static const formatVersion = 1;
+  /// - 1: 元に戻す履歴に局の記録を丸ごと保存
+  /// - 2: 元に戻す履歴は局の記録の件数だけ保存（version 1 も読み込める）
+  static const formatVersion = 2;
 
   @override
   List<GameSession> loadAll() {
@@ -40,7 +42,8 @@ class SharedPrefsSessionRepository implements SessionRepository {
       final data = jsonDecode(raw) as Map<String, dynamic>;
       final version = data['version'] as int? ?? 0;
       if (version > formatVersion) {
-        // 新しいバージョンのアプリで保存されたデータは上書きしない
+        // 新しいバージョンのアプリで保存されたデータは読めないので、
+        // 下の catch で退避用のキーに残してから空で起動する
         throw FormatException('未対応のデータ形式です（version $version）');
       }
       return List<GameSession>.unmodifiable((data['sessions'] as List)
