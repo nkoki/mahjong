@@ -66,6 +66,7 @@ mahjong/
 │       ├── win/                       和了入力・鳴き入力ダイアログ・計算結果
 │       ├── draw/                      流局入力
 │       ├── history/                   戦績一覧・戦績詳細
+│       ├── storage/                   データの保存についての画面・保存状況の表示
 │       └── camera/                    カメラ認識のインターフェース（準備中）
 ├── packages/
 │   └── mahjong_score_engine/          点数計算エンジン（Flutter 非依存の Dart パッケージ）
