@@ -171,6 +171,13 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
               (v) => update((c) => c.copyWith(doubleRon: v))),
           sw('和了止め', 'オーラスで親が和了してトップのとき、連荘せずに対局を終了します', s.agariYame,
               (v) => update((c) => c.copyWith(agariYame: v))),
+          sw(
+              '西入（東風戦は南入）',
+              '最終局が終わって誰も返し点に届いていなければ、次の場（半荘戦は西場・東風戦は南場）に入ります。'
+                  '延長中は誰かが返し点に届いた局で終了し、届かなくても延長の4局目で終了します。'
+                  'ありのときの和了止めは、親が返し点に届いている場合だけです',
+              s.westRound,
+              (v) => update((c) => c.copyWith(westRound: v))),
           section('流局'),
           sw('流し満貫', '流局の種類に「流し満貫」を表示します', s.nagashiMangan,
               (v) => update((c) => c.copyWith(nagashiMangan: v))),

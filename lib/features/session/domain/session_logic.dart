@@ -250,14 +250,33 @@ class SessionLogic {
       previous: s,
     );
 
-    final busted = s.settings.tobi && scores.any((p) => p < 0);
-    final overLast = nextRound >= s.settings.totalRounds;
-    // オーラスで親が連荘してもトップなら和了止め（親がトップのとき終了）
-    final allLastDealerTop = s.settings.agariYame &&
+    final rules = s.settings;
+    final busted = rules.tobi && scores.any((p) => p < 0);
+    // 返し点に届いた人がいるか（西入するか・延長を終えるかの判定に使う）
+    final reached = scores.any((p) => p >= rules.returnPoints);
+    final total = rules.totalRounds;
+    // 西入ありなら延長の4局目まで
+    final maxRounds = rules.westRound ? total + 4 : total;
+
+    bool overLast;
+    if (s.roundIndex >= total) {
+      // 延長中: 誰かが返し点に届いたら終了（サドンデス）。延長の4局目が終わっても終了
+      overLast = reached || nextRound >= maxRounds;
+    } else if (nextRound >= total) {
+      // 最終局が終わった: 西入なしなら終了。西入ありなら、返し点に届いた人がいれば終了
+      overLast = !rules.westRound || reached;
+    } else {
+      overLast = false;
+    }
+
+    // オーラスで親が連荘してもトップなら和了止め（親がトップのとき終了）。
+    // 西入ありのときは、親が返し点に届いている場合だけ
+    final allLastDealerTop = rules.agariYame &&
         renchan &&
         s.isAllLast &&
         next.ranking.first == s.dealer &&
-        kind == 'win';
+        kind == 'win' &&
+        (!rules.westRound || scores[s.dealer] >= rules.returnPoints);
     if (busted || overLast || allLastDealerTop) {
       next = _settle(next.copyWith(roundIndex: s.roundIndex));
     }

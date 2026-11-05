@@ -42,6 +42,10 @@ class GameSettings {
   /// 和了止めあり（オーラスで親が和了してトップなら終局）
   final bool agariYame;
 
+  /// 西入あり（東風戦は南入）。最終局が終わって誰も返し点に届いていなければ次の場に入る。
+  /// 延長中は誰かが返し点に届いた局で終了（サドンデス）、届かなくても延長の4局目で終了
+  final bool westRound;
+
   /// 流し満貫あり
   final bool nagashiMangan;
 
@@ -64,13 +68,17 @@ class GameSettings {
     this.renpuuPairFu = 4,
     this.doubleRon = true,
     this.agariYame = true,
+    this.westRound = false,
     this.nagashiMangan = true,
     this.abortiveDraws = true,
     this.redDora = true,
   });
 
-  /// 総局数（東風4 / 半荘8）
+  /// 総局数（東風4 / 半荘8）。西入の延長は含まない
   int get totalRounds => tonpuu ? 4 : 8;
+
+  /// 延長の呼び方（半荘戦は西入、東風戦は南入）
+  String get extensionName => tonpuu ? '南入' : '西入';
 
   /// オカ（トップ取り、千点単位）
   double get oka => (returnPoints - startingPoints) * 4 / 1000;
@@ -96,6 +104,7 @@ class GameSettings {
         '連風牌の雀頭$renpuuPairFu符',
         doubleRon ? 'ダブロンあり' : 'ダブロンなし（頭ハネ）',
         '和了止め${agariYame ? "あり" : "なし"}',
+        '$extensionName${westRound ? "あり" : "なし"}',
         '流し満貫${nagashiMangan ? "あり" : "なし"}',
         '途中流局${abortiveDraws ? "あり" : "なし"}',
         '赤ドラ${redDora ? "あり" : "なし"}',
@@ -114,6 +123,7 @@ class GameSettings {
     int? renpuuPairFu,
     bool? doubleRon,
     bool? agariYame,
+    bool? westRound,
     bool? nagashiMangan,
     bool? abortiveDraws,
     bool? redDora,
@@ -131,6 +141,7 @@ class GameSettings {
         renpuuPairFu: renpuuPairFu ?? this.renpuuPairFu,
         doubleRon: doubleRon ?? this.doubleRon,
         agariYame: agariYame ?? this.agariYame,
+        westRound: westRound ?? this.westRound,
         nagashiMangan: nagashiMangan ?? this.nagashiMangan,
         abortiveDraws: abortiveDraws ?? this.abortiveDraws,
         redDora: redDora ?? this.redDora,
@@ -150,6 +161,7 @@ class GameSettings {
           'renpuuPairFu': renpuuPairFu,
           'doubleRon': doubleRon,
           'agariYame': agariYame,
+          'westRound': westRound,
           'nagashiMangan': nagashiMangan,
           'abortiveDraws': abortiveDraws,
           'redDora': redDora,
@@ -174,6 +186,7 @@ class GameSettings {
       renpuuPairFu: r['renpuuPairFu'] as int? ?? d.renpuuPairFu,
       doubleRon: r['doubleRon'] as bool? ?? d.doubleRon,
       agariYame: r['agariYame'] as bool? ?? d.agariYame,
+      westRound: r['westRound'] as bool? ?? d.westRound,
       nagashiMangan: r['nagashiMangan'] as bool? ?? d.nagashiMangan,
       abortiveDraws: r['abortiveDraws'] as bool? ?? d.abortiveDraws,
       redDora: r['redDora'] as bool? ?? d.redDora,
@@ -587,6 +600,9 @@ class GameSession {
 
   /// オーラスかどうか
   bool get isAllLast => roundIndex == settings.totalRounds - 1;
+
+  /// 西入（南入）の延長戦の局かどうか
+  bool get isExtraRound => roundIndex >= settings.totalRounds;
 
   /// 順位（同点は起家に近い方が上位）。返り値は player 番号の順位順リスト。
   List<int> get ranking => rankingOf(scores);

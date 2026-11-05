@@ -131,7 +131,8 @@ class _InfoBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
+    final rules = session.settings;
+    final bar = Container(
       width: double.infinity,
       color: theme.colorScheme.primaryContainer,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -139,11 +140,29 @@ class _InfoBar extends StatelessWidget {
         alignment: WrapAlignment.spaceBetween,
         spacing: 16,
         children: [
-          Text('${session.settings.tonpuu ? "東風戦" : "半荘戦"}  '
+          Text('${rules.tonpuu ? "東風戦" : "半荘戦"}  '
               '${session.records.length}局消化'),
           Text('本場 ${session.honba}  /  供託 ${session.riichiSticks}本'),
         ],
       ),
+    );
+    if (session.finished || !session.isExtraRound) return bar;
+    // 西入（南入）の延長戦中は、終わる条件を表示する
+    final lastName = '${GameSession.windNames[(rules.totalRounds ~/ 4) % 4]}4局';
+    return Column(
+      children: [
+        bar,
+        Container(
+          width: double.infinity,
+          color: theme.colorScheme.tertiaryContainer,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            '${rules.extensionName}（延長戦）中: 返し点 ${formatPoints(rules.returnPoints)}点に'
+            '届いた人が出た局で終了します（最長 $lastName まで）',
+            style: TextStyle(color: theme.colorScheme.onTertiaryContainer, fontSize: 13),
+          ),
+        ),
+      ],
     );
   }
 }
