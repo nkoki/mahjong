@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
 import '../../shared/widgets/tile_palette.dart';
 import '../../shared/widgets/tile_view.dart';
+import '../camera/camera_providers.dart';
+import '../camera/camera_settings_screen.dart';
 import '../camera/tile_recognizer.dart';
 import '../session/domain/models.dart';
 import '../session/domain/session_logic.dart';
@@ -209,6 +212,164 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     ));
   }
 
+  /// カメラ（写真）から手牌を読み取る
+  Future<void> _readFromCamera(GameSession s) async {
+    if (!ref.read(cameraSettingsProvider).isConfigured) {
+      final open = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('カメラ認識の設定が必要です'),
+          content: const Text('カメラで手牌を読み取るには、Qwen（アリババクラウドの AI）の API キーを設定してください。'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('設定を開く')),
+          ],
+        ),
+      );
+      if (open == true && mounted) {
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const CameraSettingsScreen()));
+      }
+      return;
+    }
+    if (!mounted) return;
+
+    final fromCamera = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text('手牌の写真'),
+              subtitle: Text('牌を横一列に並べ、全部の牌が大きくはっきり写るように撮ってください。'
+                  '和了牌は一番右に置くと、和了牌として入ります。'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('撮影する'),
+              onTap: () => Navigator.pop(ctx, true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('写真から選ぶ'),
+              onTap: () => Navigator.pop(ctx, false),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (fromCamera == null || !mounted) return;
+
+    final Uint8List? bytes;
+    try {
+      bytes = await ref.read(photoPickerProvider).pick(fromCamera: fromCamera);
+    } catch (e) {
+      _snack('写真を取得できませんでした: $e');
+      return;
+    }
+    if (bytes == null || !mounted) return;
+
+    // 読み取り中の表示
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Expanded(child: Text('牌を読み取っています…')),
+          ],
+        ),
+      ),
+    );
+    List<Tile>? tiles;
+    String? error;
+    try {
+      tiles = await ref.read(tileRecognizerProvider).recognize(bytes);
+    } on RecognitionException catch (e) {
+      error = e.message;
+    } catch (e) {
+      error = '読み取りに失敗しました: $e';
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(); // 読み取り中の表示を閉じる
+
+    if (error != null) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('読み取れませんでした'),
+          content: Text(error!),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ),
+      );
+      return;
+    }
+
+    final r = applyRecognition(tiles!,
+        needHand: _needHand, sanma: s.settings.isSanma, redDora: s.settings.redDora);
+    final fixedWin = widget.isAdditionalRon;
+    final apply = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          title: const Text('読み取り結果'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('読み取った牌（${tiles!.length}枚）', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                TileRow(tiles, tileWidth: 22),
+                const SizedBox(height: 12),
+                Text('手牌（${r.hand.length}/$_needHand枚）', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                TileRow(r.hand, tileWidth: 22),
+                if (r.winningTile != null && !fixedWin) ...[
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Text('和了牌: ', style: theme.textTheme.titleSmall),
+                    TileView(r.winningTile!, width: 22),
+                  ]),
+                ],
+                for (final n in [
+                  ...r.notes,
+                  if (fixedWin && r.winningTile != null) '和了牌は1人目と同じなので、読み取った和了牌は使いません',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text('・$n', style: theme.textTheme.bodySmall),
+                  ),
+                const SizedBox(height: 10),
+                Text('読み取りは間違えることがあります。入れたあとに、手牌をよく確認してください。',
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('手牌に入れる')),
+          ],
+        );
+      },
+    );
+    if (apply != true || !mounted) return;
+    setState(() {
+      _hand
+        ..clear()
+        ..addAll(r.hand);
+      if (r.winningTile != null && !fixedWin) _winTile = r.winningTile;
+      _target = _hand.length < _needHand
+          ? _Target.hand
+          : (_winTile == null ? _Target.win : _Target.dora);
+    });
+    _snack('読み取った牌を入れました。間違いがないか確認してください');
+  }
+
   void _snack(String msg) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -226,9 +387,9 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
         title: Text(widget.isAdditionalRon ? '2人目の和了入力' : '和了入力  ${s.roundLabel}'),
         actions: [
           IconButton(
-            tooltip: 'カメラで手牌を読み取る（準備中）',
+            tooltip: 'カメラで手牌を読み取る',
             icon: const Icon(Icons.photo_camera_outlined),
-            onPressed: () => _snack(TileRecognizer.notAvailableMessage),
+            onPressed: () => _readFromCamera(s),
           ),
         ],
       ),

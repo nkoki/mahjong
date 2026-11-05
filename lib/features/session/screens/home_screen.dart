@@ -5,6 +5,7 @@ import '../../../core/routes.dart';
 import '../../../core/theme.dart';
 import '../../history/history_list_screen.dart';
 import '../../backup/backup_screen.dart';
+import '../../camera/camera_settings_screen.dart';
 import '../../settings/rule_settings_screen.dart';
 import '../../storage/storage_info_screen.dart';
 import '../session_providers.dart';
@@ -27,6 +28,12 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('麻雀点数計算'),
         actions: [
+          IconButton(
+            tooltip: 'カメラ認識の設定',
+            icon: const Icon(Icons.photo_camera_outlined),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const CameraSettingsScreen())),
+          ),
           IconButton(
             tooltip: 'ルール設定',
             icon: const Icon(Icons.tune),

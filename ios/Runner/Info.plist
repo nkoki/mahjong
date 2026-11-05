@@ -6,6 +6,10 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>手牌を撮影して、牌を読み取るために使います。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>手牌の写真を選んで、牌を読み取るために使います。</string>
 	<key>CFBundleDisplayName</key>
 	<string>麻雀点数計算</string>
 	<key>CFBundleExecutable</key>

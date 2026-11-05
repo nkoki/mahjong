@@ -146,6 +146,9 @@ class StorageInfoScreen extends ConsumerWidget {
           item(Icons.undo, '「元に戻す」は、開き直すと直近10回まで',
               'アプリを使っている間は何回でも元に戻せますが、アプリを閉じて開き直したあとに'
               '元に戻せるのは、直近10回分の操作までです。'),
+          item(Icons.key_outlined, 'カメラ認識の API キーはバックアップに入りません',
+              'カメラ認識の設定（API キー）はこの端末の中にだけ保存され、バックアップには入りません。'
+              '機種変更したときは、新しい端末でもう一度入力してください。'),
           item(Icons.delete_outline, '削除した対局は元に戻せません',
               '戦績画面から対局を削除すると、その対局の記録は完全に消えます。', warn: true),
           item(Icons.healing_outlined, 'データが壊れていた場合',

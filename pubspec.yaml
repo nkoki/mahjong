@@ -11,6 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.5.1
+  http: ^1.2.0
+  image_picker: ^1.1.2
   mahjong_score_engine:
     path: packages/mahjong_score_engine
   shared_preferences: ^2.3.0

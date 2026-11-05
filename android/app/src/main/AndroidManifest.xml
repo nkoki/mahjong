@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- カメラ認識（Qwen API）との通信に必要 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="麻雀点数計算"
         android:name="${applicationName}"
