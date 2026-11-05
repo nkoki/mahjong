@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// バックアップファイルの保存・選択（テストでは差し替える）
 abstract class BackupFileService {
   /// ファイルに保存する。保存できたら true、利用者がキャンセルしたら false
-  Future<bool> save(String fileName, String content);
+  Future<bool> save(String fileName, String content, {String dialogTitle = 'バックアップの保存先'});
 
   /// ファイルを選んで中身を読み込む。キャンセルしたら null
   Future<String?> pick();
@@ -20,9 +20,9 @@ class FilePickerBackupFileService implements BackupFileService {
   const FilePickerBackupFileService();
 
   @override
-  Future<bool> save(String fileName, String content) async {
+  Future<bool> save(String fileName, String content, {String dialogTitle = 'バックアップの保存先'}) async {
     final path = await FilePicker.saveFile(
-      dialogTitle: 'バックアップの保存先',
+      dialogTitle: dialogTitle,
       fileName: fileName,
       bytes: Uint8List.fromList(utf8.encode(content)),
     );

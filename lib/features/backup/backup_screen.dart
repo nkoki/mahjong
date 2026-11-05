@@ -6,6 +6,7 @@ import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
 import 'backup_codec.dart';
 import 'backup_file_service.dart';
+import 'csv_export.dart';
 
 String formatDateTime(DateTime d) =>
     '${d.year}/${d.month}/${d.day} ${d.hour}:${d.minute.toString().padLeft(2, '0')}';
@@ -75,6 +76,23 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     await _recordBackup();
     _snack('${sessions.length}件の対局のバックアップをコピーしました。'
         'メモアプリなどに貼り付けて保存してください');
+  }
+
+  /// 戦績を CSV（表計算ソフト用）に書き出す。[kind] は 'games'（対局一覧）か 'rounds'（局ごとの記録）
+  Future<void> _exportCsv(String kind) async {
+    final sessions = ref.read(sessionsProvider);
+    final content = kind == 'games' ? CsvExport.games(sessions) : CsvExport.rounds(sessions);
+    setState(() => _busy = true);
+    try {
+      final ok = await ref.read(backupFileServiceProvider).save(
+          CsvExport.fileName(kind, DateTime.now()), content,
+          dialogTitle: 'CSV の保存先');
+      if (ok) _snack(kind == 'games' ? '${sessions.length}件の対局を CSV に書き出しました' : '局ごとの記録を CSV に書き出しました');
+    } catch (e) {
+      _snack('ファイルに保存できませんでした: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -237,6 +255,30 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               '・テキストをコピー: ファイルを扱いにくいときに。メモアプリや自分宛てのメッセージに貼り付けて保存します。\n'
               '・すべての対局（お気に入り、ルール、局の記録、「元に戻す」の履歴10回分）と、ルール設定画面の内容が入ります。'
               'プレイヤーの名前も入るので、他の人に渡すときは注意してください。',
+              style: theme.textTheme.bodySmall,
+            ),
+            section('表計算ソフト用に書き出す（CSV）'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.table_chart_outlined),
+                  label: const Text('対局一覧'),
+                  onPressed: sessions.isEmpty ? null : () => _exportCsv('games'),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.table_rows_outlined),
+                  label: const Text('局ごとの記録'),
+                  onPressed: sessions.isEmpty ? null : () => _exportCsv('rounds'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Excel や Google スプレッドシートで開ける形式です。対局一覧は1行に1対局（名前・点数・順位・ポイント）、'
+              '局ごとの記録は1行に1局（内容・点数の増減）です。'
+              'CSV はバックアップの代わりにはなりません（このアプリに読み込むことはできません）。',
               style: theme.textTheme.bodySmall,
             ),
             section('バックアップから読み込む'),

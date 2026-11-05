@@ -31,7 +31,7 @@ class FakeFileService implements BackupFileService {
   String? toPick;
 
   @override
-  Future<bool> save(String fileName, String content) async {
+  Future<bool> save(String fileName, String content, {String dialogTitle = ''}) async {
     savedName = fileName;
     saved = content;
     return true;
