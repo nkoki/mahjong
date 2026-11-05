@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme.dart';
 import '../../draw/draw_input_screen.dart';
 import '../../history/history_detail_screen.dart';
+import '../../history/result_text.dart';
 import '../../win/win_input_screen.dart';
 import '../domain/models.dart';
 import '../domain/session_logic.dart';
@@ -390,6 +391,12 @@ class _FinishedView extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 16),
+        FilledButton.tonalIcon(
+          icon: const Icon(Icons.copy_all_outlined),
+          label: const Text('結果をコピー（LINE などに貼り付け）'),
+          onPressed: () => ResultText.copy(context, session),
+        ),
+        const SizedBox(height: 8),
         OutlinedButton.icon(
           icon: const Icon(Icons.list_alt),
           label: const Text('局の履歴を見る'),
