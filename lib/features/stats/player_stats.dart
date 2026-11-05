@@ -22,6 +22,9 @@ class PlayerStats {
   /// 祝儀（チップ）の枚数の合計
   final int chips;
 
+  /// チョンボ（錯和）の回数
+  final int chombo;
+
   const PlayerStats({
     required this.name,
     required this.rankCounts,
@@ -32,6 +35,7 @@ class PlayerStats {
     required this.riichi,
     required this.winPointsTotal,
     this.chips = 0,
+    this.chombo = 0,
   });
 
   int get games => rankCounts.fold(0, (a, v) => a + v);
@@ -100,6 +104,11 @@ class PlayerStatsCalculator {
         a.chips += chips[r.player];
       }
       for (final rec in s.records) {
+        // チョンボの局はやり直すので、和了率などの局数には数えない（チョンボの回数だけ数える）
+        if (rec.kind == 'chombo') {
+          if (rec.loser != null) acc[s.playerNames[rec.loser!]]!.chombo++;
+          continue;
+        }
         if (!rec.hasPlayDetails) {
           noDetails++;
           continue;
@@ -130,6 +139,7 @@ class PlayerStatsCalculator {
           riichi: e.value.riichi,
           winPointsTotal: e.value.winPoints,
           chips: e.value.chips,
+          chombo: e.value.chombo,
         )
     ]..sort((a, b) {
         final c = b.totalPoints.compareTo(a.totalPoints);
@@ -146,6 +156,6 @@ class PlayerStatsCalculator {
 class _Acc {
   final List<int> ranks;
   double points = 0;
-  int rounds = 0, wins = 0, dealIns = 0, riichi = 0, winPoints = 0, chips = 0;
+  int rounds = 0, wins = 0, dealIns = 0, riichi = 0, winPoints = 0, chips = 0, chombo = 0;
   _Acc(int playerCount) : ranks = List.filled(playerCount, 0);
 }

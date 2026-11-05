@@ -327,6 +327,41 @@ class SessionLogic {
     );
   }
 
+  /// チョンボ（錯和）の罰符（満貫払い）。子は親に4000点・子に2000点ずつ、親は全員に4000点ずつ払う
+  static List<int> chomboDeltas(GameSession s, int player) {
+    final d = List<int>.filled(s.playerCount, 0);
+    final dealer = player == s.dealer;
+    for (var p = 0; p < s.playerCount; p++) {
+      if (p == player) continue;
+      final pay = (dealer || p == s.dealer) ? 4000 : 2000;
+      d[p] += pay;
+      d[player] -= pay;
+    }
+    return d;
+  }
+
+  /// チョンボ（錯和）を適用する。罰符を払い、同じ局・同じ本場をやり直す。
+  /// この局で出した立直棒は本人に戻す（前の局から持ち越した供託はそのまま）
+  static GameSession applyChombo(GameSession s, int player) {
+    if (s.finished) return s;
+    final penalty = chomboDeltas(s, player);
+    final riichiCount = s.riichi.where((r) => r).length;
+    final scores = [
+      for (var i = 0; i < s.playerCount; i++) s.scores[i] + penalty[i] + (s.riichi[i] ? 1000 : 0)
+    ];
+    return _finishRound(
+      s.copyWith(riichiSticks: s.riichiSticks - riichiCount),
+      scores: scores,
+      kind: 'chombo',
+      description: 'チョンボ ${s.playerNames[player]}（満貫払い）',
+      renchan: true,
+      nextHonba: s.honba,
+      clearSticks: false,
+      loser: player,
+      undoTo: s,
+    );
+  }
+
   /// 対局を途中で終了する
   static GameSession finishManually(GameSession s) {
     if (s.finished) return s;
@@ -345,6 +380,7 @@ class SessionLogic {
     int? loser,
     List<int>? winPoints,
     List<int>? chips,
+    GameSession? undoTo,
   }) {
     final record = RoundRecord(
       roundLabel: s.roundLabel,
@@ -367,7 +403,7 @@ class SessionLogic {
       riichi: List.filled(s.playerCount, false),
       roundStartScores: scores,
       records: [...s.records, record],
-      previous: s,
+      previous: undoTo ?? s,
     );
 
     final rules = s.settings;

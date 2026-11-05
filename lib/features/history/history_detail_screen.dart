@@ -174,9 +174,11 @@ class HistoryDetailScreen extends ConsumerWidget {
             Card(
               child: ListTile(
                 dense: true,
-                leading: Icon(s.records[i].kind == 'win'
-                    ? Icons.emoji_events
-                    : Icons.water_drop_outlined),
+                leading: Icon(switch (s.records[i].kind) {
+                  'win' => Icons.emoji_events,
+                  'chombo' => Icons.block,
+                  _ => Icons.water_drop_outlined,
+                }),
                 title: Text(
                     '${s.records[i].roundLabel}${s.records[i].edited ? "（修正済み）" : ""}'),
                 subtitle: Text(s.records[i].description),

@@ -212,6 +212,8 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
             wins: wins, loser: loser, description: description, chips: chips),
       );
 
+  void applyChombo(String id, int player) => _update(id, (s) => SessionLogic.applyChombo(s, player));
+
   void applyDraw(
     String id, {
     required DrawType type,

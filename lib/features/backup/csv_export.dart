@@ -73,7 +73,7 @@ class CsvExport {
           _date(s.createdAt),
           '${s.playerCount}人',
           r.roundLabel,
-          r.kind == 'win' ? '和了' : '流局',
+          switch (r.kind) { 'win' => '和了', 'chombo' => 'チョンボ', _ => '流局' },
           r.description,
           r.edited ? '修正済み' : '',
           for (var p = 0; p < 4; p++)

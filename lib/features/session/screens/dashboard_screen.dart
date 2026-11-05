@@ -6,6 +6,7 @@ import '../../draw/draw_input_screen.dart';
 import '../../history/history_detail_screen.dart';
 import '../../win/win_input_screen.dart';
 import '../domain/models.dart';
+import '../domain/session_logic.dart';
 import '../screen_awake.dart';
 import '../session_providers.dart';
 import 'table_view_screen.dart';
@@ -52,6 +53,9 @@ class DashboardScreen extends ConsumerWidget {
               } else if (v == 'table') {
                 Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => TableViewScreen(sessionId: sessionId)));
+              } else if (v == 'chombo') {
+                final p = await _chooseChombo(context, s);
+                if (p != null) notifier.applyChombo(sessionId, p);
               } else if (v == 'awake') {
                 ref.read(preferenceProvider(PreferenceKeys.keepScreenOn).notifier).set(awake ? '0' : '1');
               } else if (v == 'finish') {
@@ -62,6 +66,7 @@ class DashboardScreen extends ConsumerWidget {
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'history', child: Text('局の履歴')),
               const PopupMenuItem(value: 'table', child: Text('卓に置いて表示（全員の向きで点数を表示）')),
+              if (!s.finished) const PopupMenuItem(value: 'chombo', child: Text('チョンボ（錯和）を入力')),
               CheckedPopupMenuItem(value: 'awake', checked: awake, child: const Text('対局中は画面を消さない')),
               if (!s.finished)
                 const PopupMenuItem(value: 'finish', child: Text('対局を終了')),
@@ -120,6 +125,54 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// チョンボをした人を選ぶ（キャンセルなら null）
+Future<int?> _chooseChombo(BuildContext context, GameSession s) async {
+  int? selected;
+  return showDialog<int>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          title: const Text('チョンボ（錯和）'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('誤ロン・誤ツモ・ノーテン立直の流局などの罰符を入力します。満貫払いです'
+                    '（子は親に4,000点・子に2,000点ずつ、親は全員に4,000点ずつ）。'
+                    'この局は同じ本場でやり直し、この局で出した立直棒は本人に戻します。'),
+                const SizedBox(height: 12),
+                for (var p = 0; p < s.playerCount; p++)
+                  // RadioListTile は Flutter の版によって書き方が違うので、選んだ印を付けた行にする
+                  ListTile(
+                    key: ValueKey('chombo-$p'),
+                    contentPadding: EdgeInsets.zero,
+                    selected: selected == p,
+                    leading: Icon(selected == p ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                    onTap: () => setState(() => selected = p),
+                    title: Text('${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}'),
+                    subtitle: Text(
+                        '${formatPoints(SessionLogic.chomboDeltas(s, p)[p].abs())}点を払う',
+                        style: theme.textTheme.bodySmall),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+            FilledButton(
+              onPressed: selected == null ? null : () => Navigator.pop(ctx, selected),
+              child: const Text('罰符を払って局をやり直す'),
+            ),
+          ],
+        );
+      },
+    ),
+  );
 }
 
 Future<bool> _confirm(BuildContext context, String message) async {

@@ -143,6 +143,7 @@ class _PlayerCard extends StatelessWidget {
                 _Stat('立直率', _percent(s.riichiRate)),
                 _Stat('平均打点', s.averageWinPoints == null ? '－' : formatPoints(s.averageWinPoints!.round())),
                 if (showChips) _Stat('祝儀', '${s.chips > 0 ? '+' : ''}${s.chips}枚'),
+                if (s.chombo > 0) _Stat('チョンボ', '${s.chombo}回'),
               ],
             ),
             const SizedBox(height: 6),
