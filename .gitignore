@@ -9,3 +9,4 @@ pubspec.lock
 
 # Python
 __pycache__/
+test/golden/failures/
