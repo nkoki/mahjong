@@ -87,8 +87,13 @@ def fetch(ds, out: Path, key: str):
 
     dest = out / ds["key"]
     dest.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(link, timeout=600) as r:
-        data = r.read()
+    try:
+        with urllib.request.urlopen(link, timeout=600) as r:
+            data = r.read()
+    except OSError as e:
+        host = urllib.parse.urlparse(link).netloc
+        raise SystemExit(f"{ds['display_name']}: 書き出したファイルを {host} から取得できませんでした（{e}）。"
+                         f"ネットワークの設定で {host} への接続が許可されているか確かめてください")
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         for m in z.infolist():
             p = Path(m.filename)

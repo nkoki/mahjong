@@ -18,6 +18,10 @@ import cv2
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
+import sys  # noqa: E402
+
+# python -I で動かしても同じフォルダの classes.py を読めるようにする
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classes import CLASSES, FLUFFY_FILES
 
 # 牌の背の色（黄・青・緑・橙・赤・黒・灰）

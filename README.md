@@ -50,7 +50,7 @@ dart test               # 点数計算エンジンのテスト
 | バックアップ | 全対局とルール設定を1つのファイル（JSON）に書き出して保存し、あとで読み込める（機種変更・データ消失への備え）。ルール設定を読み込むかは、読み込むときに選べる（ルール設定の入っていない以前のバックアップは対局だけ読み込む）。ファイルを扱いにくいときはテキストでコピー・貼り付けもできる。読み込み時は「今のデータに追加」か「すべて置き換え」を選ぶ。最後にバックアップした日時をホーム画面に表示し、未実施・30日以上前なら注意を表示 |
 | 保存のお知らせ | ホーム画面に保存状況（対局数・容量、Web 版は上限に対する使用率）を表示。「データの保存について」画面で注意点を説明。保存の失敗・壊れたデータ・容量の上限が近いときは画面でお知らせ |
 | カメラ認識 | 和了入力画面のカメラボタンから、手牌を撮影（または写真を選択）して読み取り、手牌と和了牌に入れる。読み取りはアプリに入っている牌の認識モデル（TensorFlow Lite）で **端末の中で** 行い、写真はどこにも送らない・料金もかからない（API キーも不要）。読み取り結果は確認画面で見てから入れる。**Android・iOS のアプリ版だけ**で使え、Web 版ではカメラボタンを出さない |
-| ライセンス | ホーム画面右上の書類アイコンから「ライセンス・データの出典」画面を開ける。認識モデルの学習データ（CC BY 4.0 のデータセットなど）の出典と、アプリで使っているソフトウェアのライセンスを表示 |
+| ライセンス | ホーム画面右上の書類アイコンから「ライセンス・データの出典」画面を開ける。認識モデルの学習データ・作成に使った道具の出典と、アプリで使っているソフトウェアのライセンスを表示 |
 
 ## 3人打ちのルール
 
@@ -184,7 +184,7 @@ print(result); // 役・翻・符・点数
 | 学習の道具: MediaPipe Model Maker（TensorFlow 2.15） | Apache-2.0 |
 | もとにした学習済みモデル: TensorFlow Model Garden の MobileNet SSD | Apache-2.0 |
 | 合成データの材料: [FluffyStuff/riichi-mahjong-tiles](https://github.com/FluffyStuff/riichi-mahjong-tiles) の牌画像 | CC0 1.0 |
-| 実写データ: Roboflow Universe の2つのデータセット（下の「データの出典」） | CC BY 4.0 |
+| 実写データ（任意）: Roboflow Universe の CC BY 4.0 のデータセット（`datasets.json`）。今のモデルには使っていません（下の「現在の状態」） | CC BY 4.0 |
 | アプリでの実行: tflite_flutter | Apache-2.0 |
 
 Python 3.11 を使います。Roboflow の API キーは環境変数 `ROBOFLOW_API_KEY` に入れておきます（ファイルには書きません）。
@@ -218,6 +218,4 @@ cp out/tile_detector.tflite out/tile_anchors.bin out/tile_labels.txt ../../asset
 牌の認識モデルは、次のデータを使って学習させています（アプリ内の「ライセンス・データの出典」画面にも載せています）。
 画像そのものはアプリやこのリポジトリに含めていません。
 
-- **Riichi Mahjong (HUST)** — 作成者: HUST（Roboflow Universe）、出典: https://universe.roboflow.com/hust-xq5rx 、ライセンス: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。変更: クラス名をこのアプリの牌の表記に変換し、ほかのデータと合わせて学習に使用
-- **Riichi Mahjong Detection** — 作成者: riichimahjongdetection（Roboflow Universe）、出典: https://universe.roboflow.com/riichimahjongdetection/riichi-mahjong-detection 、ライセンス: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。変更: 同上
 - **riichi-mahjong-tiles** — 作成者: FluffyStuff、出典: https://github.com/FluffyStuff/riichi-mahjong-tiles 、ライセンス: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)。牌の画像を組み合わせて学習用の合成写真を作成

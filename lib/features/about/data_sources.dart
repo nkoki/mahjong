@@ -30,28 +30,11 @@ class DataSource {
       ].join('\n');
 }
 
-const _ccBy4 = 'https://creativecommons.org/licenses/by/4.0/';
-const _changes = 'クラス名をこのアプリの牌の表記に変換し、ほかのデータと合わせて牌の認識モデルの学習に使いました。'
-    '画像そのものはアプリに含めていません。';
-
 /// 学習データ
+///
+/// Roboflow Universe の CC BY 4.0 のデータセットを使って学習し直したときは、ここに
+/// 作品名・作成者・出典 URL・ライセンス・変更内容を追加する（tools/tile_model/ の attribution.json を参照）。
 const trainingDataSources = [
-  DataSource(
-    title: 'Riichi Mahjong (HUST)',
-    author: 'HUST（Roboflow Universe）',
-    url: 'https://universe.roboflow.com/hust-xq5rx',
-    license: 'CC BY 4.0',
-    licenseUrl: _ccBy4,
-    changes: _changes,
-  ),
-  DataSource(
-    title: 'Riichi Mahjong Detection',
-    author: 'riichimahjongdetection（Roboflow Universe）',
-    url: 'https://universe.roboflow.com/riichimahjongdetection/riichi-mahjong-detection',
-    license: 'CC BY 4.0',
-    licenseUrl: _ccBy4,
-    changes: _changes,
-  ),
   DataSource(
     title: 'riichi-mahjong-tiles',
     author: 'FluffyStuff',

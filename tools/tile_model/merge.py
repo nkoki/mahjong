@@ -17,6 +17,10 @@ import json
 import shutil
 from pathlib import Path
 
+import sys  # noqa: E402
+
+# python -I で動かしても同じフォルダの classes.py を読めるようにする
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classes import CLASSES, normalize_label
 
 
