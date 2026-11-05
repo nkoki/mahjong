@@ -252,5 +252,12 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
     return added;
   }
 
+  /// すべての対局でプレイヤーの名前を変える（まとめる）。変えた対局数と、変えられなかった対局数を返す
+  ({int renamed, int skipped}) renamePlayer(String from, String to) {
+    final r = SessionLogic.renamePlayer(state, from, to);
+    if (r.renamed > 0) state = r.sessions;
+    return (renamed: r.renamed, skipped: r.skipped);
+  }
+
   void delete(String id) => state = state.where((s) => s.id != id).toList();
 }

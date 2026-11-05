@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
 import 'player_stats.dart';
 
@@ -73,7 +74,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           Text(
             '終局した対局（${summary.games}対局）を集計しています。対局中の対局は含みません。'
             '名前が同じなら同じ人として集計します。保存している対局（最新100対局まで）が対象なので、'
-            '自動で削除された古い対局は含みません。',
+            '自動で削除された古い対局は含みません。'
+            '名前の横の ✎ から、名前の変更や、表記ゆれの名前をまとめることができます。',
             style: small,
           ),
           if (summary.roundsWithoutDetails > 0)
@@ -92,9 +94,109 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               child: Text('この条件で終局した対局はまだありません', textAlign: TextAlign.center),
             ),
           for (var i = 0; i < summary.players.length; i++)
-            _PlayerCard(rank: i + 1, stats: summary.players[i], showChips: summary.hasChips),
+            _PlayerCard(
+              rank: i + 1,
+              stats: summary.players[i],
+              showChips: summary.hasChips,
+              onRename: () => _rename(summary.players[i].name),
+            ),
         ],
       ),
+    );
+  }
+}
+
+extension on _StatsScreenState {
+  Future<void> _rename(String from) async {
+    final names = {for (final s in ref.read(sessionsProvider)) ...s.playerNames}.toList()..sort();
+    final to = await showDialog<String>(context: context, builder: (_) => _RenameDialog(from: from, names: names));
+    if (to == null || !mounted) return;
+    final r = ref.read(sessionsProvider.notifier).renamePlayer(from, to);
+    final merged = names.contains(to.trim());
+    final msg = StringBuffer('${r.renamed}対局で「$from」を「${to.trim()}」${merged ? "にまとめました" : "に変えました"}');
+    if (r.skipped > 0) msg.write('（「$from」と「${to.trim()}」が一緒に打った${r.skipped}対局は、別の人なので変えていません）');
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(msg.toString())));
+  }
+}
+
+/// 名前を変える（まとめる）ダイアログ。新しい名前を返す
+class _RenameDialog extends StatefulWidget {
+  final String from;
+  final List<String> names;
+  const _RenameDialog({required this.from, required this.names});
+
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  late final _controller = TextEditingController(text: widget.from);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final to = _controller.text.trim();
+    final error = SessionLogic.validateRename(widget.from, to);
+    final merge = error == null && widget.names.contains(to);
+    final others = widget.names.where((n) => n != widget.from).toList();
+    return AlertDialog(
+      title: Text('「${widget.from}」の名前を変える'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              key: const ValueKey('rename-field'),
+              controller: _controller,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: '新しい名前', border: OutlineInputBorder()),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              merge
+                  ? '「$to」はほかの対局にいるので、同じ人としてまとめます。'
+                  : '保存しているすべての対局（4人打ち・3人打ち、対局中も含む）で名前を変えます。',
+              style: theme.textTheme.bodySmall?.copyWith(color: merge ? theme.colorScheme.primary : null),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '同じ対局に両方の名前がいる対局は、別の人なので変えません。局の内容のメモに書かれた名前は変わりません。'
+              'バックアップから読み込んだ古い対局には反映されないので、必要ならもう一度変えてください。',
+              style: theme.textTheme.bodySmall,
+            ),
+            if (others.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('ほかの名前にまとめる', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final n in others)
+                    ActionChip(label: Text(n), onPressed: () => setState(() => _controller.text = n)),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        FilledButton(
+          onPressed: error == null ? () => Navigator.pop(context, to) : null,
+          child: Text(merge ? 'まとめる' : '変更'),
+        ),
+      ],
     );
   }
 }
@@ -105,8 +207,9 @@ class _PlayerCard extends StatelessWidget {
   final int rank;
   final PlayerStats stats;
   final bool showChips;
+  final VoidCallback? onRename;
 
-  const _PlayerCard({required this.rank, required this.stats, this.showChips = false});
+  const _PlayerCard({required this.rank, required this.stats, this.showChips = false, this.onRename});
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +226,17 @@ class _PlayerCard extends StatelessWidget {
               children: [
                 CircleAvatar(radius: 14, child: Text('$rank', style: const TextStyle(fontSize: 13))),
                 const SizedBox(width: 8),
-                Expanded(child: Text(s.name, style: theme.textTheme.titleMedium)),
+                Flexible(child: Text(s.name, style: theme.textTheme.titleMedium)),
+                if (onRename != null)
+                  IconButton(
+                    key: ValueKey('rename-${s.name}'),
+                    tooltip: '名前を変える・まとめる',
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: onRename,
+                  ),
+                const Spacer(),
                 Text(formatPoint(s.totalPoints),
                     style: theme.textTheme.titleMedium?.copyWith(color: pointColor, fontWeight: FontWeight.bold)),
               ],

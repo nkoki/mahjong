@@ -550,7 +550,7 @@ class SessionLogic {
 
   /// 元に戻す（お気に入り・ウマは対局の進行とは別に変えられるので、今の設定を残す）
   static GameSession undo(GameSession s) =>
-      s.previous?.copyWith(favorite: s.favorite, settings: s.settings) ?? s;
+      s.previous?.copyWith(favorite: s.favorite, settings: s.settings, playerNames: s.playerNames) ?? s;
 
   /// ウマの変更（最終ポイントは表示のたびに計算するので、ウマを変えるだけで反映される）
   static GameSession updateUma(GameSession s, List<int> uma) =>
@@ -602,6 +602,43 @@ class SessionLogic {
       return '同じ名前の人がいます。個人成績を正しく集計できるように、別の名前にしてください';
     }
     return null;
+  }
+
+  /// 名前の変更の確認（問題なければ null）
+  static String? validateRename(String from, String to) {
+    final t = to.trim();
+    if (t.isEmpty) return '名前を入力してください';
+    if (t == from) return '今と同じ名前です';
+    return null;
+  }
+
+  /// すべての対局で、プレイヤーの名前 [from] を [to] に変える（[to] が既にあれば、同じ人としてまとめる）。
+  ///
+  /// 同じ対局に [from] と [to] の両方がいる対局は、別の人なので変えない（skipped に数える）。
+  /// 変えない対局は同じオブジェクトのまま返す（保存処理は同じオブジェクトかどうかで変更を判定している）。
+  /// 局の内容のメモに書かれた名前は変えない。
+  static ({List<GameSession> sessions, int renamed, int skipped}) renamePlayer(
+      List<GameSession> sessions, String from, String to) {
+    final error = validateRename(from, to);
+    if (error != null) throw ArgumentError(error);
+    final t = to.trim();
+    var renamed = 0, skipped = 0;
+    final out = [
+      for (final s in sessions)
+        if (!s.playerNames.contains(from))
+          s
+        else if (s.playerNames.contains(t))
+          () {
+            skipped++;
+            return s;
+          }()
+        else
+          () {
+            renamed++;
+            return s.copyWith(playerNames: List.unmodifiable([for (final n in s.playerNames) n == from ? t : n]));
+          }(),
+    ];
+    return (sessions: out, renamed: renamed, skipped: skipped);
   }
 
   /// 自動で削除してよい対局か（お気に入りでも対局中でもない）

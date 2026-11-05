@@ -718,6 +718,7 @@ class GameSession {
   }
 
   GameSession copyWith({
+    List<String>? playerNames,
     GameSettings? settings,
     List<int>? scores,
     int? roundIndex,
@@ -735,7 +736,7 @@ class GameSession {
     return GameSession(
       id: id,
       createdAt: createdAt,
-      playerNames: playerNames,
+      playerNames: playerNames ?? this.playerNames,
       settings: settings ?? this.settings,
       scores: scores ?? this.scores,
       roundIndex: roundIndex ?? this.roundIndex,
