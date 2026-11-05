@@ -6,6 +6,7 @@ import '../session/domain/models.dart';
 import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
 import '../storage/storage_info_screen.dart';
+import '../stats/stats_screen.dart';
 import 'history_detail_screen.dart';
 
 /// 戦績一覧
@@ -37,6 +38,12 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
       appBar: AppBar(
         title: const Text('戦績'),
         actions: [
+          IconButton(
+            tooltip: '個人成績',
+            icon: const Icon(Icons.leaderboard_outlined),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const StatsScreen())),
+          ),
           IconButton(
             tooltip: 'データの保存について',
             icon: const Icon(Icons.info_outline),

@@ -67,6 +67,9 @@ class SessionLogic {
       renchan: dealerWon,
       nextHonba: dealerWon ? s.honba + 1 : 0,
       clearSticks: true,
+      winners: [winner],
+      loser: loser,
+      winPoints: [result.totalScore],
     );
   }
 
@@ -214,6 +217,9 @@ class SessionLogic {
       renchan: dealerWon,
       nextHonba: dealerWon ? s.honba + 1 : 0,
       clearSticks: true,
+      winners: [for (final w in wins) w.winner],
+      loser: loser,
+      winPoints: [for (final w in wins) w.result.totalScore],
     );
   }
 
@@ -297,6 +303,9 @@ class SessionLogic {
     required bool renchan,
     required int nextHonba,
     required bool clearSticks,
+    List<int> winners = const [],
+    int? loser,
+    List<int>? winPoints,
   }) {
     final record = RoundRecord(
       roundLabel: s.roundLabel,
@@ -304,6 +313,10 @@ class SessionLogic {
       description: description,
       deltas: [for (var i = 0; i < s.playerCount; i++) scores[i] - s.roundStartScores[i]],
       scoresAfter: scores,
+      winners: List.unmodifiable(winners),
+      loser: loser,
+      riichi: List.unmodifiable([for (var i = 0; i < s.playerCount; i++) if (s.riichi[i]) i]),
+      winPoints: List.unmodifiable(winPoints ?? const <int>[]),
     );
     final nextRound = renchan ? s.roundIndex : s.roundIndex + 1;
     var next = s.copyWith(

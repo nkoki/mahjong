@@ -383,6 +383,19 @@ class RoundRecord {
   /// あとから修正した局かどうか
   final bool edited;
 
+  /// 和了者（流局なら空）。個人成績（和了率など）の集計に使う。
+  /// 保存データの version 3 以前に記録した局には無い（null）
+  final List<int>? winners;
+
+  /// 放銃者（ツモ・流局なら null）
+  final int? loser;
+
+  /// この局で立直した人（version 3 以前に記録した局は null）
+  final List<int>? riichi;
+
+  /// 和了者ごとの和了点（本場・供託を含まない。[winners] と同じ順）
+  final List<int>? winPoints;
+
   const RoundRecord({
     required this.roundLabel,
     required this.kind,
@@ -390,7 +403,14 @@ class RoundRecord {
     required this.deltas,
     required this.scoresAfter,
     this.edited = false,
+    this.winners,
+    this.loser,
+    this.riichi,
+    this.winPoints,
   });
+
+  /// 和了者・放銃者・立直の記録がある局か（version 4 以降に記録した局）
+  bool get hasPlayDetails => winners != null && riichi != null;
 
   RoundRecord copyWith({
     String? description,
@@ -405,6 +425,10 @@ class RoundRecord {
         deltas: deltas ?? this.deltas,
         scoresAfter: scoresAfter ?? this.scoresAfter,
         edited: edited ?? this.edited,
+        winners: winners,
+        loser: loser,
+        riichi: riichi,
+        winPoints: winPoints,
       );
 
   Map<String, dynamic> toJson() => {
@@ -415,6 +439,10 @@ class RoundRecord {
         'scoresAfter': scoresAfter,
         // 修正していない局（ほとんど）は保存しない。古いデータにも無いので、無ければ false
         if (edited) 'edited': true,
+        if (winners != null) 'winners': winners,
+        if (loser != null) 'loser': loser,
+        if (riichi != null) 'riichi': riichi,
+        if (winPoints != null) 'winPoints': winPoints,
       };
 
   factory RoundRecord.fromJson(Map<String, dynamic> j) => RoundRecord(
@@ -424,6 +452,11 @@ class RoundRecord {
         deltas: _intList(j['deltas']),
         scoresAfter: _intList(j['scoresAfter']),
         edited: j['edited'] as bool? ?? false,
+        // version 3 以前のデータには無い
+        winners: j['winners'] == null ? null : _intList(j['winners']),
+        loser: j['loser'] as int?,
+        riichi: j['riichi'] == null ? null : _intList(j['riichi']),
+        winPoints: j['winPoints'] == null ? null : _intList(j['winPoints']),
       );
 }
 

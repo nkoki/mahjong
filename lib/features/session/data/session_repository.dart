@@ -81,7 +81,9 @@ class SharedPrefsSessionRepository implements SessionRepository {
   /// - 1: 全対局を1つのキーに保存。元に戻す履歴に局の記録を丸ごと保存
   /// - 2: 全対局を1つのキーに保存。元に戻す履歴は局の記録の件数だけ保存
   /// - 3: 対局ごとに別のキーに保存（version 1・2 のデータは起動時に自動で移行）
-  static const formatVersion = 3;
+  /// - 4: 局の記録に和了者・放銃者・立直した人・和了点を追加（個人成績の集計用）。
+  ///      version 3 のデータはそのまま読める（その局は個人成績の和了率などに含めない）
+  static const formatVersion = 4;
 
   static String sessionKey(String id) => '$sessionKeyPrefix$id';
 

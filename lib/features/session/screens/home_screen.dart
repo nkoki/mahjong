@@ -5,6 +5,7 @@ import '../../../core/routes.dart';
 import '../../../core/theme.dart';
 import '../../about/license_screen.dart';
 import '../../history/history_list_screen.dart';
+import '../../stats/stats_screen.dart';
 import '../../backup/backup_screen.dart';
 import '../../settings/rule_settings_screen.dart';
 import '../../storage/storage_info_screen.dart';
@@ -86,6 +87,15 @@ class HomeScreen extends ConsumerWidget {
             label: const Text('戦績'),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const HistoryListScreen()),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+            icon: const Icon(Icons.leaderboard_outlined),
+            label: const Text('個人成績'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const StatsScreen()),
             ),
           ),
           if (ongoing.isNotEmpty) ...[
