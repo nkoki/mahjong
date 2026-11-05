@@ -182,18 +182,26 @@ void main() {
       await tester.tap(find.byTooltip('ライセンス・データの出典'));
       await tester.pumpAndSettle();
       expect(find.byType(LicenseScreen), findsOneWidget);
+      expect(find.text('Riichi Mahjong（バージョン 8）'), findsOneWidget);
+      expect(find.text('Riichi Mahjong Detection（バージョン 3）'), findsOneWidget);
+      expect(find.text('ライセンス: CC BY 4.0'), findsNWidgets(2));
+      expect(find.text('出典: https://universe.roboflow.com/hust-xq5rx/riichi-mahjong'), findsOneWidget);
       expect(find.text('riichi-mahjong-tiles'), findsOneWidget);
       expect(find.text('ライセンス: CC0 1.0（パブリックドメイン）'), findsOneWidget);
       expect(find.text('MediaPipe Model Maker'), findsOneWidget);
-      // 今のモデルは Roboflow のデータを使っていないので載せない
-      expect(find.textContaining('Roboflow'), findsNothing);
     });
 
     test('標準のライセンス画面用の文にも出典が入る', () {
-      final text = trainingDataSources.first.licenseText;
-      expect(text, contains('CC0 1.0'));
-      expect(text, contains('https://github.com/FluffyStuff/riichi-mahjong-tiles'));
-      expect(text, contains('変更: '));
+      for (final s in trainingDataSources.where((s) => s.license == 'CC BY 4.0')) {
+        // CC BY の表記: 作品名・作成者・出典・ライセンスとそのリンク・変更内容
+        final text = s.licenseText;
+        expect(text, contains(s.title));
+        expect(text, contains('作成者: '));
+        expect(text, contains('出典: https://universe.roboflow.com/'));
+        expect(text, contains('ライセンス: CC BY 4.0（https://creativecommons.org/licenses/by/4.0/）'));
+        expect(text, contains('変更: '));
+      }
+      expect(trainingDataSources.where((s) => s.license == 'CC BY 4.0'), hasLength(2));
     });
   });
 

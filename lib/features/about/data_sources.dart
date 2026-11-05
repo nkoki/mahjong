@@ -30,11 +30,28 @@ class DataSource {
       ].join('\n');
 }
 
-/// 学習データ
-///
-/// Roboflow Universe の CC BY 4.0 のデータセットを使って学習し直したときは、ここに
-/// 作品名・作成者・出典 URL・ライセンス・変更内容を追加する（tools/tile_model/ の attribution.json を参照）。
+const _ccBy4 = 'https://creativecommons.org/licenses/by/4.0/';
+
+/// 学習データ（Roboflow のものは tools/tile_model/fetch_roboflow.py が書いた attribution.json に合わせる）
 const trainingDataSources = [
+  DataSource(
+    title: 'Riichi Mahjong（バージョン 8）',
+    author: 'HUST（Roboflow Universe）',
+    url: 'https://universe.roboflow.com/hust-xq5rx/riichi-mahjong',
+    license: 'CC BY 4.0',
+    licenseUrl: _ccBy4,
+    changes: 'クラス名をこのアプリの牌の表記に変換しました（赤5のクラスが無いため、5萬・5筒・5索は普通の5として扱いました）。'
+        'ほかのデータと合わせて牌の認識モデルの学習・確認に使いました。画像そのものはアプリに含めていません。',
+  ),
+  DataSource(
+    title: 'Riichi Mahjong Detection（バージョン 3）',
+    author: 'riichimahjongdetection（Roboflow Universe）',
+    url: 'https://universe.roboflow.com/riichimahjongdetection/riichi-mahjong-detection',
+    license: 'CC BY 4.0',
+    licenseUrl: _ccBy4,
+    changes: 'クラス名をこのアプリの牌の表記に変換し（0m・0p・0s は赤5）、牌の裏（0z）のラベルを外しました。'
+        'ほかのデータと合わせて牌の認識モデルの学習・確認に使いました。画像そのものはアプリに含めていません。',
+  ),
   DataSource(
     title: 'riichi-mahjong-tiles',
     author: 'FluffyStuff',

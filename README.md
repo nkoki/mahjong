@@ -50,7 +50,7 @@ dart test               # 点数計算エンジンのテスト
 | バックアップ | 全対局とルール設定を1つのファイル（JSON）に書き出して保存し、あとで読み込める（機種変更・データ消失への備え）。ルール設定を読み込むかは、読み込むときに選べる（ルール設定の入っていない以前のバックアップは対局だけ読み込む）。ファイルを扱いにくいときはテキストでコピー・貼り付けもできる。読み込み時は「今のデータに追加」か「すべて置き換え」を選ぶ。最後にバックアップした日時をホーム画面に表示し、未実施・30日以上前なら注意を表示 |
 | 保存のお知らせ | ホーム画面に保存状況（対局数・容量、Web 版は上限に対する使用率）を表示。「データの保存について」画面で注意点を説明。保存の失敗・壊れたデータ・容量の上限が近いときは画面でお知らせ |
 | カメラ認識 | 和了入力画面のカメラボタンから、手牌を撮影（または写真を選択）して読み取り、手牌と和了牌に入れる。読み取りはアプリに入っている牌の認識モデル（TensorFlow Lite）で **端末の中で** 行い、写真はどこにも送らない・料金もかからない（API キーも不要）。読み取り結果は確認画面で見てから入れる。**Android・iOS のアプリ版だけ**で使え、Web 版ではカメラボタンを出さない |
-| ライセンス | ホーム画面右上の書類アイコンから「ライセンス・データの出典」画面を開ける。認識モデルの学習データ・作成に使った道具の出典と、アプリで使っているソフトウェアのライセンスを表示 |
+| ライセンス | ホーム画面右上の書類アイコンから「ライセンス・データの出典」画面を開ける。認識モデルの学習データ（CC BY 4.0 のデータセットなど）・作成に使った道具の出典と、アプリで使っているソフトウェアのライセンスを表示 |
 
 ## 3人打ちのルール
 
@@ -184,7 +184,7 @@ print(result); // 役・翻・符・点数
 | 学習の道具: MediaPipe Model Maker（TensorFlow 2.15） | Apache-2.0 |
 | もとにした学習済みモデル: TensorFlow Model Garden の MobileNet SSD | Apache-2.0 |
 | 合成データの材料: [FluffyStuff/riichi-mahjong-tiles](https://github.com/FluffyStuff/riichi-mahjong-tiles) の牌画像 | CC0 1.0 |
-| 実写データ（任意）: Roboflow Universe の CC BY 4.0 のデータセット（`datasets.json`）。今のモデルには使っていません（下の「現在の状態」） | CC BY 4.0 |
+| 実写データ: Roboflow Universe の2つのデータセット（下の「データの出典」） | CC BY 4.0 |
 | アプリでの実行: tflite_flutter | Apache-2.0 |
 
 Python 3.11 を使います。Roboflow の API キーは環境変数 `ROBOFLOW_API_KEY` に入れておきます（ファイルには書きません）。
@@ -199,11 +199,21 @@ git clone --depth 1 https://github.com/FluffyStuff/riichi-mahjong-tiles data/rii
 python synth.py --tiles data/riichi-mahjong-tiles/Export/Regular --out data/synth --count 4000 --seed 1
 python synth.py --tiles data/riichi-mahjong-tiles/Export/Regular --out data/synth_val --count 400 --seed 100
 python fetch_roboflow.py --out data/roboflow
-python merge.py --out data/train --src data/synth data/roboflow/hust/train data/roboflow/riichi_detection/train
-python merge.py --out data/val --src data/synth_val data/roboflow/hust/valid data/roboflow/riichi_detection/valid
-python train.py --train data/train --val data/val --out out --epochs 40
+R=data/roboflow
+python merge.py --out data/train --drop 0z --src data/synth $R/hust/train $R/riichi_detection/train
+python merge.py --out data/val --drop 0z --src data/synth_val $R/hust/valid $R/hust/test $R/riichi_detection/valid $R/riichi_detection/test
+python merge.py --out data/val_real --drop 0z --src $R/hust/valid $R/hust/test $R/riichi_detection/valid $R/riichi_detection/test
+python train.py --train data/train --val data/val --out out --epochs 15 --batch 16 --fp16
+python evaluate.py --model out --data data/val_real --save-preview preview.jpg   # 実写だけでの精度
+python evaluate.py --model out --data data/val --dump-fixture ../../test/fixtures/tile_decode_fixture.json
 cp out/tile_detector.tflite out/tile_anchors.bin out/tile_labels.txt ../../assets/models/
 ```
+
+- ダウンロードしたデータを読むときは、`python -I`（同じフォルダや環境変数から余計なモジュールを読まない）で動かすと安全です。スクリプトは `python -I` でも同じフォルダの `classes.py` を読めます。
+- Roboflow のデータの取得には `api.roboflow.com` のほか、`app.roboflow.com`（書き出したファイル）への接続が必要です。
+- 「Riichi Mahjong Detection」の `0z` は牌の裏なので `--drop 0z` で外します（外すと、牌の裏は牌として検出しないように学習します）。
+- 「Riichi Mahjong (HUST)」には赤5のクラスがありません。中身を確かめたところ赤5の牌は写っていなかったので、5萬・5筒・5索は普通の5として使っています。
+- `evaluate.py` は、アプリと同じ後処理（縦横比を保って縮める → アンカーで箱を求める → NMS）で、牌ごとの精度・見落とし・余計な検出・写真の牌が全部正しく読めた割合を出します。
 
 - `synth.py`: 牌画像を並べて、卓・照明・傾き・ぼけ・影などを変えた手牌の合成写真と、牌の位置（COCO 形式）を作ります。
 - `fetch_roboflow.py`: `datasets.json` のデータセットを COCO 形式で取得します。API の情報でライセンスが CC BY 4.0 であることを確かめ、違えば止まります。出典の情報は `attribution.json` に書きます。
@@ -211,11 +221,27 @@ cp out/tile_detector.tflite out/tile_anchors.bin out/tile_labels.txt ../../asset
 - `train.py`: 学習して `tile_detector.tflite`・`tile_anchors.bin`（アンカー）・`tile_labels.txt`（クラス名）を書き出します。精度（COCO 指標）は `eval.json` に書きます。
 - `--epochs` などを変えたときは、確認用データでの精度（`eval.json`）が下がっていないか確かめてから入れ替えてください。
 
-**現在の状態**: 認識モデルのファイル（`assets/models/`）は学習中で、まだ入っていません。入るまでは、アプリ版でカメラ認識を使うと「認識モデルを読み込めませんでした」と表示されます。
+**現在の状態**: `assets/models/` に学習したモデルが入っています（`tile_detector.tflite` 約 7.0MB（float16）、アンカー 27,621 個、37 種類）。
+
+- 学習データ: 合成 4000 枚＋実写 1437 枚（HUST 333 枚・Detection 1104 枚。Roboflow 側で水増しした枚数）。牌の写っていない画像は Model Maker が外すので、学習に使われたのは 5058 枚。15 エポック（CPU 4 コアで約3時間）
+- 確認用データでの COCO 指標（合成＋実写 566 枚）: AP50 = 0.953、AP = 0.726
+
+`evaluate.py`（アプリと同じ後処理、確信度 0.3 以上）での結果:
+
+| 確認用データ | 牌の数 | 見つけた割合 | 見つけた牌の種類が合っていた割合 | 牌ごとの精度 | 余計な検出（1枚あたり） | 写真の牌が全部正しかった割合 |
+|---|---|---|---|---|---|---|
+| 実写 200 枚（Roboflow の valid・test） | 5831 | 99.9% | 96.5% | 96.4% | 0.20 | 35% |
+| 合成 400 枚 | 3959 | 92.2% | 93.9% | 86.5% | 0.14 | 64% |
+
+- 実写の確認用データは学習に使ったデータセットと同じ牌・同じ撮り方の写真なので、ほかの牌や撮り方では精度が下がることがあります。実写の写真は1枚に牌が約30枚写っているため、「全部正しかった割合」は低めに出ます。
+- 萬子が苦手です（実写で六萬 71%・九萬 85%・三萬 89%。六萬→八萬、三萬→二萬の取り違えが多い）。筒子・索子・字牌はおおむね 95% 以上です。赤5は実写の確認用データに 50 個しかありませんが、89〜100% でした。
+- アプリでは、読み取り結果の画面に「萬子を取り違えやすいので確認してください」と表示しています。
 
 ## データの出典
 
 牌の認識モデルは、次のデータを使って学習させています（アプリ内の「ライセンス・データの出典」画面にも載せています）。
 画像そのものはアプリやこのリポジトリに含めていません。
 
+- **Riichi Mahjong**（バージョン 8）— 作成者: HUST（Roboflow Universe）、出典: https://universe.roboflow.com/hust-xq5rx/riichi-mahjong 、ライセンス: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。変更: クラス名をこのアプリの牌の表記に変換（赤5のクラスが無いため、5萬・5筒・5索は普通の5として扱った）し、ほかのデータと合わせて学習・確認に使用
+- **Riichi Mahjong Detection**（バージョン 3）— 作成者: riichimahjongdetection（Roboflow Universe）、出典: https://universe.roboflow.com/riichimahjongdetection/riichi-mahjong-detection 、ライセンス: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。変更: クラス名をこのアプリの牌の表記に変換（0m・0p・0s は赤5）し、牌の裏（0z）のラベルを外して、ほかのデータと合わせて学習・確認に使用
 - **riichi-mahjong-tiles** — 作成者: FluffyStuff、出典: https://github.com/FluffyStuff/riichi-mahjong-tiles 、ライセンス: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)。牌の画像を組み合わせて学習用の合成写真を作成
