@@ -1,0 +1,9 @@
+# Python 3.11 で動作確認（Model Maker は TensorFlow 2.15 が必要）
+mediapipe-model-maker==0.2.1.4
+mediapipe==0.10.14
+tensorflow==2.15.1
+ml-dtypes==0.3.2
+setuptools<70
+opencv-python-headless
+numpy<2
+pillow

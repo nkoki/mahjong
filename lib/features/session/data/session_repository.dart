@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../camera/tile_recognizer.dart';
 import '../domain/models.dart';
 
 /// 保存容量の使用状況
@@ -49,11 +48,6 @@ abstract class SessionRepository {
 
   /// 新しい対局に使うルールを保存する（人数は [GameSettings.playerCount] で判断）
   Future<void> saveDefaultSettings(GameSettings settings);
-
-  /// カメラ認識の設定（API キーなど）。端末の中にだけ保存し、バックアップには入れない
-  CameraSettings loadCameraSettings();
-
-  Future<void> saveCameraSettings(CameraSettings settings);
 }
 
 /// ブラウザ（Web 版）の保存容量の上限の目安。多くのブラウザで 1サイトあたり約5MB
@@ -129,23 +123,8 @@ class SharedPrefsSessionRepository implements SessionRepository {
   Future<void> saveDefaultSettings(GameSettings settings) =>
       prefs.setString(_defaultKey(settings.playerCount), jsonEncode(settings.toJson()));
 
-  /// カメラ認識の設定のキー
-  static const cameraSettingsKey = 'mahjong_camera_settings';
-
-  @override
-  CameraSettings loadCameraSettings() {
-    final raw = prefs.getString(cameraSettingsKey);
-    if (raw == null) return const CameraSettings();
-    try {
-      return CameraSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    } catch (_) {
-      return const CameraSettings();
-    }
-  }
-
-  @override
-  Future<void> saveCameraSettings(CameraSettings settings) =>
-      prefs.setString(cameraSettingsKey, jsonEncode(settings.toJson()));
+  /// 以前のカメラ認識（Qwen API）の設定のキー。API キーが入っているので、読み込み時に消す
+  static const legacyCameraSettingsKey = 'mahjong_camera_settings';
 
   final List<String> _warnings = [];
 
@@ -175,6 +154,8 @@ class SharedPrefsSessionRepository implements SessionRepository {
   // ---------------------------------------------------------------------
   @override
   List<GameSession> loadAll() {
+    // カメラ認識は端末の中で動くモデルになり、API キーは使わなくなったので消しておく
+    if (prefs.containsKey(legacyCameraSettingsKey)) prefs.remove(legacyCameraSettingsKey);
     if (prefs.getString(indexKey) == null && prefs.getString(legacyKey) != null) {
       return _migrateLegacy();
     }
@@ -382,12 +363,4 @@ class InMemorySessionRepository implements SessionRepository {
       defaultSettings = settings;
     }
   }
-
-  CameraSettings cameraSettings = const CameraSettings();
-
-  @override
-  CameraSettings loadCameraSettings() => cameraSettings;
-
-  @override
-  Future<void> saveCameraSettings(CameraSettings settings) async => cameraSettings = settings;
 }

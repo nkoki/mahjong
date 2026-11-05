@@ -49,7 +49,8 @@ dart test               # 点数計算エンジンのテスト
 | データ保存 | 対局データを端末に自動保存（アプリを閉じても残り、「続きから」再開できる。「元に戻す」も直近10回分まで保存） |
 | バックアップ | 全対局とルール設定を1つのファイル（JSON）に書き出して保存し、あとで読み込める（機種変更・データ消失への備え）。ルール設定を読み込むかは、読み込むときに選べる（ルール設定の入っていない以前のバックアップは対局だけ読み込む）。ファイルを扱いにくいときはテキストでコピー・貼り付けもできる。読み込み時は「今のデータに追加」か「すべて置き換え」を選ぶ。最後にバックアップした日時をホーム画面に表示し、未実施・30日以上前なら注意を表示 |
 | 保存のお知らせ | ホーム画面に保存状況（対局数・容量、Web 版は上限に対する使用率）を表示。「データの保存について」画面で注意点を説明。保存の失敗・壊れたデータ・容量の上限が近いときは画面でお知らせ |
-| カメラ認識 | 和了入力画面のカメラボタンから、手牌を撮影（または写真を選択）して Qwen（アリババクラウドの画像を理解する AI）で読み取り、手牌と和了牌に入れる。読み取り結果は確認画面で見てから入れる。使うにはホーム画面右上のカメラアイコンから Alibaba Cloud Model Studio（DashScope）の API キーを設定する（端末の中にだけ保存し、バックアップには入れない）。写真は Qwen に送られ、API の利用料がかかる |
+| カメラ認識 | 和了入力画面のカメラボタンから、手牌を撮影（または写真を選択）して読み取り、手牌と和了牌に入れる。読み取りはアプリに入っている牌の認識モデル（TensorFlow Lite）で **端末の中で** 行い、写真はどこにも送らない・料金もかからない（API キーも不要）。読み取り結果は確認画面で見てから入れる。**Android・iOS のアプリ版だけ**で使え、Web 版ではカメラボタンを出さない |
+| ライセンス | ホーム画面右上の書類アイコンから「ライセンス・データの出典」画面を開ける。認識モデルの学習データ（CC BY 4.0 のデータセットなど）の出典と、アプリで使っているソフトウェアのライセンスを表示 |
 
 ## 3人打ちのルール
 
@@ -102,7 +103,8 @@ mahjong/
 │       ├── storage/                   データの保存についての画面・保存状況の表示
 │       ├── settings/                  ルール設定画面
 │       ├── backup/                    バックアップの書き出し・読み込み（file_picker でファイルを保存・選択）
-│       └── camera/                    カメラ認識（Qwen API での読み取り・設定画面・写真の撮影）
+│       ├── camera/                    カメラ認識（端末の中で動く認識モデルでの読み取り・写真の撮影）
+│       └── about/                     ライセンス・データの出典の画面
 ├── packages/
 │   └── mahjong_score_engine/          点数計算エンジン（Flutter 非依存の Dart パッケージ）
 │       └── lib/src/
@@ -113,6 +115,8 @@ mahjong/
 │           ├── yaku_judge.dart        役判定（通常役・役満）
 │           ├── fu_calculator.dart     符計算
 │           └── score_calculator.dart  入力チェック・高点法・点数と支払額の計算
+├── assets/models/                     牌の認識モデル（tile_detector.tflite・アンカー・クラス名）
+├── tools/tile_model/                  認識モデルを作るスクリプト（合成データ・Roboflow の取得・学習）
 └── test/                              アプリのテスト
 ```
 
@@ -163,9 +167,57 @@ print(result); // 役・翻・符・点数
 
 ## カメラ認識について
 
-- 撮影・写真の選択に `image_picker`、Qwen API との通信に `http` を使っています。
-- 送り先は Alibaba Cloud Model Studio の OpenAI 互換 API（`/compatible-mode/v1/chat/completions`）で、国際版と中国本土版を選べます。モデルの初期値は `qwen-vl-max` です。
-- 写真は送る前に 1600px 以内・画質85% に縮小します。
+- 撮影・写真の選択に `image_picker`、画像の縮小に `image`（MIT）、認識モデルの実行に `tflite_flutter`（Apache-2.0）を使っています。
+- 認識モデルは SSD（MobileNet-MultiHW-AVG、入力 384×384）の牌の検出モデルです。牌の種類は37種類（萬子・筒子・索子・字牌の34種類＋赤5の3種類）。
+- 読み取りの手順: 写真全体から牌を探す → 牌が写っている範囲だけを切り抜いてもう一度読み取る → 重なった検出を1つにまとめる（NMS）→ 一番多く牌が並んだ列を手牌として左から順に並べる（離れた列の牌は使わない）。
 - 3人打ちでは二萬〜八萬を除き、赤ドラなしのルールでは赤5を普通の5として入れます。同じ牌が5枚以上なら5枚目から除きます。
-- Web 版では、ブラウザの安全上の制限（CORS）で Qwen API に接続できない場合があります。その場合はスマホのアプリ版を使ってください。
-- 開発時は本物の Qwen API につないで確認していません（通信の内容と応答の読み取りはテストで確認しています）。
+- Web 版では TensorFlow Lite を動かせないため、カメラ認識はありません（和了入力画面に「スマホのアプリ版で使えます」と表示します）。
+- 以前の版で保存した Qwen の API キーは、アプリの起動時に端末から消します。
+- 読み取りは間違えることがあります。入れたあとに手牌を確認してください。
+
+### 認識モデルの作り方（`tools/tile_model/`）
+
+商用利用できるように、AGPL のもの（Ultralytics など）は使っていません。
+
+| 使うもの | ライセンス |
+|---|---|
+| 学習の道具: MediaPipe Model Maker（TensorFlow 2.15） | Apache-2.0 |
+| もとにした学習済みモデル: TensorFlow Model Garden の MobileNet SSD | Apache-2.0 |
+| 合成データの材料: [FluffyStuff/riichi-mahjong-tiles](https://github.com/FluffyStuff/riichi-mahjong-tiles) の牌画像 | CC0 1.0 |
+| 実写データ: Roboflow Universe の2つのデータセット（下の「データの出典」） | CC BY 4.0 |
+| アプリでの実行: tflite_flutter | Apache-2.0 |
+
+Python 3.11 を使います。Roboflow の API キーは環境変数 `ROBOFLOW_API_KEY` に入れておきます（ファイルには書きません）。
+
+```bash
+cd tools/tile_model
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip uninstall -y jax jaxlib   # mediapipe と一緒に入る jax は TensorFlow 2.15 の TFLite 書き出しを壊すので外す
+git clone --depth 1 https://github.com/FluffyStuff/riichi-mahjong-tiles data/riichi-mahjong-tiles
+python synth.py --tiles data/riichi-mahjong-tiles/Export/Regular --out data/synth --count 4000 --seed 1
+python synth.py --tiles data/riichi-mahjong-tiles/Export/Regular --out data/synth_val --count 400 --seed 100
+python fetch_roboflow.py --out data/roboflow
+python merge.py --out data/train --src data/synth data/roboflow/hust/train data/roboflow/riichi_detection/train
+python merge.py --out data/val --src data/synth_val data/roboflow/hust/valid data/roboflow/riichi_detection/valid
+python train.py --train data/train --val data/val --out out --epochs 40
+cp out/tile_detector.tflite out/tile_anchors.bin out/tile_labels.txt ../../assets/models/
+```
+
+- `synth.py`: 牌画像を並べて、卓・照明・傾き・ぼけ・影などを変えた手牌の合成写真と、牌の位置（COCO 形式）を作ります。
+- `fetch_roboflow.py`: `datasets.json` のデータセットを COCO 形式で取得します。API の情報でライセンスが CC BY 4.0 であることを確かめ、違えば止まります。出典の情報は `attribution.json` に書きます。
+- `merge.py`: クラス名をアプリの牌の表記（`1m`・`5mr` など）に変換してまとめます。変換できないクラス名があれば止まるので、`--map` で対応を指定します。
+- `train.py`: 学習して `tile_detector.tflite`・`tile_anchors.bin`（アンカー）・`tile_labels.txt`（クラス名）を書き出します。精度（COCO 指標）は `eval.json` に書きます。
+- `--epochs` などを変えたときは、確認用データでの精度（`eval.json`）が下がっていないか確かめてから入れ替えてください。
+
+**現在の状態**: 認識モデルのファイル（`assets/models/`）は学習中で、まだ入っていません。入るまでは、アプリ版でカメラ認識を使うと「認識モデルを読み込めませんでした」と表示されます。
+
+## データの出典
+
+牌の認識モデルは、次のデータを使って学習させています（アプリ内の「ライセンス・データの出典」画面にも載せています）。
+画像そのものはアプリやこのリポジトリに含めていません。
+
+- **Riichi Mahjong (HUST)** — 作成者: HUST（Roboflow Universe）、出典: https://universe.roboflow.com/hust-xq5rx 、ライセンス: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。変更: クラス名をこのアプリの牌の表記に変換し、ほかのデータと合わせて学習に使用
+- **Riichi Mahjong Detection** — 作成者: riichimahjongdetection（Roboflow Universe）、出典: https://universe.roboflow.com/riichimahjongdetection/riichi-mahjong-detection 、ライセンス: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。変更: 同上
+- **riichi-mahjong-tiles** — 作成者: FluffyStuff、出典: https://github.com/FluffyStuff/riichi-mahjong-tiles 、ライセンス: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)。牌の画像を組み合わせて学習用の合成写真を作成

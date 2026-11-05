@@ -1,0 +1,21 @@
+{
+  "_comment": "Roboflow Universe から取得するデータセット。license が CC BY 4.0 でなければ fetch_roboflow.py は止まる。project が空なら workspace の中から name で探す",
+  "datasets": [
+    {
+      "key": "hust",
+      "name": "Riichi Mahjong",
+      "display_name": "Riichi Mahjong (HUST)",
+      "workspace": "hust-xq5rx",
+      "project": "",
+      "version": null
+    },
+    {
+      "key": "riichi_detection",
+      "name": "Riichi Mahjong Detection",
+      "display_name": "Riichi Mahjong Detection",
+      "workspace": "riichimahjongdetection",
+      "project": "riichi-mahjong-detection",
+      "version": null
+    }
+  ]
+}

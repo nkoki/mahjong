@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/routes.dart';
 import '../../../core/theme.dart';
+import '../../about/license_screen.dart';
 import '../../history/history_list_screen.dart';
 import '../../backup/backup_screen.dart';
-import '../../camera/camera_settings_screen.dart';
 import '../../settings/rule_settings_screen.dart';
 import '../../storage/storage_info_screen.dart';
 import '../session_providers.dart';
@@ -29,12 +29,6 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('麻雀点数計算'),
         actions: [
           IconButton(
-            tooltip: 'カメラ認識の設定',
-            icon: const Icon(Icons.photo_camera_outlined),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const CameraSettingsScreen())),
-          ),
-          IconButton(
             tooltip: 'ルール設定',
             icon: const Icon(Icons.tune),
             onPressed: () => Navigator.of(context)
@@ -44,6 +38,12 @@ class HomeScreen extends ConsumerWidget {
             tooltip: 'データの保存について',
             icon: const Icon(Icons.info_outline),
             onPressed: openInfo,
+          ),
+          IconButton(
+            tooltip: 'ライセンス・データの出典',
+            icon: const Icon(Icons.description_outlined),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const LicenseScreen())),
           ),
         ],
       ),

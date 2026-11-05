@@ -6,7 +6,6 @@ import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 import '../../shared/widgets/tile_palette.dart';
 import '../../shared/widgets/tile_view.dart';
 import '../camera/camera_providers.dart';
-import '../camera/camera_settings_screen.dart';
 import '../camera/tile_recognizer.dart';
 import '../session/domain/models.dart';
 import '../session/domain/session_logic.dart';
@@ -214,26 +213,6 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
 
   /// カメラ（写真）から手牌を読み取る
   Future<void> _readFromCamera(GameSession s) async {
-    if (!ref.read(cameraSettingsProvider).isConfigured) {
-      final open = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('カメラ認識の設定が必要です'),
-          content: const Text('カメラで手牌を読み取るには、Qwen（アリババクラウドの AI）の API キーを設定してください。'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('設定を開く')),
-          ],
-        ),
-      );
-      if (open == true && mounted) {
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const CameraSettingsScreen()));
-      }
-      return;
-    }
-    if (!mounted) return;
-
     final fromCamera = await showModalBottomSheet<bool>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -243,7 +222,8 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
             const ListTile(
               title: Text('手牌の写真'),
               subtitle: Text('牌を横一列に並べ、全部の牌が大きくはっきり写るように撮ってください。'
-                  '和了牌は一番右に置くと、和了牌として入ります。'),
+                  '和了牌は一番右に置くと、和了牌として入ります。'
+                  '読み取りはこの端末の中で行い、写真はどこにも送りません。'),
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera),
@@ -386,11 +366,13 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       appBar: AppBar(
         title: Text(widget.isAdditionalRon ? '2人目の和了入力' : '和了入力  ${s.roundLabel}'),
         actions: [
-          IconButton(
-            tooltip: 'カメラで手牌を読み取る',
-            icon: const Icon(Icons.photo_camera_outlined),
-            onPressed: () => _readFromCamera(s),
-          ),
+          // カメラ認識は Android・iOS のアプリ版だけ（Web 版ではボタンを出さない）
+          if (ref.watch(cameraSupportedProvider))
+            IconButton(
+              tooltip: 'カメラで手牌を読み取る',
+              icon: const Icon(Icons.photo_camera_outlined),
+              onPressed: () => _readFromCamera(s),
+            ),
         ],
       ),
       body: SafeArea(
@@ -464,6 +446,12 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                         : TileRow(_hand,
                             onTap: (i) => setState(() => _hand.removeAt(i))),
                   ),
+                  if (!ref.watch(cameraSupportedProvider))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('カメラで手牌を読み取る機能は、スマホのアプリ版（Android・iOS）で使えます',
+                          style: theme.textTheme.bodySmall),
+                    ),
                   _section(theme, '和了牌'),
                   _targetBox(
                     target: _Target.win,
