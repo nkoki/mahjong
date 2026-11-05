@@ -45,6 +45,9 @@ class HandContext {
   /// 門前かどうか（暗槓のみは門前）
   final bool menzen;
 
+  /// 点数計算のルール
+  final ScoreRules rules;
+
   const HandContext({
     required this.input,
     required this.shape,
@@ -56,6 +59,7 @@ class HandContext {
     required this.allCounts,
     required this.closedCounts,
     required this.menzen,
+    this.rules = const ScoreRules(),
   });
 
   bool get isTsumo => input.isTsumo;

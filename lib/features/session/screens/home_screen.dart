@@ -5,6 +5,7 @@ import '../../../core/routes.dart';
 import '../../../core/theme.dart';
 import '../../history/history_list_screen.dart';
 import '../../backup/backup_screen.dart';
+import '../../settings/rule_settings_screen.dart';
 import '../../storage/storage_info_screen.dart';
 import '../session_providers.dart';
 import 'new_session_screen.dart';
@@ -26,6 +27,12 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('麻雀点数計算'),
         actions: [
+          IconButton(
+            tooltip: 'ルール設定',
+            icon: const Icon(Icons.tune),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const RuleSettingsScreen())),
+          ),
           IconButton(
             tooltip: 'データの保存について',
             icon: const Icon(Icons.info_outline),

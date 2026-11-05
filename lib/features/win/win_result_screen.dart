@@ -40,7 +40,9 @@ class WinResultScreen extends ConsumerWidget {
     final deltas = SessionLogic.winsDeltas(s, wins, loser: loser);
     final isDouble = wins.length > 1;
     final taker = SessionLogic.honbaTaker([for (final w in wins) w.winner], loser: loser);
-    final canAddRon = loser != null && wins.length < SessionLogic.maxRonWinners;
+    final canAddRon = loser != null &&
+        s.settings.doubleRon &&
+        wins.length < SessionLogic.maxRonWinners;
 
     return Scaffold(
       appBar: AppBar(title: Text(isDouble ? '計算結果（ダブロン）' : '計算結果')),
@@ -126,6 +128,15 @@ class WinResultScreen extends ConsumerWidget {
                 )),
               ),
             ],
+            if (loser != null && !s.settings.doubleRon)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'ダブロンなし（頭ハネ）のルールです。2人がロンした場合は、'
+                  '放銃者から見て打つ順番が近い人だけを入力してください。',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
             const SizedBox(height: 8),
             OutlinedButton(
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),

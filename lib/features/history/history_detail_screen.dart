@@ -95,7 +95,10 @@ class HistoryDetailScreen extends ConsumerWidget {
                   title: Text('${s.settings.tonpuu ? "東風戦" : "半荘戦"}  '
                       '持ち点 ${formatPoints(s.settings.startingPoints)} / '
                       '返し ${formatPoints(s.settings.returnPoints)}'),
-                  subtitle: Text('オカ ${formatPoint(s.settings.oka)}（トップが受け取る）'),
+                  subtitle: Text('オカ ${formatPoint(s.settings.oka)}（トップが受け取る）'
+                      '${s.settings.tobi ? "・トビあり" : "・トビなし"}\n'
+                      '${s.settings.ruleSummary.join("・")}'),
+                  isThreeLine: true,
                 ),
                 ListTile(
                   title: Text('ウマ: ${s.settings.umaLabel}'),

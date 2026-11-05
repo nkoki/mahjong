@@ -1,3 +1,5 @@
+import 'package:mahjong_score_engine/mahjong_score_engine.dart';
+
 /// 対局ルール設定
 class GameSettings {
   /// 配給原点（持ち点）
@@ -15,12 +17,56 @@ class GameSettings {
   /// 0点未満で終了（トビあり）
   final bool tobi;
 
+  // ---- 点数計算のルール ----
+
+  /// 喰いタン（鳴いた断么九）あり
+  final bool kuitan;
+
+  /// 切り上げ満貫（4翻30符・3翻60符を満貫）あり
+  final bool kiriageMangan;
+
+  /// 数え役満（13翻以上を役満）あり
+  final bool kazoeYakuman;
+
+  /// ダブル役満・役満の複合あり
+  final bool doubleYakuman;
+
+  /// 連風牌の雀頭の符（4 か 2）
+  final int renpuuPairFu;
+
+  // ---- 進行・流局・牌のルール ----
+
+  /// ダブロンあり（なしなら頭ハネ: 放銃者から見て打つ順番が近い1人だけが和了）
+  final bool doubleRon;
+
+  /// 和了止めあり（オーラスで親が和了してトップなら終局）
+  final bool agariYame;
+
+  /// 流し満貫あり
+  final bool nagashiMangan;
+
+  /// 途中流局（九種九牌・四風連打・四家立直・四開槓・三家和）あり
+  final bool abortiveDraws;
+
+  /// 赤ドラあり（和了入力の牌に赤5を表示する）
+  final bool redDora;
+
   const GameSettings({
     this.startingPoints = 25000,
     this.returnPoints = 30000,
     this.uma = const [20, 10, -10, -20],
     this.tonpuu = false,
     this.tobi = true,
+    this.kuitan = true,
+    this.kiriageMangan = false,
+    this.kazoeYakuman = true,
+    this.doubleYakuman = true,
+    this.renpuuPairFu = 4,
+    this.doubleRon = true,
+    this.agariYame = true,
+    this.nagashiMangan = true,
+    this.abortiveDraws = true,
+    this.redDora = true,
   });
 
   /// 総局数（東風4 / 半荘8）
@@ -32,12 +78,62 @@ class GameSettings {
   /// ウマの表記（例: [20, 10, -10, -20] → "10-20"、全部0 → "なし"）
   String get umaLabel => formatUma(uma);
 
-  GameSettings copyWith({List<int>? uma}) => GameSettings(
-        startingPoints: startingPoints,
-        returnPoints: returnPoints,
+  /// 点数計算エンジンに渡すルール
+  ScoreRules get scoreRules => ScoreRules(
+        kuitan: kuitan,
+        kiriageMangan: kiriageMangan,
+        kazoeYakuman: kazoeYakuman,
+        doubleYakuman: doubleYakuman,
+        renpuuPairFu: renpuuPairFu,
+      );
+
+  /// ルールの要約（画面表示用）
+  List<String> get ruleSummary => [
+        '喰いタン${kuitan ? "あり" : "なし"}',
+        '切り上げ満貫${kiriageMangan ? "あり" : "なし"}',
+        '数え役満${kazoeYakuman ? "あり" : "なし"}',
+        'ダブル役満${doubleYakuman ? "あり" : "なし"}',
+        '連風牌の雀頭$renpuuPairFu符',
+        doubleRon ? 'ダブロンあり' : 'ダブロンなし（頭ハネ）',
+        '和了止め${agariYame ? "あり" : "なし"}',
+        '流し満貫${nagashiMangan ? "あり" : "なし"}',
+        '途中流局${abortiveDraws ? "あり" : "なし"}',
+        '赤ドラ${redDora ? "あり" : "なし"}',
+      ];
+
+  GameSettings copyWith({
+    int? startingPoints,
+    int? returnPoints,
+    List<int>? uma,
+    bool? tonpuu,
+    bool? tobi,
+    bool? kuitan,
+    bool? kiriageMangan,
+    bool? kazoeYakuman,
+    bool? doubleYakuman,
+    int? renpuuPairFu,
+    bool? doubleRon,
+    bool? agariYame,
+    bool? nagashiMangan,
+    bool? abortiveDraws,
+    bool? redDora,
+  }) =>
+      GameSettings(
+        startingPoints: startingPoints ?? this.startingPoints,
+        returnPoints: returnPoints ?? this.returnPoints,
         uma: uma ?? this.uma,
-        tonpuu: tonpuu,
-        tobi: tobi,
+        tonpuu: tonpuu ?? this.tonpuu,
+        tobi: tobi ?? this.tobi,
+        kuitan: kuitan ?? this.kuitan,
+        kiriageMangan: kiriageMangan ?? this.kiriageMangan,
+        kazoeYakuman: kazoeYakuman ?? this.kazoeYakuman,
+        doubleYakuman: doubleYakuman ?? this.doubleYakuman,
+        renpuuPairFu: renpuuPairFu ?? this.renpuuPairFu,
+        doubleRon: doubleRon ?? this.doubleRon,
+        agariYame: agariYame ?? this.agariYame,
+        nagashiMangan: nagashiMangan ?? this.nagashiMangan,
+        abortiveDraws: abortiveDraws ?? this.abortiveDraws,
+        redDora: redDora ?? this.redDora,
       );
 
   Map<String, dynamic> toJson() => {
@@ -46,15 +142,43 @@ class GameSettings {
         'uma': uma,
         'tonpuu': tonpuu,
         'tobi': tobi,
+        'rules': {
+          'kuitan': kuitan,
+          'kiriageMangan': kiriageMangan,
+          'kazoeYakuman': kazoeYakuman,
+          'doubleYakuman': doubleYakuman,
+          'renpuuPairFu': renpuuPairFu,
+          'doubleRon': doubleRon,
+          'agariYame': agariYame,
+          'nagashiMangan': nagashiMangan,
+          'abortiveDraws': abortiveDraws,
+          'redDora': redDora,
+        },
       };
 
-  factory GameSettings.fromJson(Map<String, dynamic> j) => GameSettings(
-        startingPoints: j['startingPoints'] as int,
-        returnPoints: j['returnPoints'] as int,
-        uma: _intList(j['uma']),
-        tonpuu: j['tonpuu'] as bool,
-        tobi: j['tobi'] as bool,
-      );
+  /// ルール設定を入れる前に保存したデータには 'rules' がないので、
+  /// その場合はそれまでの動き（初期値）として読み込む
+  factory GameSettings.fromJson(Map<String, dynamic> j) {
+    final r = (j['rules'] as Map<String, dynamic>?) ?? const {};
+    const d = GameSettings();
+    return GameSettings(
+      startingPoints: j['startingPoints'] as int,
+      returnPoints: j['returnPoints'] as int,
+      uma: _intList(j['uma']),
+      tonpuu: j['tonpuu'] as bool,
+      tobi: j['tobi'] as bool,
+      kuitan: r['kuitan'] as bool? ?? d.kuitan,
+      kiriageMangan: r['kiriageMangan'] as bool? ?? d.kiriageMangan,
+      kazoeYakuman: r['kazoeYakuman'] as bool? ?? d.kazoeYakuman,
+      doubleYakuman: r['doubleYakuman'] as bool? ?? d.doubleYakuman,
+      renpuuPairFu: r['renpuuPairFu'] as int? ?? d.renpuuPairFu,
+      doubleRon: r['doubleRon'] as bool? ?? d.doubleRon,
+      agariYame: r['agariYame'] as bool? ?? d.agariYame,
+      nagashiMangan: r['nagashiMangan'] as bool? ?? d.nagashiMangan,
+      abortiveDraws: r['abortiveDraws'] as bool? ?? d.abortiveDraws,
+      redDora: r['redDora'] as bool? ?? d.redDora,
+    );
+  }
 }
 
 /// よく使われるウマ（1位〜4位、千点単位）

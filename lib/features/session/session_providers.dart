@@ -26,6 +26,22 @@ final loadWarningsProvider = StateProvider<List<String>>((ref) {
   return ref.read(sessionRepositoryProvider).loadWarnings;
 });
 
+/// 新しい対局に使うルール（ルール設定画面で変更・保存する）
+final defaultSettingsProvider =
+    NotifierProvider<DefaultSettingsNotifier, GameSettings>(DefaultSettingsNotifier.new);
+
+class DefaultSettingsNotifier extends Notifier<GameSettings> {
+  @override
+  GameSettings build() =>
+      ref.read(sessionRepositoryProvider).loadDefaultSettings() ?? const GameSettings();
+
+  /// 保存する
+  Future<void> save(GameSettings settings) async {
+    state = settings;
+    await ref.read(sessionRepositoryProvider).saveDefaultSettings(settings);
+  }
+}
+
 /// 最後にバックアップを書き出した日時
 final lastBackupProvider = StateProvider<DateTime?>(
     (ref) => ref.read(sessionRepositoryProvider).lastBackupAt);

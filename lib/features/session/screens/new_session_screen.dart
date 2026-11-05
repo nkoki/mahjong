@@ -6,6 +6,7 @@ import '../../../core/theme.dart';
 import '../../../shared/widgets/rule_inputs.dart';
 import '../domain/models.dart';
 import '../domain/session_logic.dart';
+import '../../settings/rule_settings_screen.dart';
 import '../session_providers.dart';
 
 /// 新規対局の作成画面
@@ -19,11 +20,31 @@ class NewSessionScreen extends ConsumerStatefulWidget {
 class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   final _controllers = List.generate(
       4, (i) => TextEditingController(text: 'プレイヤー${i + 1}'));
-  bool _tonpuu = false;
-  bool _tobi = true;
-  int? _starting = 25000;
-  int? _return = 30000;
-  List<int?> _uma = const [20, 10, -10, -20];
+  /// ルール設定画面で決めたルール（詳細ルールはこれをそのまま使う）
+  late GameSettings _defaults;
+  late bool _tonpuu;
+  late bool _tobi;
+  int? _starting;
+  int? _return;
+  late List<int?> _uma;
+
+  @override
+  void initState() {
+    super.initState();
+    _defaults = ref.read(defaultSettingsProvider);
+    _tonpuu = _defaults.tonpuu;
+    _tobi = _defaults.tobi;
+    _starting = _defaults.startingPoints;
+    _return = _defaults.returnPoints;
+    _uma = List.of(_defaults.uma);
+  }
+
+  Future<void> _openRuleSettings() async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const RuleSettingsScreen()));
+    // 詳細ルールだけ反映する（持ち点などはこの画面で入力した値をそのまま使う）
+    if (mounted) setState(() => _defaults = ref.read(defaultSettingsProvider));
+  }
 
   String? get _startingError => validatePoints(_starting);
   String? get _returnError => validateReturnPoints(_return, _starting);
@@ -47,7 +68,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             : _controllers[i].text.trim()
     ];
     if (!_isValid) return;
-    final settings = GameSettings(
+    final settings = _defaults.copyWith(
       startingPoints: _starting!,
       returnPoints: _return!,
       uma: List.unmodifiable(_uma.map((v) => v!)),
@@ -142,7 +163,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           _label(context, '持ち点（配給原点）'),
           PointsInput(
             label: '持ち点',
-            initialValue: 25000,
+            initialValue: _defaults.startingPoints,
             presets: const [25000, 30000],
             errorText: _startingError,
             onChanged: (v) => setState(() => _starting = v),
@@ -150,7 +171,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           _label(context, '返し（オカの基準）'),
           PointsInput(
             label: '返し',
-            initialValue: 30000,
+            initialValue: _defaults.returnPoints,
             presets: const [25000, 30000],
             errorText: _returnError,
             onChanged: (v) => setState(() => _return = v),
@@ -166,7 +187,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             ),
           _label(context, 'ウマ'),
           UmaInput(
-            initialValue: const [20, 10, -10, -20],
+            initialValue: _defaults.uma,
             errorText: _umaError,
             onChanged: (v) => setState(() => _uma = v),
           ),
@@ -175,6 +196,28 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             title: const Text('トビあり（0点未満で終了）'),
             value: _tobi,
             onChanged: (v) => setState(() => _tobi = v),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('詳細ルール', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  Text(_defaults.ruleSummary.join('・'),
+                      style: Theme.of(context).textTheme.bodySmall),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _openRuleSettings,
+                      child: const Text('ルール設定を開く'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           FilledButton(

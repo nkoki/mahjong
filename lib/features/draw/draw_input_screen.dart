@@ -52,6 +52,8 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
           children: [
             Text('流局の種類', style: theme.textTheme.titleSmall),
             for (final t in DrawType.values)
+              if ((t != DrawType.nagashiMangan || s.settings.nagashiMangan) &&
+                  (!t.isAbortive || s.settings.abortiveDraws))
               ListTile(
                 dense: true,
                 leading: Icon(

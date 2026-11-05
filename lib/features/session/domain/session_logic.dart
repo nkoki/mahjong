@@ -96,6 +96,7 @@ class SessionLogic {
             e.input,
             honba: e.winner == taker ? s.honba : 0,
             riichiSticks: e.winner == taker ? s.riichiSticks : 0,
+            rules: s.settings.scoreRules,
           ),
         ),
     ];
@@ -114,11 +115,14 @@ class SessionLogic {
   }
 
   /// 和了の入力内容のチェック（問題なければ null）
-  static String? validateWins(List<int> winners, {int? loser}) {
+  static String? validateWins(List<int> winners, {int? loser, bool doubleRon = true}) {
     if (winners.isEmpty) return '和了者を選択してください';
     if (winners.toSet().length != winners.length) return '同じ人が2回和了しています';
     if (loser == null && winners.length > 1) return 'ツモ和了は1人だけです';
     if (loser != null && winners.contains(loser)) return '放銃者は和了できません';
+    if (!doubleRon && winners.length > 1) {
+      return 'ダブロンなし（頭ハネ）のルールなので、和了できるのは1人だけです';
+    }
     if (winners.length > maxRonWinners) {
       return '同時にロンできるのは$maxRonWinners人までです（3人の場合は流局の「三家和」を使ってください）';
     }
@@ -133,7 +137,8 @@ class SessionLogic {
     int? loser,
     required String description,
   }) {
-    final error = validateWins([for (final w in wins) w.winner], loser: loser);
+    final error = validateWins([for (final w in wins) w.winner],
+        loser: loser, doubleRon: s.settings.doubleRon);
     if (error != null) throw ArgumentError(error);
     if (wins.any((w) => !w.result.isValid)) throw ArgumentError('計算できていない和了があります');
     final deltas = winsDeltas(s, wins, loser: loser);
@@ -248,7 +253,8 @@ class SessionLogic {
     final busted = s.settings.tobi && scores.any((p) => p < 0);
     final overLast = nextRound >= s.settings.totalRounds;
     // オーラスで親が連荘してもトップなら和了止め（親がトップのとき終了）
-    final allLastDealerTop = renchan &&
+    final allLastDealerTop = s.settings.agariYame &&
+        renchan &&
         s.isAllLast &&
         next.ranking.first == s.dealer &&
         kind == 'win';

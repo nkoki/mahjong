@@ -13,15 +13,17 @@ class ScoreCalculator {
   ///
   /// [honba] 本場数（1本場につきロン300点 / ツモ各100点）
   /// [riichiSticks] 供託リーチ棒の本数（1本1000点を和了者が獲得）
+  /// [rules] 点数計算のルール（喰いタン・切り上げ満貫など）
   static ScoreResult calculate(
     WinInput input, {
     int honba = 0,
     int riichiSticks = 0,
+    ScoreRules rules = const ScoreRules(),
   }) {
     final error = _validate(input);
     if (error != null) return ScoreResult.error(error);
 
-    final contexts = _buildContexts(input);
+    final contexts = _buildContexts(input, rules);
     if (contexts.isEmpty) {
       return ScoreResult.error('和了形になっていません');
     }
@@ -134,7 +136,7 @@ class ScoreCalculator {
   // ---------------------------------------------------------------------
   // 解釈（面子分解 × 和了牌の位置）の列挙
   // ---------------------------------------------------------------------
-  static List<HandContext> _buildContexts(WinInput input) {
+  static List<HandContext> _buildContexts(WinInput input, ScoreRules rules) {
     final closedTiles = [...input.handTiles, input.winningTile];
     final closedCounts = toCounts(closedTiles);
     final meldGroups = input.melds.map(_meldToGroup).toList();
@@ -166,6 +168,7 @@ class ScoreCalculator {
           allCounts: allCounts,
           closedCounts: closedCounts,
           menzen: menzen,
+          rules: rules,
         );
 
     if (input.melds.isEmpty) {
@@ -240,8 +243,9 @@ class ScoreCalculator {
     int honba,
     int riichiSticks,
   ) {
-    final yakuList = YakuJudge.judge(ctx);
+    var yakuList = YakuJudge.judge(ctx);
     if (yakuList.isEmpty) return null;
+    final rules = ctx.rules;
 
     final isYakuman = yakuList.first.isYakuman;
     final fuResult = FuCalculator.calculate(ctx);
@@ -253,6 +257,14 @@ class ScoreCalculator {
 
     if (isYakuman) {
       yakumanCount = yakuList.fold<int>(0, (a, y) => a + y.han);
+      if (!rules.doubleYakuman && yakumanCount > 1) {
+        // ダブル役満・役満の複合なし: 役満1倍止まり
+        yakumanCount = 1;
+        yakuList = [for (final y in yakuList) Yaku(name: y.name, han: 1, isYakuman: true)];
+        allYaku
+          ..clear()
+          ..addAll(yakuList);
+      }
       han = 13 * yakumanCount;
       base = 8000 * yakumanCount;
       limitName = yakumanCount == 1 ? '役満' : '${_kanjiNum(yakumanCount)}倍役満';
@@ -274,7 +286,7 @@ class ScoreCalculator {
 
       han = allYaku.fold<int>(0, (a, y) => a + y.han);
       base = fuResult.fu * (1 << (han + 2));
-      if (han >= 13) {
+      if (han >= 13 && rules.kazoeYakuman) {
         base = 8000;
         limitName = '数え役満';
         yakumanCount = 1;
@@ -288,6 +300,11 @@ class ScoreCalculator {
         base = 3000;
         limitName = '跳満';
       } else if (han >= 5 || base >= 2000) {
+        base = 2000;
+        limitName = '満貫';
+      } else if (rules.kiriageMangan &&
+          ((han == 4 && fuResult.fu == 30) || (han == 3 && fuResult.fu == 60))) {
+        // 切り上げ満貫（基本点 1920 を 2000 に切り上げる）
         base = 2000;
         limitName = '満貫';
       }

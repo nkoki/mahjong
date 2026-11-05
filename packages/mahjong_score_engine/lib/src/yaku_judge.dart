@@ -136,8 +136,10 @@ class YakuJudge {
     final tiles = ctx.presentTiles.toList();
     final hasHonor = tiles.any(isHonorIndex);
 
-    // 断么九（喰いタンあり）
-    if (tiles.every((t) => !isYaochuIndex(t))) add('断么九', 1);
+    // 断么九（喰いタンなしのルールでは門前のみ）
+    if (tiles.every((t) => !isYaochuIndex(t)) && (menzen || ctx.rules.kuitan)) {
+      add('断么九', 1);
+    }
 
     // 混老頭（全て么九牌。順子なしは自動的に満たす）
     final allYaochu = tiles.every(isYaochuIndex);

@@ -36,6 +36,32 @@ class Meld {
   bool get isOpen => type != MeldType.ankan;
 }
 
+/// 点数計算のルール（初期値は一般的なリーチ麻雀のルール）
+class ScoreRules {
+  /// 喰いタン（鳴いた手の断么九）を認める
+  final bool kuitan;
+
+  /// 切り上げ満貫（4翻30符・3翻60符を満貫として扱う）
+  final bool kiriageMangan;
+
+  /// 数え役満（役満以外で13翻以上を役満にする）。なしの場合は三倍満止まり
+  final bool kazoeYakuman;
+
+  /// ダブル役満・役満の複合（四暗刻単騎などの2倍、役満どうしの足し算）。なしの場合は役満1倍止まり
+  final bool doubleYakuman;
+
+  /// 連風牌（場風かつ自風）の雀頭の符。4 か 2
+  final int renpuuPairFu;
+
+  const ScoreRules({
+    this.kuitan = true,
+    this.kiriageMangan = false,
+    this.kazoeYakuman = true,
+    this.doubleYakuman = true,
+    this.renpuuPairFu = 4,
+  });
+}
+
 /// 和了入力
 class WinInput {
   /// 鳴いていない手牌（和了牌は含めない）。枚数は 13 - 3×鳴き数。

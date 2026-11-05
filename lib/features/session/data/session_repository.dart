@@ -41,6 +41,12 @@ abstract class SessionRepository {
 
   /// バックアップを書き出した日時を記録する
   Future<void> setLastBackupAt(DateTime at);
+
+  /// ルール設定画面で決めた、新しい対局に使うルール（未設定なら null）
+  GameSettings? loadDefaultSettings();
+
+  /// 新しい対局に使うルールを保存する
+  Future<void> saveDefaultSettings(GameSettings settings);
 }
 
 /// ブラウザ（Web 版）の保存容量の上限の目安。多くのブラウザで 1サイトあたり約5MB
@@ -90,6 +96,25 @@ class SharedPrefsSessionRepository implements SessionRepository {
   @override
   Future<void> setLastBackupAt(DateTime at) =>
       prefs.setString(lastBackupKey, at.toIso8601String());
+
+  /// 新しい対局に使うルールのキー
+  static const defaultSettingsKey = 'mahjong_default_settings';
+
+  @override
+  GameSettings? loadDefaultSettings() {
+    final raw = prefs.getString(defaultSettingsKey);
+    if (raw == null) return null;
+    try {
+      return GameSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('ルール設定を読み込めませんでした（初期値を使います）: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<void> saveDefaultSettings(GameSettings settings) =>
+      prefs.setString(defaultSettingsKey, jsonEncode(settings.toJson()));
 
   final List<String> _warnings = [];
 
@@ -307,4 +332,13 @@ class InMemorySessionRepository implements SessionRepository {
 
   @override
   Future<void> setLastBackupAt(DateTime at) async => lastBackupAt = at;
+
+  GameSettings? defaultSettings;
+
+  @override
+  GameSettings? loadDefaultSettings() => defaultSettings;
+
+  @override
+  Future<void> saveDefaultSettings(GameSettings settings) async =>
+      defaultSettings = settings;
 }

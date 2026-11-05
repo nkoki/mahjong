@@ -133,7 +133,9 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
 
   Future<void> _addMeld() async {
     if (_melds.length >= 4) return;
-    final m = await MeldDialog.show(context, _remaining);
+    final s = ref.read(sessionProvider(widget.sessionId));
+    final m = await MeldDialog.show(context, _remaining,
+        redDora: s?.settings.redDora ?? true);
     if (m == null) return;
     setState(() {
       _melds.add(m);
@@ -188,7 +190,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     // ここでは手が和了形になっているか・役があるかだけを確かめる。
     // 本場・供託をだれが受け取るかはダブロンかどうかで変わるので、結果画面で計算する。
     // （ダッシュボードで立直宣言していなくても、和了者自身の立直棒は自分に戻るだけなので収支は同じ）
-    final result = ScoreCalculator.calculate(input);
+    final result = ScoreCalculator.calculate(input, rules: s.settings.scoreRules);
     if (!result.isValid) {
       _snack(result.error ?? '計算できませんでした');
       return;
@@ -437,7 +439,11 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
               ],
             ),
             const SizedBox(height: 4),
-            TilePalette(onSelected: _onTile, remaining: _remaining),
+            TilePalette(
+              onSelected: _onTile,
+              remaining: _remaining,
+              showRed: s.settings.redDora,
+            ),
           ],
         ),
       ),

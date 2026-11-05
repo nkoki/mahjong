@@ -61,8 +61,13 @@ class FuCalculator {
     // 雀頭
     final p = ctx.pair!.tile;
     if (p >= 31) details.add(const FuDetail('雀頭(三元牌)', 2));
-    if (p == ctx.roundWind) details.add(const FuDetail('雀頭(場風)', 2));
-    if (p == ctx.seatWind) details.add(const FuDetail('雀頭(自風)', 2));
+    if (p == ctx.roundWind && p == ctx.seatWind) {
+      // 連風牌（場風かつ自風）はルールによって 4符 か 2符
+      details.add(FuDetail('雀頭(連風牌)', ctx.rules.renpuuPairFu));
+    } else {
+      if (p == ctx.roundWind) details.add(const FuDetail('雀頭(場風)', 2));
+      if (p == ctx.seatWind) details.add(const FuDetail('雀頭(自風)', 2));
+    }
 
     // 待ち
     switch (ctx.wait) {

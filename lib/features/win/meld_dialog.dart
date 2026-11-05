@@ -9,13 +9,16 @@ class MeldDialog extends StatefulWidget {
   /// 牌ごとの残り枚数
   final int Function(Tile tile) remaining;
 
-  const MeldDialog({super.key, required this.remaining});
+  /// 赤ドラありのルールか（なしなら「赤5を含む」を表示しない）
+  final bool redDora;
+
+  const MeldDialog({super.key, required this.remaining, this.redDora = true});
 
   static Future<Meld?> show(
-      BuildContext context, int Function(Tile tile) remaining) {
+      BuildContext context, int Function(Tile tile) remaining, {bool redDora = true}) {
     return showDialog<Meld>(
       context: context,
-      builder: (_) => MeldDialog(remaining: remaining),
+      builder: (_) => MeldDialog(remaining: remaining, redDora: redDora),
     );
   }
 
@@ -69,6 +72,7 @@ class _MeldDialogState extends State<MeldDialog> {
   }
 
   bool get _hasFive =>
+      widget.redDora &&
       _base != null &&
       _tilesFor(_base!).any((t) => isNumberTile(t) && tileNumber(t) == 5) &&
       widget.remaining('5${tileSuit(_base!)}r') > 0;
