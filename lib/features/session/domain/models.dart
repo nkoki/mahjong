@@ -61,6 +61,14 @@ class GameSettings {
   /// 祝儀（チップ）を記録する。和了ごとに枚数を入れ、ロンは放銃者が、ツモはほかの全員が払う
   final bool chips;
 
+  // ---- ローカルルール（精算ポイント、千点単位。0 ならなし）----
+
+  /// 焼き鳥: 1回も和了しなかった人が払うポイント。和了した人で等分する
+  final int yakitori;
+
+  /// トビ賞: 0点未満になって対局が終わったとき、飛んだ人が飛ばした人（最後の局の和了者）に払うポイント
+  final int tobiBonus;
+
   // ---- 人数・3人打ちのルール ----
 
   /// 人数（4人打ち: 4 / 3人打ち: 3）
@@ -91,6 +99,8 @@ class GameSettings {
     this.abortiveDraws = true,
     this.redDora = true,
     this.chips = false,
+    this.yakitori = 0,
+    this.tobiBonus = 0,
     this.playerCount = 4,
     this.nukiDora = true,
     this.sanmaTsumoSplit = false,
@@ -116,6 +126,8 @@ class GameSettings {
     this.abortiveDraws = true,
     this.redDora = true,
     this.chips = false,
+    this.yakitori = 0,
+    this.tobiBonus = 0,
     this.nukiDora = true,
     this.sanmaTsumoSplit = false,
   }) : playerCount = 3;
@@ -165,6 +177,8 @@ class GameSettings {
         '途中流局${abortiveDraws ? "あり" : "なし"}',
         '赤ドラ${redDora ? "あり" : "なし"}',
         if (chips) '祝儀あり',
+        if (yakitori > 0) '焼き鳥 ${yakitori}P',
+        if (tobiBonus > 0) 'トビ賞 ${tobiBonus}P',
       ];
 
   GameSettings copyWith({
@@ -186,6 +200,8 @@ class GameSettings {
     bool? abortiveDraws,
     bool? redDora,
     bool? chips,
+    int? yakitori,
+    int? tobiBonus,
     bool? nukiDora,
     bool? sanmaTsumoSplit,
   }) =>
@@ -208,6 +224,8 @@ class GameSettings {
         abortiveDraws: abortiveDraws ?? this.abortiveDraws,
         redDora: redDora ?? this.redDora,
         chips: chips ?? this.chips,
+        yakitori: yakitori ?? this.yakitori,
+        tobiBonus: tobiBonus ?? this.tobiBonus,
         playerCount: playerCount,
         nukiDora: nukiDora ?? this.nukiDora,
         sanmaTsumoSplit: sanmaTsumoSplit ?? this.sanmaTsumoSplit,
@@ -234,6 +252,8 @@ class GameSettings {
           'abortiveDraws': abortiveDraws,
           'redDora': redDora,
           if (chips) 'chips': true,
+          if (yakitori > 0) 'yakitori': yakitori,
+          if (tobiBonus > 0) 'tobiBonus': tobiBonus,
           if (isSanma) 'nukiDora': nukiDora,
           if (isSanma) 'sanmaTsumoSplit': sanmaTsumoSplit,
         },
@@ -264,6 +284,9 @@ class GameSettings {
       redDora: r['redDora'] as bool? ?? d.redDora,
       // version 4 以前のデータには無い（祝儀なし）
       chips: r['chips'] as bool? ?? false,
+      // version 5 以前のデータには無い（なし）
+      yakitori: r['yakitori'] as int? ?? 0,
+      tobiBonus: r['tobiBonus'] as int? ?? 0,
       // 3人打ちを入れる前のデータは4人打ち
       playerCount: j['playerCount'] as int? ?? 4,
       nukiDora: r['nukiDora'] as bool? ?? d.nukiDora,
@@ -484,14 +507,18 @@ class FinalResult {
   final int rank; // 1〜4
   final int score;
 
-  /// ウマ・オカ込みのポイント（千点単位）
+  /// ウマ・オカ込みのポイント（千点単位。焼き鳥・トビ賞も含む）
   final double point;
+
+  /// [point] のうち焼き鳥・トビ賞の分
+  final double adjustment;
 
   const FinalResult({
     required this.player,
     required this.rank,
     required this.score,
     required this.point,
+    this.adjustment = 0,
   });
 }
 
@@ -785,15 +812,64 @@ class GameSession {
     return t;
   }
 
-  /// 最終結果（ウマ・オカ込み）
+  /// 1回も和了していない人（焼き鳥）。和了者の記録が無い古い局（version 3 以前）があれば分からないので空
+  List<int> get yakitoriPlayers {
+    final won = List<bool>.filled(playerCount, false);
+    for (final r in records) {
+      if (r.kind != 'win') continue;
+      final w = r.winners;
+      if (w == null) return const [];
+      for (final p in w) {
+        if (p >= 0 && p < playerCount) won[p] = true;
+      }
+    }
+    return [for (var p = 0; p < playerCount; p++) if (!won[p]) p];
+  }
+
+  /// 焼き鳥・トビ賞のポイントの増減（終局していなければ、またはルールがなしなら全員 0）
+  List<double> get localRuleAdjustments {
+    final adj = List<double>.filled(playerCount, 0);
+    if (!finished) return adj;
+    if (settings.yakitori > 0) {
+      final birds = yakitoriPlayers;
+      final others = [for (var p = 0; p < playerCount; p++) if (!birds.contains(p)) p];
+      if (birds.isNotEmpty && others.isNotEmpty) {
+        for (final p in birds) {
+          adj[p] -= settings.yakitori;
+        }
+        for (final p in others) {
+          adj[p] += settings.yakitori * birds.length / others.length;
+        }
+      }
+    }
+    if (settings.tobiBonus > 0 && settings.tobi && records.isNotEmpty) {
+      // 最後の局が和了で、誰かが 0点未満になって終わった（トビ）とき、飛ばした人（和了者）がもらう
+      final last = records.last;
+      final busted = [for (var p = 0; p < playerCount; p++) if (scores[p] < 0) p];
+      final winners = last.kind == 'win' ? (last.winners ?? const <int>[]) : const <int>[];
+      final takers = winners.where((w) => !busted.contains(w)).toList();
+      if (busted.isNotEmpty && takers.isNotEmpty) {
+        for (final p in busted) {
+          adj[p] -= settings.tobiBonus;
+        }
+        for (final w in takers) {
+          adj[w] += settings.tobiBonus * busted.length / takers.length;
+        }
+      }
+    }
+    return adj;
+  }
+
+  /// 最終結果（ウマ・オカ、終局していれば焼き鳥・トビ賞も込み）
   List<FinalResult> get finalResults {
     final order = ranking;
+    final adj = localRuleAdjustments;
     final results = <FinalResult>[];
     for (var r = 0; r < playerCount; r++) {
       final p = order[r];
       var point = (scores[p] - settings.returnPoints) / 1000 + settings.uma[r];
       if (r == 0) point += settings.oka;
-      results.add(FinalResult(player: p, rank: r + 1, score: scores[p], point: point));
+      results.add(FinalResult(player: p, rank: r + 1, score: scores[p], point: point + adj[p], adjustment: adj[p]));
     }
     return results;
   }

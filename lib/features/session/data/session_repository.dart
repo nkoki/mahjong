@@ -91,7 +91,9 @@ class SharedPrefsSessionRepository implements SessionRepository {
   ///      version 3 のデータはそのまま読める（その局は個人成績の和了率などに含めない）
   /// - 5: ルールに祝儀（チップ）を記録するか、局の記録に祝儀の増減を追加。
   ///      version 4 以前のデータはそのまま読める（祝儀なしとして扱う）
-  static const formatVersion = 5;
+  /// - 6: ルールに焼き鳥・トビ賞（精算ポイント）を追加。
+  ///      version 5 以前のデータはそのまま読める（どちらもなしとして扱う）
+  static const formatVersion = 6;
 
   static String sessionKey(String id) => '$sessionKeyPrefix$id';
 

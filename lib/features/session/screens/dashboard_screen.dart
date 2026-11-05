@@ -382,7 +382,8 @@ class _FinishedView extends StatelessWidget {
             child: ListTile(
               leading: CircleAvatar(child: Text('${r.rank}')),
               title: Text(session.playerNames[r.player]),
-              subtitle: Text('${formatPoints(r.score)}点'),
+              subtitle: Text('${formatPoints(r.score)}点'
+                  '${r.adjustment != 0 ? '  焼き鳥・トビ賞 ${formatPoint(r.adjustment)}' : ''}'),
               trailing: Text(formatPoint(r.point),
                   style: theme.textTheme.titleLarge?.copyWith(
                       color: deltaColor(context, r.point) ?? deltaColor(context, 1))),

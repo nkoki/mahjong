@@ -275,6 +275,30 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
                   'ロンは放銃者が、ツモはほかの全員が払います。戦績・個人成績に合計を表示します',
               s.chips,
               (v) => update((c) => c.copyWith(chips: v))),
+          section('ローカルルール（精算ポイント）'),
+          label('焼き鳥（1回も和了しなかった人が払う）'),
+          _PointChoice(
+            keyPrefix: 'yakitori',
+            value: s.yakitori,
+            onChanged: (v) => update((c) => c.copyWith(yakitori: v)),
+          ),
+          label('トビ賞（飛んだ人が飛ばした人に払う）'),
+          _PointChoice(
+            keyPrefix: 'tobiBonus',
+            value: s.tobiBonus,
+            onChanged: (v) => update((c) => c.copyWith(tobiBonus: v)),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              '終局したときの最終ポイント（ウマ・オカ込み）に足し引きします。'
+              '焼き鳥は和了した人で等分し、全員が和了したとき・誰も和了しなかったときは動きません。'
+              'トビ賞は「トビあり」のときだけで、最後の局の和了者（ダブロンなら等分）がもらいます。'
+              '流局のテンパイ料やチョンボで飛んだときは動きません。'
+              '和了者を記録していない古い局（以前の版で入力した局）がある対局では焼き鳥を数えません。',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
           const SizedBox(height: 24),
           FilledButton(onPressed: _isValid ? _save : null, child: const Text('保存')),
           if (!_isValid)
@@ -289,6 +313,32 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
               textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
         ],
       ),
+    );
+  }
+}
+
+/// 精算ポイントを選ぶ（なし・5P・10P・20P）
+class _PointChoice extends StatelessWidget {
+  final String keyPrefix;
+  final int value;
+  final ValueChanged<int> onChanged;
+  const _PointChoice({required this.keyPrefix, required this.value, required this.onChanged});
+
+  static const choices = [0, 5, 10, 20];
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      children: [
+        for (final c in {...choices, value})
+          ChoiceChip(
+            key: ValueKey('$keyPrefix-$c'),
+            label: Text(c == 0 ? 'なし' : '${c}P'),
+            selected: value == c,
+            onSelected: (_) => onChanged(c),
+          ),
+      ],
     );
   }
 }

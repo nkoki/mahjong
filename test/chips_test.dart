@@ -92,7 +92,7 @@ void main() {
     expect(loaded.settings.chips, isFalse);
     expect(loaded.chipTotals, [0, 0, 0, 0]);
     expect(loaded.settings.ruleSummary, isNot(contains('祝儀あり')));
-    expect(SharedPrefsSessionRepository.formatVersion, 5);
+    expect(SharedPrefsSessionRepository.formatVersion, greaterThanOrEqualTo(5));
   });
 
   test('個人成績と CSV に祝儀の合計が出る', () {

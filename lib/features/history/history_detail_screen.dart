@@ -79,7 +79,8 @@ class HistoryDetailScreen extends ConsumerWidget {
                     leading: CircleAvatar(child: Text('${r.rank}')),
                     title: Text(s.playerNames[r.player]),
                     subtitle: Text('${formatPoints(r.score)}点'
-                        '${s.settings.chips ? '  祝儀 ${_chipText(s.chipTotals[r.player])}' : ''}'),
+                        '${s.settings.chips ? '  祝儀 ${_chipText(s.chipTotals[r.player])}' : ''}'
+                        '${r.adjustment != 0 ? '  焼き鳥・トビ賞 ${formatPoint(r.adjustment)}' : ''}'),
                     trailing: s.finished
                         ? Text(formatPoint(r.point), style: theme.textTheme.titleMedium)
                         : null,
