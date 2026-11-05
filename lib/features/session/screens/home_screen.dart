@@ -5,6 +5,7 @@ import '../../../core/routes.dart';
 import '../../../core/theme.dart';
 import '../../about/license_screen.dart';
 import '../../history/history_list_screen.dart';
+import '../../score_table/score_table_screen.dart';
 import '../../stats/stats_screen.dart';
 import '../../backup/backup_screen.dart';
 import '../../settings/display_settings.dart';
@@ -103,6 +104,15 @@ class HomeScreen extends ConsumerWidget {
             label: const Text('個人成績'),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const StatsScreen()),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+            icon: const Icon(Icons.table_chart_outlined),
+            label: const Text('点数早見表'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ScoreTableScreen()),
             ),
           ),
           if (ongoing.isNotEmpty) ...[
