@@ -70,6 +70,86 @@ class SessionLogic {
     );
   }
 
+  /// 1回のロンで同時に和了できる人数（ダブロンまで。3人は「三家和」の流局として扱う）
+  static const maxRonWinners = 2;
+
+  /// 本場・供託を受け取る和了者。
+  /// ロンが2人のときは、放銃者から見て打つ順番が近い方（上家取り）。
+  static int honbaTaker(List<int> winners, {int? loser}) {
+    if (loser == null) return winners.single;
+    for (var k = 1; k < 4; k++) {
+      final p = (loser + k) % 4;
+      if (winners.contains(p)) return p;
+    }
+    throw ArgumentError('和了者がいません');
+  }
+
+  /// 和了者ごとの点数を計算する。本場・供託は [honbaTaker] の人にだけ付ける。
+  static List<ScoredWin> scoreWins(GameSession s, List<WinEntry> entries, {int? loser}) {
+    final taker = honbaTaker([for (final e in entries) e.winner], loser: loser);
+    return [
+      for (final e in entries)
+        ScoredWin(
+          winner: e.winner,
+          input: e.input,
+          result: ScoreCalculator.calculate(
+            e.input,
+            honba: e.winner == taker ? s.honba : 0,
+            riichiSticks: e.winner == taker ? s.riichiSticks : 0,
+          ),
+        ),
+    ];
+  }
+
+  /// 複数人の和了の点数移動（和了者ごとの点数移動の合計）
+  static List<int> winsDeltas(GameSession s, List<ScoredWin> wins, {int? loser}) {
+    final total = List<int>.filled(4, 0);
+    for (final w in wins) {
+      final d = winDeltas(s, winner: w.winner, loser: loser, result: w.result);
+      for (var i = 0; i < 4; i++) {
+        total[i] += d[i];
+      }
+    }
+    return total;
+  }
+
+  /// 和了の入力内容のチェック（問題なければ null）
+  static String? validateWins(List<int> winners, {int? loser}) {
+    if (winners.isEmpty) return '和了者を選択してください';
+    if (winners.toSet().length != winners.length) return '同じ人が2回和了しています';
+    if (loser == null && winners.length > 1) return 'ツモ和了は1人だけです';
+    if (loser != null && winners.contains(loser)) return '放銃者は和了できません';
+    if (winners.length > maxRonWinners) {
+      return '同時にロンできるのは$maxRonWinners人までです（3人の場合は流局の「三家和」を使ってください）';
+    }
+    return null;
+  }
+
+  /// 和了を適用する（ダブロンにも対応）。
+  /// 和了者に親がいれば連荘（本場+1）、いなければ親流れ（0本場）。
+  static GameSession applyWins(
+    GameSession s, {
+    required List<ScoredWin> wins,
+    int? loser,
+    required String description,
+  }) {
+    final error = validateWins([for (final w in wins) w.winner], loser: loser);
+    if (error != null) throw ArgumentError(error);
+    if (wins.any((w) => !w.result.isValid)) throw ArgumentError('計算できていない和了があります');
+    final deltas = winsDeltas(s, wins, loser: loser);
+    final scores = [for (var i = 0; i < 4; i++) s.scores[i] + deltas[i]];
+    final dealerWon = wins.any((w) => w.winner == s.dealer);
+    return _finishRound(
+      s,
+      scores: scores,
+      kind: 'win',
+      description: description,
+      renchan: dealerWon,
+      nextHonba: dealerWon ? s.honba + 1 : 0,
+      clearSticks: true,
+    );
+  }
+
   /// 流局の点数移動を計算する
   static List<int> drawDeltas(
     GameSession s, {
@@ -286,4 +366,19 @@ class SessionLogic {
       ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
     return candidates.take(over).toList();
   }
+}
+
+/// 和了者と、その手の入力内容
+class WinEntry {
+  final int winner;
+  final WinInput input;
+  const WinEntry({required this.winner, required this.input});
+}
+
+/// 点数を計算した和了
+class ScoredWin {
+  final int winner;
+  final WinInput input;
+  final ScoreResult result;
+  const ScoredWin({required this.winner, required this.input, required this.result});
 }

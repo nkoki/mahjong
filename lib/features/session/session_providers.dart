@@ -134,6 +134,18 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
             description: description),
       );
 
+  void applyWins(
+    String id, {
+    required List<ScoredWin> wins,
+    int? loser,
+    required String description,
+  }) =>
+      _update(
+        id,
+        (s) => SessionLogic.applyWins(s,
+            wins: wins, loser: loser, description: description),
+      );
+
   void applyDraw(
     String id, {
     required DrawType type,

@@ -6,6 +6,7 @@ import '../../shared/widgets/tile_palette.dart';
 import '../../shared/widgets/tile_view.dart';
 import '../camera/tile_recognizer.dart';
 import '../session/domain/models.dart';
+import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
 import 'meld_dialog.dart';
 import 'win_result_screen.dart';
@@ -14,9 +15,23 @@ import 'win_result_screen.dart';
 enum _Target { hand, win, dora, ura }
 
 /// 和了入力画面（和了者・手牌・鳴き・ドラ・オプション）
+///
+/// ダブロンの2人目を入力するときは、1人目の入力内容を [previousWins] に、
+/// 放銃者を [fixedLoser] に渡す（ロンのみ・放銃者・和了牌・ドラ表示牌は1人目と同じ）。
 class WinInputScreen extends ConsumerStatefulWidget {
   final String sessionId;
-  const WinInputScreen({super.key, required this.sessionId});
+  final List<WinEntry> previousWins;
+  final int? fixedLoser;
+
+  const WinInputScreen({
+    super.key,
+    required this.sessionId,
+    this.previousWins = const [],
+    this.fixedLoser,
+  });
+
+  /// ダブロンの2人目の入力かどうか
+  bool get isAdditionalRon => previousWins.isNotEmpty;
 
   @override
   ConsumerState<WinInputScreen> createState() => _WinInputScreenState();
@@ -33,6 +48,20 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
   final List<Tile> _dora = [];
   final List<Tile> _ura = [];
   _Target _target = _Target.hand;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isAdditionalRon) {
+      // 同じ捨て牌へのロンなので、放銃者・和了牌・ドラ表示牌は1人目と同じ
+      final first = widget.previousWins.first.input;
+      _tsumo = false;
+      _loser = widget.fixedLoser;
+      _winTile = first.winningTile;
+      _dora.addAll(first.doraTiles);
+      _ura.addAll(first.uraDoraTiles);
+    }
+  }
 
   bool _riichi = false;
   bool _doubleRiichi = false;
@@ -156,9 +185,10 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       isTenho: _tsumo && _tenho && s.dealer == winner,
       isChiho: _tsumo && _tenho && s.dealer != winner,
     );
-    // ダッシュボードで立直宣言していなくても、和了者自身の立直棒は自分に戻るだけなので収支は同じ
-    final result = ScoreCalculator.calculate(input,
-        honba: s.honba, riichiSticks: s.riichiSticks);
+    // ここでは手が和了形になっているか・役があるかだけを確かめる。
+    // 本場・供託をだれが受け取るかはダブロンかどうかで変わるので、結果画面で計算する。
+    // （ダッシュボードで立直宣言していなくても、和了者自身の立直棒は自分に戻るだけなので収支は同じ）
+    final result = ScoreCalculator.calculate(input);
     if (!result.isValid) {
       _snack(result.error ?? '計算できませんでした');
       return;
@@ -166,10 +196,8 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => WinResultScreen(
         sessionId: widget.sessionId,
-        winner: winner,
+        entries: [...widget.previousWins, WinEntry(winner: winner, input: input)],
         loser: _tsumo ? null : _loser,
-        input: input,
-        result: result,
       ),
     ));
   }
@@ -188,7 +216,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('和了入力  ${s.roundLabel}'),
+        title: Text(widget.isAdditionalRon ? '2人目の和了入力' : '和了入力  ${s.roundLabel}'),
         actions: [
           IconButton(
             tooltip: 'カメラで手牌を読み取る（準備中）',
@@ -204,11 +232,26 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(12),
                 children: [
+                  if (widget.isAdditionalRon)
+                    Card(
+                      color: theme.colorScheme.tertiaryContainer,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          'ダブロンの2人目の和了を入力します。'
+                          '放銃者・和了牌・ドラ表示牌は1人目（'
+                          '${widget.previousWins.map((e) => s.playerNames[e.winner]).join("・")}）と同じです。',
+                          style: TextStyle(color: theme.colorScheme.onTertiaryContainer),
+                        ),
+                      ),
+                    ),
                   _section(theme, '和了者'),
                   Wrap(
                     spacing: 6,
                     children: [
                       for (var p = 0; p < 4; p++)
+                        if (!widget.previousWins.any((e) => e.winner == p) &&
+                            p != widget.fixedLoser)
                         ChoiceChip(
                           label: Text(
                               '${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}'),
@@ -218,15 +261,19 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('ロン')),
-                      ButtonSegment(value: true, label: Text('ツモ')),
-                    ],
-                    selected: {_tsumo},
-                    onSelectionChanged: (v) => setState(() => _tsumo = v.first),
-                  ),
-                  if (!_tsumo) ...[
+                  if (!widget.isAdditionalRon)
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('ロン')),
+                        ButtonSegment(value: true, label: Text('ツモ')),
+                      ],
+                      selected: {_tsumo},
+                      onSelectionChanged: (v) => setState(() => _tsumo = v.first),
+                    ),
+                  if (widget.isAdditionalRon) ...[
+                    _section(theme, '放銃者'),
+                    Text('${s.playerNames[widget.fixedLoser!]}（1人目と同じ）'),
+                  ] else if (!_tsumo) ...[
                     _section(theme, '放銃者'),
                     Wrap(
                       spacing: 6,
