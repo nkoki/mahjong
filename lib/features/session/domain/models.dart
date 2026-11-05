@@ -523,6 +523,32 @@ class FinalResult {
   });
 }
 
+/// 対局の途中のプレイヤーの交代
+class Substitution {
+  /// 交代した人が最初に打った局（局の記録の番号。まだ打っていなければ局の記録の数）
+  final int fromRecord;
+
+  /// 交代した席（起家から順の番号）
+  final int seat;
+
+  /// 抜けた人・入った人の名前
+  final String from, to;
+
+  const Substitution({required this.fromRecord, required this.seat, required this.from, required this.to});
+
+  Substitution copyWith({int? fromRecord, String? from, String? to}) =>
+      Substitution(fromRecord: fromRecord ?? this.fromRecord, seat: seat, from: from ?? this.from, to: to ?? this.to);
+
+  Map<String, dynamic> toJson() => {'fromRecord': fromRecord, 'seat': seat, 'from': from, 'to': to};
+
+  factory Substitution.fromJson(Map<String, dynamic> j) => Substitution(
+        fromRecord: j['fromRecord'] as int,
+        seat: j['seat'] as int,
+        from: j['from'] as String,
+        to: j['to'] as String,
+      );
+}
+
 /// 対局（1半荘・1東風戦）の状態
 class GameSession {
   final String id;
@@ -556,6 +582,9 @@ class GameSession {
   /// 終局時にトップへ渡した供託リーチ棒の本数（局の修正でトップが変わったときに付け替える）
   final int settledSticks;
 
+  /// 途中の交代（古い順）。[playerNames] は今打っている人
+  final List<Substitution> substitutions;
+
   /// 1つ前の状態（「元に戻す」用）
   final GameSession? previous;
 
@@ -574,6 +603,7 @@ class GameSession {
     required this.finished,
     this.favorite = false,
     this.settledSticks = 0,
+    this.substitutions = const [],
     this.previous,
   });
 
@@ -616,7 +646,7 @@ class GameSession {
         'records': [for (final r in records) r.toJson()],
         ..._stateJson(),
         if (previous != null && undoDepth > 0)
-          'previous': previous!._snapshotJson(records, undoDepth - 1),
+          'previous': previous!._snapshotJson(records, undoDepth - 1, newerNames: playerNames),
       };
 
   /// 局ごとに変わる値
@@ -629,22 +659,28 @@ class GameSession {
         'roundStartScores': roundStartScores,
         'finished': finished,
         if (settledSticks > 0) 'settledSticks': settledSticks,
+        if (substitutions.isNotEmpty) 'substitutions': [for (final x in substitutions) x.toJson()],
       };
 
   /// 「元に戻す」用のスナップショット。[newerRecords] は1つ新しい状態の記録。
-  Map<String, dynamic> _snapshotJson(List<RoundRecord> newerRecords, int undoDepth) {
+  Map<String, dynamic> _snapshotJson(List<RoundRecord> newerRecords, int undoDepth, {List<String>? newerNames}) {
     final isPrefix = records.length <= newerRecords.length &&
         Iterable<int>.generate(records.length)
             .every((i) => identical(records[i], newerRecords[i]));
+    final sameNames = newerNames == null ||
+        (newerNames.length == playerNames.length &&
+            Iterable<int>.generate(playerNames.length).every((i) => newerNames[i] == playerNames[i]));
     return {
       ..._stateJson(),
+      // 名前は交代したときだけ変わるので、1つ新しい状態と違うときだけ保存する
+      if (!sameNames) 'playerNames': playerNames,
       // 通常は先頭部分なので件数だけ。そうでない場合（想定外）は記録を丸ごと保存する
       if (isPrefix)
         'recordCount': records.length
       else
         'records': [for (final r in records) r.toJson()],
       if (previous != null && undoDepth > 0)
-        'previous': previous!._snapshotJson(records, undoDepth - 1),
+        'previous': previous!._snapshotJson(records, undoDepth - 1, newerNames: playerNames),
     };
   }
 
@@ -689,10 +725,13 @@ class GameSession {
       }
       previous = GameSession._fromStateJson(
         p,
-        // 旧形式（version 1）は名前・ルールも入っているが、内容は同じなので親のものを使う
+        // 旧形式（version 1）は名前・ルールも入っているが、内容は同じなので親のものを使う。
+        // 名前は、交代する前の状態だけ入っている（version 7 以降）
         id: id,
         createdAt: createdAt,
-        playerNames: playerNames,
+        playerNames: p['playerNames'] != null
+            ? List<String>.unmodifiable((p['playerNames'] as List).map((e) => e as String))
+            : playerNames,
         settings: settings,
         favorite: favorite,
         records: prevRecords,
@@ -713,6 +752,10 @@ class GameSession {
       finished: j['finished'] as bool,
       favorite: favorite,
       settledSticks: j['settledSticks'] as int? ?? 0,
+      // version 6 以前のデータには無い（交代なし）
+      substitutions: List.unmodifiable([
+        for (final x in (j['substitutions'] as List?) ?? const []) Substitution.fromJson(x as Map<String, dynamic>)
+      ]),
       previous: previous,
     );
   }
@@ -730,6 +773,7 @@ class GameSession {
     bool? finished,
     bool? favorite,
     int? settledSticks,
+    List<Substitution>? substitutions,
     GameSession? previous,
     bool clearPrevious = false,
   }) {
@@ -748,9 +792,22 @@ class GameSession {
       finished: finished ?? this.finished,
       favorite: favorite ?? this.favorite,
       settledSticks: settledSticks ?? this.settledSticks,
+      substitutions: substitutions ?? this.substitutions,
       previous: clearPrevious ? null : (previous ?? this.previous),
     );
   }
+
+  /// [recordIndex] 番目の局で、席 [seat] で打っていた人の名前（交代があればそのときの人）
+  String nameAt(int recordIndex, int seat) {
+    var name = playerNames[seat];
+    for (final x in substitutions.reversed) {
+      if (x.seat == seat && recordIndex < x.fromRecord) name = x.from;
+    }
+    return name;
+  }
+
+  /// この対局で打ったすべての人の名前（交代で抜けた人も含む）
+  Set<String> get allNames => {...playerNames, for (final x in substitutions) x.from};
 
   /// 親（東家）のプレイヤー番号
   int get dealer => roundIndex % playerCount;

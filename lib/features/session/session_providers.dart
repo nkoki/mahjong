@@ -166,6 +166,8 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
           (s) => SessionLogic.editRound(s, index,
               deltas: deltas, description: description, who: who));
 
+  void substitute(String id, int seat, String name) => _update(id, (s) => SessionLogic.substitute(s, seat, name));
+
   void deleteRound(String id, int index) => _update(id, (s) => SessionLogic.deleteRound(s, index));
 
   void insertRound(String id, int index,

@@ -135,6 +135,25 @@ class HistoryDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
+          if (s.substitutions.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('途中の交代', style: theme.textTheme.titleMedium),
+            Card(
+              child: Column(
+                children: [
+                  for (final x in s.substitutions)
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.swap_horiz),
+                      title: Text('${x.from} → ${x.to}'),
+                      subtitle: Text(x.fromRecord < s.records.length
+                          ? '${s.records[x.fromRecord].roundLabel}から'
+                          : 'これからの局から'),
+                    ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Text('局の記録（${s.records.length}局）', style: theme.textTheme.titleMedium),
           if (s.records.isNotEmpty)

@@ -617,7 +617,8 @@ class SessionLogic {
     final old = s.records[index];
     final sum = old.deltas.fold<int>(0, (a, d) => a + d);
     final records = [...s.records]..removeAt(index);
-    return _shiftRecords(s, records, index, [for (final d in old.deltas) -d], sum ~/ 1000);
+    return _shiftRecords(s, records, index, [for (final d in old.deltas) -d], sum ~/ 1000)
+        ?.copyWith(substitutions: _shiftSubstitutions(s.substitutions, index, -1));
   }
 
   /// 局の追加のチェック（問題なければ null）。[winners] が null なら流局
@@ -664,7 +665,8 @@ class SessionLogic {
       riichi: const [],
     );
     final records = [...s.records]..insert(index, record);
-    return _shiftRecords(s, records, index + 1, deltas, 0)!;
+    return _shiftRecords(s, records, index + 1, deltas, 0)!
+        .copyWith(substitutions: _shiftSubstitutions(s.substitutions, index, 1));
   }
 
   // ---- 局・本場・供託の修正 ----
@@ -683,7 +685,7 @@ class SessionLogic {
 
   /// 元に戻す（お気に入り・ウマは対局の進行とは別に変えられるので、今の設定を残す）
   static GameSession undo(GameSession s) =>
-      s.previous?.copyWith(favorite: s.favorite, settings: s.settings, playerNames: s.playerNames) ?? s;
+      s.previous?.copyWith(favorite: s.favorite, settings: s.settings) ?? s;
 
   /// ウマの変更（最終ポイントは表示のたびに計算するので、ウマを変えるだけで反映される）
   static GameSession updateUma(GameSession s, List<int> uma) =>
@@ -758,9 +760,9 @@ class SessionLogic {
     var renamed = 0, skipped = 0;
     final out = [
       for (final s in sessions)
-        if (!s.playerNames.contains(from))
+        if (!s.allNames.contains(from))
           s
-        else if (s.playerNames.contains(t))
+        else if (s.allNames.contains(t))
           () {
             skipped++;
             return s;
@@ -768,11 +770,64 @@ class SessionLogic {
         else
           () {
             renamed++;
-            return s.copyWith(playerNames: List.unmodifiable([for (final n in s.playerNames) n == from ? t : n]));
+            return _renameDeep(s, from, t);
           }(),
     ];
     return (sessions: out, renamed: renamed, skipped: skipped);
   }
+
+  /// 名前を変える（元に戻す用の前の状態も同じように変える。元に戻しても名前が戻らないように）
+  static GameSession _renameDeep(GameSession s, String from, String to) {
+    String r(String n) => n == from ? to : n;
+    return s.copyWith(
+      playerNames: List.unmodifiable([for (final n in s.playerNames) r(n)]),
+      substitutions: List.unmodifiable([for (final x in s.substitutions) x.copyWith(from: r(x.from), to: r(x.to))]),
+      previous: s.previous == null ? null : _renameDeep(s.previous!, from, to),
+    );
+  }
+
+  // ---- プレイヤーの交代 ----
+
+  /// 交代のチェック（問題なければ null）
+  static String? validateSubstitute(GameSession s, int seat, String name) {
+    if (s.finished) return '終局した対局では交代できません';
+    if (seat < 0 || seat >= s.playerCount) return '席が正しくありません';
+    final t = name.trim();
+    if (t.isEmpty) return '入る人の名前を入力してください';
+    if (s.playerNames.contains(t)) return '「$t」は今この対局で打っています。別の名前にしてください';
+    return null;
+  }
+
+  /// 席 [seat] の人を [name] に交代する。点数・席（風）はそのまま引き継ぐ。
+  ///
+  /// これより前の局は抜けた人、これからの局は入った人の成績として個人成績に数える。
+  /// 最終結果（順位・ポイント）は、終局したときに打っていた人の成績になる。元に戻すで取り消せる
+  static GameSession substitute(GameSession s, int seat, String name) {
+    final e = validateSubstitute(s, seat, name);
+    if (e != null) throw ArgumentError(e);
+    final t = name.trim();
+    final from = s.records.length;
+    final subs = [...s.substitutions];
+    // まだ1局も打たないうちにもう一度交代したら、1回の交代にまとめる
+    final i = subs.lastIndexWhere((x) => x.seat == seat && x.fromRecord == from);
+    if (i >= 0) {
+      final first = subs.removeAt(i);
+      if (first.from != t) subs.add(first.copyWith(to: t));
+    } else {
+      subs.add(Substitution(fromRecord: from, seat: seat, from: s.playerNames[seat], to: t));
+    }
+    return s.copyWith(
+      playerNames: List.unmodifiable([for (var p = 0; p < s.playerCount; p++) p == seat ? t : s.playerNames[p]]),
+      substitutions: List.unmodifiable(subs),
+      previous: s,
+    );
+  }
+
+  /// 局を [index] に追加・削除したときに、交代の局の番号をずらす
+  static List<Substitution> _shiftSubstitutions(List<Substitution> subs, int index, int by) => List.unmodifiable([
+        for (final x in subs)
+          x.fromRecord > index || (by > 0 && x.fromRecord == index) ? x.copyWith(fromRecord: x.fromRecord + by) : x
+      ]);
 
   /// 自動で削除してよい対局か（お気に入りでも対局中でもない）
   static bool isDeletable(GameSession s) => !s.favorite && s.finished;

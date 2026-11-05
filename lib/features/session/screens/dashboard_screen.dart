@@ -64,6 +64,18 @@ class DashboardScreen extends ConsumerWidget {
                 if (r != null) {
                   notifier.adjustProgress(sessionId, roundIndex: r.$1, honba: r.$2, riichiSticks: r.$3);
                 }
+              } else if (v == 'substitute') {
+                final names = SessionLogic.recentPlayerNames(ref.read(sessionsProvider));
+                final r = await showDialog<(int, String)>(
+                    context: context, builder: (_) => _SubstituteDialog(session: s, suggestions: names));
+                if (r != null) {
+                  notifier.substitute(sessionId, r.$1, r.$2);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(SnackBar(content: Text('「${r.$2}」に交代しました（元に戻すで取り消せます）')));
+                  }
+                }
               } else if (v == 'awake') {
                 ref.read(preferenceProvider(PreferenceKeys.keepScreenOn).notifier).set(awake ? '0' : '1');
               } else if (v == 'finish') {
@@ -76,6 +88,7 @@ class DashboardScreen extends ConsumerWidget {
               const PopupMenuItem(value: 'table', child: Text('卓に置いて表示（全員の向きで点数を表示）')),
               if (!s.finished) const PopupMenuItem(value: 'chombo', child: Text('チョンボ（錯和）を入力')),
               if (!s.finished) const PopupMenuItem(value: 'progress', child: Text('局・本場・供託を直す')),
+              if (!s.finished) const PopupMenuItem(value: 'substitute', child: Text('プレイヤーを交代')),
               CheckedPopupMenuItem(value: 'awake', checked: awake, child: const Text('対局中は画面を消さない')),
               if (!s.finished)
                 const PopupMenuItem(value: 'finish', child: Text('対局を終了')),
@@ -183,6 +196,96 @@ Future<int?> _chooseChombo(BuildContext context, GameSession s) async {
       },
     ),
   );
+}
+
+/// プレイヤーを交代するダイアログ（席と入る人の名前を返す）
+class _SubstituteDialog extends StatefulWidget {
+  final GameSession session;
+  final List<String> suggestions;
+  const _SubstituteDialog({required this.session, required this.suggestions});
+
+  @override
+  State<_SubstituteDialog> createState() => _SubstituteDialogState();
+}
+
+class _SubstituteDialogState extends State<_SubstituteDialog> {
+  int? _seat;
+  final _name = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.session;
+    final theme = Theme.of(context);
+    final error = _seat == null ? '交代する人を選んでください' : SessionLogic.validateSubstitute(s, _seat!, _name.text);
+    final suggestions = widget.suggestions.where((n) => !s.playerNames.contains(n)).take(8).toList();
+    return AlertDialog(
+      title: const Text('プレイヤーを交代'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '抜ける人の点数と席（風）を、入る人がそのまま引き継ぎます。'
+              '個人成績では、交代する前の局は抜けた人、これからの局は入った人の成績として数え、'
+              '最終結果（順位・ポイント）は終局したときに打っている人の成績になります。',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Text('抜ける人', style: theme.textTheme.titleSmall),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (var p = 0; p < s.playerCount; p++)
+                  ChoiceChip(
+                    key: ValueKey('sub-seat-$p'),
+                    label: Text('${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}'),
+                    selected: _seat == p,
+                    onSelected: (_) => setState(() => _seat = p),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              key: const ValueKey('sub-name'),
+              controller: _name,
+              decoration: const InputDecoration(labelText: '入る人の名前', border: OutlineInputBorder()),
+              onChanged: (_) => setState(() {}),
+            ),
+            if (suggestions.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  for (final n in suggestions)
+                    ActionChip(label: Text(n), onPressed: () => setState(() => _name.text = n)),
+                ],
+              ),
+            ],
+            if (_seat != null && error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(error, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        FilledButton(
+          onPressed: error == null ? () => Navigator.pop(context, (_seat!, _name.text.trim())) : null,
+          child: const Text('交代'),
+        ),
+      ],
+    );
+  }
 }
 
 /// 今の局・本場・供託を直すダイアログ（局の通し番号・本場・供託を返す）

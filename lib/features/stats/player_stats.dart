@@ -110,10 +110,13 @@ class PlayerStatsCalculator {
         a.points += r.point;
         a.chips += chips[r.player];
       }
-      for (final rec in s.records) {
+      for (var ri = 0; ri < s.records.length; ri++) {
+        final rec = s.records[ri];
+        // 途中で交代した対局は、その局を打っていた人の成績にする
+        _Acc at(int seat) => acc.putIfAbsent(s.nameAt(ri, seat), () => _Acc(playerCount));
         // チョンボの局はやり直すので、和了率などの局数には数えない（チョンボの回数だけ数える）
         if (rec.kind == 'chombo') {
-          if (rec.loser != null) acc[s.playerNames[rec.loser!]]!.chombo++;
+          if (rec.loser != null) at(rec.loser!).chombo++;
           continue;
         }
         if (!rec.hasPlayDetails) {
@@ -121,7 +124,7 @@ class PlayerStatsCalculator {
           continue;
         }
         for (var p = 0; p < s.playerCount; p++) {
-          final a = acc[s.playerNames[p]]!;
+          final a = at(p);
           a.rounds++;
           final wi = rec.winners!.indexOf(p);
           if (wi >= 0) {
