@@ -21,6 +21,10 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
   late final List<TextEditingController> _deltaControllers;
   late final TextEditingController _descController;
 
+  /// 和了者・放銃者（和了の局で記録があるときだけ。放銃者が null ならツモ）
+  List<int>? _winners;
+  int? _loser;
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +33,10 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
       for (final d in record.deltas) TextEditingController(text: '$d')
     ];
     _descController = TextEditingController(text: record.description);
+    if (SessionLogic.canEditWinners(record)) {
+      _winners = [...record.winners!];
+      _loser = record.loser;
+    }
   }
 
   @override
@@ -51,16 +59,25 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
     final theme = Theme.of(context);
     final record = s.records[widget.index];
     final deltas = _deltas;
-    final error = SessionLogic.validateRoundEdit(s, widget.index, deltas);
+    final winners = _winners;
+    final whoError = winners == null ? null : SessionLogic.validateWinners(s, winners, _loser);
+    final whoChanged = winners != null &&
+        (winners.length != record.winners!.length ||
+            winners.any((w) => !record.winners!.contains(w)) ||
+            _loser != record.loser);
+    final who = whoChanged && whoError == null ? (winners: winners, loser: _loser) : null;
+    final deltaError = SessionLogic.validateRoundEdit(s, widget.index, deltas);
+    final error = deltaError ?? whoError;
     final originalSum = record.deltas.fold<int>(0, (a, d) => a + d);
     // 修正後の点数の見込み
     final preview = error == null
         ? SessionLogic.editRound(s, widget.index,
-            deltas: [for (final d in deltas) d!], description: _descController.text)
+            deltas: [for (final d in deltas) d!], description: _descController.text, who: who)
         : null;
     final changed = error == null &&
-        (List.generate(4, (i) => deltas[i] != record.deltas[i]).any((c) => c) ||
-            _descController.text != record.description);
+        (List.generate(s.playerCount, (i) => deltas[i] != record.deltas[i]).any((c) => c) ||
+            _descController.text != record.description ||
+            whoChanged);
 
     return Scaffold(
       appBar: AppBar(title: Text('局の修正  ${record.roundLabel}')),
@@ -73,7 +90,9 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  '・修正できるのは、この局の点数の増減と内容のメモです（手牌は記録していないため、入力し直すことはできません）。\n'
+                  '・修正できるのは、この局の点数の増減・内容のメモと、和了の局なら和了した人・放銃した人です'
+                  '（手牌は記録していないため、入力し直すことはできません）。\n'
+                  '・和了した人・放銃した人は個人成績（和了率・放銃率・平均打点）に使います。点数の増減は自動では変わらないので、合わせて直してください。\n'
                   '・修正した差分は、この局より後のすべての局の点数と、今の点数に反映されます。\n'
                   '・局の進行（親・本場・終局したかどうか）は変わりません。'
                   'トビの有無が変わる修正をしても、対局が途中で終わったり再開したりはしません。\n'
@@ -83,6 +102,59 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                 ),
               ),
             ),
+            if (winners != null) ...[
+              const SizedBox(height: 16),
+              Text('和了した人', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (var p = 0; p < s.playerCount; p++)
+                    FilterChip(
+                      key: ValueKey('winner-$p'),
+                      label: Text(s.playerNames[p]),
+                      selected: winners.contains(p),
+                      onSelected: (v) => setState(() {
+                        _winners = v ? ([...winners, p]..sort()) : [...winners.where((w) => w != p)];
+                        if (v && _loser == p) _loser = null;
+                      }),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('放銃した人', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(
+                    key: const ValueKey('loser-tsumo'),
+                    label: const Text('なし（ツモ）'),
+                    selected: _loser == null,
+                    onSelected: (_) => setState(() => _loser = null),
+                  ),
+                  for (var p = 0; p < s.playerCount; p++)
+                    if (!winners.contains(p))
+                      ChoiceChip(
+                        key: ValueKey('loser-$p'),
+                        label: Text(s.playerNames[p]),
+                        selected: _loser == p,
+                        onSelected: (_) => setState(() => _loser = p),
+                      ),
+                ],
+              ),
+              if (whoError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(whoError, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
+                )
+              else if (whoChanged && winners.length != record.winners!.length)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('和了した人の人数を変えると、この局の和了点は分からなくなるので、個人成績の平均打点に含めません。',
+                      style: theme.textTheme.bodySmall),
+                ),
+            ],
             const SizedBox(height: 16),
             Text('点数の増減', style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
@@ -114,11 +186,11 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                 ),
               ),
             Text(
-              error ??
+              deltaError ??
                   '${s.playerCount}人の合計: ${formatDelta(originalSum)}'
                       '${originalSum != 0 ? "（供託リーチ棒の出入りの分。修正前と同じにしてください）" : "（修正前と同じ0にしてください）"}',
               style: theme.textTheme.bodySmall
-                  ?.copyWith(color: error != null ? theme.colorScheme.error : null),
+                  ?.copyWith(color: deltaError != null ? theme.colorScheme.error : null),
             ),
             const SizedBox(height: 16),
             Text('内容のメモ', style: theme.textTheme.titleSmall),
@@ -162,6 +234,7 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                             widget.index,
                             deltas: [for (final d in deltas) d!],
                             description: _descController.text,
+                            who: who,
                           );
                       Navigator.pop(context, true);
                     }

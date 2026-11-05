@@ -455,6 +455,7 @@ class RoundRecord {
     List<int>? deltas,
     List<int>? scoresAfter,
     bool? edited,
+    ({List<int> winners, int? loser, List<int>? winPoints})? who,
   }) =>
       RoundRecord(
         roundLabel: roundLabel,
@@ -463,10 +464,10 @@ class RoundRecord {
         deltas: deltas ?? this.deltas,
         scoresAfter: scoresAfter ?? this.scoresAfter,
         edited: edited ?? this.edited,
-        winners: winners,
-        loser: loser,
+        winners: who != null ? who.winners : winners,
+        loser: who != null ? who.loser : loser,
         riichi: riichi,
-        winPoints: winPoints,
+        winPoints: who != null ? who.winPoints : winPoints,
         chips: chips,
       );
 

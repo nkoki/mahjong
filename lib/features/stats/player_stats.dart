@@ -19,6 +19,9 @@ class PlayerStats {
   /// 和了点の合計（本場・供託を含まない）
   final int winPointsTotal;
 
+  /// 和了点が分かる和了の回数（局の修正で和了者の人数を変えた局は和了点が分からない）
+  final int? winPointsCount;
+
   /// 祝儀（チップ）の枚数の合計
   final int chips;
 
@@ -34,6 +37,7 @@ class PlayerStats {
     required this.dealIns,
     required this.riichi,
     required this.winPointsTotal,
+    this.winPointsCount,
     this.chips = 0,
     this.chombo = 0,
   });
@@ -59,7 +63,10 @@ class PlayerStats {
   double? get riichiRate => rounds == 0 ? null : riichi / rounds;
 
   /// 平均打点（和了がなければ null）
-  double? get averageWinPoints => wins == 0 ? null : winPointsTotal / wins;
+  double? get averageWinPoints {
+    final n = winPointsCount ?? wins;
+    return n == 0 ? null : winPointsTotal / n;
+  }
 }
 
 /// 個人成績の集計結果
@@ -120,7 +127,10 @@ class PlayerStatsCalculator {
           if (wi >= 0) {
             a.wins++;
             final pts = rec.winPoints;
-            if (pts != null && wi < pts.length) a.winPoints += pts[wi];
+            if (pts != null && wi < pts.length) {
+              a.winPoints += pts[wi];
+              a.winPointsCount++;
+            }
           }
           if (rec.loser == p) a.dealIns++;
           if (rec.riichi!.contains(p)) a.riichi++;
@@ -138,6 +148,7 @@ class PlayerStatsCalculator {
           dealIns: e.value.dealIns,
           riichi: e.value.riichi,
           winPointsTotal: e.value.winPoints,
+          winPointsCount: e.value.winPointsCount,
           chips: e.value.chips,
           chombo: e.value.chombo,
         )
@@ -156,6 +167,6 @@ class PlayerStatsCalculator {
 class _Acc {
   final List<int> ranks;
   double points = 0;
-  int rounds = 0, wins = 0, dealIns = 0, riichi = 0, winPoints = 0, chips = 0, chombo = 0;
+  int rounds = 0, wins = 0, dealIns = 0, riichi = 0, winPoints = 0, winPointsCount = 0, chips = 0, chombo = 0;
   _Acc(int playerCount) : ranks = List.filled(playerCount, 0);
 }

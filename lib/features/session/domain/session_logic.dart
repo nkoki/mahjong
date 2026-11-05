@@ -467,6 +467,20 @@ class SessionLogic {
 
   static String _signed(int v) => v > 0 ? '+$v' : '$v';
 
+  /// 局の修正で和了者・放銃者を直せる局か（和了の局で、和了者を記録している局）
+  static bool canEditWinners(RoundRecord r) => r.kind == 'win' && r.winners != null;
+
+  /// 和了者・放銃者の修正の確認（問題なければ null）。[loser] が null ならツモ
+  static String? validateWinners(GameSession s, List<int> winners, int? loser) {
+    if (winners.isEmpty) return '和了した人を選んでください';
+    if (winners.any((w) => w < 0 || w >= s.playerCount) || winners.toSet().length != winners.length) {
+      return '和了した人が正しくありません';
+    }
+    if (loser != null && winners.contains(loser)) return '和了した人と放銃した人が同じです';
+    if (winners.length > 1 && loser == null) return '2人以上の和了（ダブロン）は放銃した人を選んでください';
+    return null;
+  }
+
   /// 過去の局の点数増減と内容を修正する。
   ///
   /// 修正した差分は、その局以降の「局終了後の点数」と今の点数にそのまま反映する。
@@ -478,11 +492,26 @@ class SessionLogic {
     int index, {
     required List<int> deltas,
     String? description,
+    ({List<int> winners, int? loser})? who,
   }) {
     final error = validateRoundEdit(s, index, deltas);
     if (error != null) throw ArgumentError(error);
-
     final old = s.records[index];
+    if (who != null) {
+      if (!canEditWinners(old)) throw ArgumentError('この局は和了者を修正できません');
+      final e = validateWinners(s, who.winners, who.loser);
+      if (e != null) throw ArgumentError(e);
+    }
+    // 和了者の人数が同じなら、和了点はそのまま新しい和了者に付け替える（選び間違いの修正）。
+    // 人数が変わったら和了点は分からないので消す（個人成績の平均打点に含めない）
+    final newWho = who == null || (_sameList(who.winners, old.winners!) && who.loser == old.loser)
+        ? null
+        : (
+            winners: List<int>.unmodifiable(who.winners),
+            loser: who.loser,
+            winPoints: old.winPoints != null && old.winPoints!.length == who.winners.length ? old.winPoints : null,
+          );
+
     final n = s.playerCount;
     final diff = [for (var i = 0; i < n; i++) deltas[i] - old.deltas[i]];
     List<int> add(List<int> a) => [for (var i = 0; i < n; i++) a[i] + diff[i]];
@@ -497,6 +526,7 @@ class SessionLogic {
             scoresAfter: List.unmodifiable(add(old.scoresAfter)),
             description: description,
             edited: true,
+            who: newWho,
           )
         else
           s.records[j].copyWith(scoresAfter: List.unmodifiable(add(s.records[j].scoresAfter))),
@@ -659,4 +689,12 @@ class ScoredWin {
 
   ScoredWin withPao(int? pao) =>
       ScoredWin(winner: winner, input: input, result: result, pao: pao, hanFu: hanFu);
+}
+
+bool _sameList(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }
