@@ -5,7 +5,7 @@ import '../../core/theme.dart';
 import '../../shared/widgets/rule_inputs.dart';
 import '../session/domain/models.dart';
 import '../session/session_providers.dart';
-import 'result_text.dart';
+import 'result_image.dart';
 import 'round_edit_screen.dart';
 import 'round_insert_screen.dart';
 import 'score_chart.dart';
@@ -28,9 +28,9 @@ class HistoryDetailScreen extends ConsumerWidget {
         title: const Text('戦績詳細'),
         actions: [
           IconButton(
-            tooltip: '結果をコピー（LINE などに貼り付け）',
-            icon: const Icon(Icons.copy_all_outlined),
-            onPressed: () => ResultText.copy(context, s),
+            tooltip: '結果を共有（画像・テキスト）',
+            icon: const Icon(Icons.share_outlined),
+            onPressed: () => showShareMenu(context, s),
           ),
           IconButton(
             tooltip: s.favorite ? 'お気に入りを解除' : 'お気に入りにする（自動で削除されなくなります）',

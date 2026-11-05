@@ -52,7 +52,9 @@ void main() {
       overrides: [sessionRepositoryProvider.overrideWithValue(InMemorySessionRepository([s]))],
       child: const MaterialApp(home: HistoryDetailScreen(sessionId: 'x')),
     ));
-    await tester.tap(find.byTooltip('結果をコピー（LINE などに貼り付け）'));
+    await tester.tap(find.byTooltip('結果を共有（画像・テキスト）'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('テキストでコピー'));
     await tester.pumpAndSettle();
     expect(copied, ResultText.build(s));
     expect(find.textContaining('結果をコピーしました'), findsOneWidget);

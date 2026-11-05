@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme.dart';
 import '../../draw/draw_input_screen.dart';
 import '../../history/history_detail_screen.dart';
+import '../../history/result_image.dart';
 import '../../history/result_text.dart';
 import '../../win/win_input_screen.dart';
 import '../domain/models.dart';
@@ -582,6 +583,12 @@ class _FinishedView extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 16),
+        FilledButton.icon(
+          icon: const Icon(Icons.image_outlined),
+          label: const Text('結果を画像で共有'),
+          onPressed: () => showResultImage(context, session),
+        ),
+        const SizedBox(height: 8),
         FilledButton.tonalIcon(
           icon: const Icon(Icons.copy_all_outlined),
           label: const Text('結果をコピー（LINE などに貼り付け）'),

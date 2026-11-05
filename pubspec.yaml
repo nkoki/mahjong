@@ -15,6 +15,7 @@ dependencies:
   image_picker: ^1.1.2
   mahjong_score_engine:
     path: packages/mahjong_score_engine
+  share_plus: ^12.0.2
   shared_preferences: ^2.3.0
   tflite_flutter: ^0.12.1
   wakelock_plus: ^1.4.0
