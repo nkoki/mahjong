@@ -444,6 +444,47 @@ class SessionLogic {
   /// 保存しておく対局の最大数
   static const maxSavedSessions = 100;
 
+  /// 名前を入れなかったときの名前（「プレイヤー1」など）。名前の候補には出さない
+  static String defaultPlayerName(int index) => 'プレイヤー${index + 1}';
+  static final _defaultNamePattern = RegExp(r'^プレイヤー\d+$');
+  static bool isDefaultPlayerName(String name) => _defaultNamePattern.hasMatch(name);
+
+  /// 過去の対局で使った名前（最近使った順・重複なし。「プレイヤー1」などは除く）
+  static List<String> recentPlayerNames(List<GameSession> sessions, {int limit = 16}) {
+    final sorted = [...sessions]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final names = <String>[];
+    for (final s in sorted) {
+      for (final n in s.playerNames) {
+        final name = n.trim();
+        if (name.isEmpty || isDefaultPlayerName(name) || names.contains(name)) continue;
+        names.add(name);
+        if (names.length >= limit) return names;
+      }
+    }
+    return names;
+  }
+
+  /// 同じ人数で一番最近の対局のメンバー（座順のまま）。なければ null
+  static List<String>? lastMembers(List<GameSession> sessions, int playerCount) {
+    GameSession? last;
+    for (final s in sessions) {
+      if (s.playerCount != playerCount) continue;
+      if (last == null || s.createdAt.isAfter(last.createdAt)) last = s;
+    }
+    return last?.playerNames;
+  }
+
+  /// 名前の入力のチェック（問題なければ null）。空の欄は「プレイヤー1」などになる
+  static String? validatePlayerNames(List<String> names) {
+    final filled = [
+      for (var i = 0; i < names.length; i++) names[i].trim().isEmpty ? defaultPlayerName(i) : names[i].trim()
+    ];
+    if (filled.toSet().length != filled.length) {
+      return '同じ名前の人がいます。個人成績を正しく集計できるように、別の名前にしてください';
+    }
+    return null;
+  }
+
   /// 自動で削除してよい対局か（お気に入りでも対局中でもない）
   static bool isDeletable(GameSession s) => !s.favorite && s.finished;
 

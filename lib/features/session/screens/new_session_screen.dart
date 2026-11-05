@@ -18,8 +18,8 @@ class NewSessionScreen extends ConsumerStatefulWidget {
 }
 
 class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
-  final _controllers = List.generate(
-      4, (i) => TextEditingController(text: 'プレイヤー${i + 1}'));
+  /// 名前の入力欄（空のまま始めると「プレイヤー1」などになる）
+  final _controllers = List.generate(4, (i) => TextEditingController());
   /// 人数（4人打ち: 4 / 3人打ち: 3）
   int _playerCount = 4;
 
@@ -67,8 +67,33 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   String? get _startingError => validatePoints(_starting);
   String? get _returnError => validateReturnPoints(_return, _starting);
   String? get _umaError => validateUma(_uma, playerCount: _playerCount);
+  String? get _nameError =>
+      SessionLogic.validatePlayerNames([for (var i = 0; i < _playerCount; i++) _controllers[i].text]);
   bool get _isValid =>
-      _startingError == null && _returnError == null && _umaError == null;
+      _startingError == null && _returnError == null && _umaError == null && _nameError == null;
+
+  /// 名前の候補を、空いている一番上の欄に入れる
+  void _fillName(String name) {
+    for (var i = 0; i < _playerCount; i++) {
+      if (_controllers[i].text.trim().isEmpty) {
+        setState(() => _controllers[i].text = name);
+        return;
+      }
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('空いている欄がありません。入れ替える欄の名前を消してから選んでください')));
+  }
+
+  /// 前回のメンバーを座順のまま入れる
+  void _fillMembers(List<String> names) {
+    setState(() {
+      for (var i = 0; i < _playerCount; i++) {
+        final n = names[i];
+        _controllers[i].text = SessionLogic.isDefaultPlayerName(n) ? '' : n;
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -82,7 +107,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
     final names = [
       for (var i = 0; i < _playerCount; i++)
         _controllers[i].text.trim().isEmpty
-            ? 'プレイヤー${i + 1}'
+            ? SessionLogic.defaultPlayerName(i)
             : _controllers[i].text.trim()
     ];
     if (!_isValid) return;
@@ -140,6 +165,42 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
     return r ?? false;
   }
 
+  /// 過去の対局で使った名前の候補と、前回のメンバー
+  List<Widget> _nameSuggestions(BuildContext context) {
+    final sessions = ref.watch(sessionsProvider);
+    final recent = SessionLogic.recentPlayerNames(sessions);
+    final last = SessionLogic.lastMembers(sessions, _playerCount);
+    if (recent.isEmpty && last == null) return const [];
+    final entered = {for (var i = 0; i < _playerCount; i++) _controllers[i].text.trim()};
+    final small = Theme.of(context).textTheme.bodySmall;
+    return [
+      if (last != null)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.history),
+            label: Text('前回のメンバー（${last.join("・")}）', overflow: TextOverflow.ellipsis),
+            onPressed: () => _fillMembers(last),
+          ),
+        ),
+      if (recent.isNotEmpty) ...[
+        Text('最近のプレイヤー（タップすると空いている欄に入ります）', style: small),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            for (final n in recent)
+              ActionChip(
+                label: Text(n),
+                onPressed: entered.contains(n) ? null : () => _fillName(n),
+              ),
+          ],
+        ),
+      ],
+    ];
+  }
+
   Widget _label(BuildContext context, String text) => Padding(
         padding: const EdgeInsets.only(top: 12, bottom: 6),
         child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
@@ -181,13 +242,30 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: TextField(
+                key: ValueKey('player-name-$i'),
                 controller: _controllers[i],
+                onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
                   labelText: winds[i],
+                  hintText: SessionLogic.defaultPlayerName(i),
                   border: const OutlineInputBorder(),
+                  suffixIcon: _controllers[i].text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: '名前を消す',
+                          icon: const Icon(Icons.clear),
+                          onPressed: () => setState(() => _controllers[i].clear()),
+                        ),
                 ),
               ),
             ),
+          if (_nameError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(_nameError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
+          ..._nameSuggestions(context),
           const SizedBox(height: 16),
           Text('ルール', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
