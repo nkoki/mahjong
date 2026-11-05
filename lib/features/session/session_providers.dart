@@ -38,6 +38,12 @@ class PreferenceKeys {
 
   /// 対局中は画面を消さないか（'1' | '0'。無ければオン）
   static const keepScreenOn = 'keep_screen_on';
+
+  /// 画面の明るさ（'system' | 'light' | 'dark'。無ければ端末の設定に合わせる）
+  static const themeMode = 'theme_mode';
+
+  /// 文字の大きさの倍率（'1.0' | '1.15' | '1.3'。無ければ標準）
+  static const textScale = 'text_scale';
 }
 
 /// 全対局の一覧（変更のたびに端末へ自動保存）

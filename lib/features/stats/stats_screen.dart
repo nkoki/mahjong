@@ -112,11 +112,7 @@ class _PlayerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final s = stats;
-    final pointColor = s.totalPoints > 0
-        ? Colors.green.shade700
-        : s.totalPoints < 0
-            ? Colors.red.shade700
-            : null;
+    final pointColor = deltaColor(context, s.totalPoints);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),

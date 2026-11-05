@@ -41,6 +41,14 @@ class AppTheme {
   }
 }
 
+/// 増えた・減ったの色（暗い表示では明るめの色にして読みやすくする）。0 なら null
+Color? deltaColor(BuildContext context, num v) {
+  if (v == 0) return null;
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  if (v > 0) return dark ? Colors.green.shade300 : Colors.green.shade700;
+  return dark ? Colors.red.shade300 : Colors.red.shade700;
+}
+
 /// 点数の表示（例: 25000 → "25,000"）
 String formatPoints(int v) {
   final neg = v < 0;

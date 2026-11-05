@@ -291,7 +291,8 @@ class _PlayerCard extends StatelessWidget {
                   ? FilledButton(
                       style: FilledButton.styleFrom(
                           minimumSize: const Size(0, 36),
-                          backgroundColor: Colors.red.shade700),
+                          backgroundColor: Theme.of(context).colorScheme.error,
+                          foregroundColor: Theme.of(context).colorScheme.onError),
                       onPressed: onRiichi,
                       child: const Text('立直中（取消）'),
                     )
@@ -328,7 +329,7 @@ class _FinishedView extends StatelessWidget {
               subtitle: Text('${formatPoints(r.score)}点'),
               trailing: Text(formatPoint(r.point),
                   style: theme.textTheme.titleLarge?.copyWith(
-                      color: r.point >= 0 ? Colors.green.shade700 : Colors.red.shade700)),
+                      color: deltaColor(context, r.point) ?? deltaColor(context, 1))),
             ),
           ),
         const SizedBox(height: 16),

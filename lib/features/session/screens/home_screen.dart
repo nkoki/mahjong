@@ -7,6 +7,7 @@ import '../../about/license_screen.dart';
 import '../../history/history_list_screen.dart';
 import '../../stats/stats_screen.dart';
 import '../../backup/backup_screen.dart';
+import '../../settings/display_settings.dart';
 import '../../settings/rule_settings_screen.dart';
 import '../../storage/storage_info_screen.dart';
 import '../session_providers.dart';
@@ -34,6 +35,12 @@ class HomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.tune),
             onPressed: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const RuleSettingsScreen())),
+          ),
+          IconButton(
+            tooltip: '表示の設定（明るさ・文字の大きさ）',
+            icon: const Icon(Icons.brightness_6_outlined),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const DisplaySettingsScreen())),
           ),
           IconButton(
             tooltip: 'データの保存について',

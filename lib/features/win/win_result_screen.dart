@@ -109,11 +109,7 @@ class _WinResultScreenState extends ConsumerState<WinResultScreen> {
                       trailing: Text(
                         formatDelta(deltas[p]),
                         style: theme.textTheme.titleMedium?.copyWith(
-                          color: deltas[p] > 0
-                              ? Colors.green.shade700
-                              : deltas[p] < 0
-                                  ? Colors.red.shade700
-                                  : null,
+                          color: deltaColor(context, deltas[p]),
                         ),
                       ),
                     ),

@@ -158,12 +158,7 @@ class HistoryDetailScreen extends ConsumerWidget {
                     DataCell(Text('${r.roundLabel}${r.edited ? " *" : ""}')),
                     for (final d in r.deltas)
                       DataCell(Text(formatDelta(d),
-                          style: TextStyle(
-                              color: d > 0
-                                  ? Colors.green.shade700
-                                  : d < 0
-                                      ? Colors.red.shade700
-                                      : null))),
+                          style: TextStyle(color: deltaColor(context, d)))),
                   ]),
                 DataRow(cells: [
                   const DataCell(Text('合計', style: TextStyle(fontWeight: FontWeight.bold))),

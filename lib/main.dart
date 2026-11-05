@@ -7,6 +7,7 @@ import 'features/about/data_sources.dart';
 import 'features/session/data/session_repository.dart';
 import 'features/session/screens/home_screen.dart';
 import 'features/session/session_providers.dart';
+import 'features/settings/display_settings.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,11 +46,14 @@ class _MahjongAppState extends ConsumerState<MahjongApp> {
         ));
       }
     });
+    final textScale = ref.watch(textScaleProvider);
     return MaterialApp(
       scaffoldMessengerKey: _messengerKey,
       title: '麻雀点数計算',
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
+      themeMode: ref.watch(themeModeProvider),
+      builder: (context, child) => applyTextScale(context, child, textScale),
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
     );
