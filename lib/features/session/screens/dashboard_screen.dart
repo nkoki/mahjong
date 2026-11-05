@@ -9,7 +9,9 @@ import '../domain/models.dart';
 import '../domain/session_logic.dart';
 import '../screen_awake.dart';
 import '../session_providers.dart';
+import 'all_last_conditions_sheet.dart';
 import 'table_view_screen.dart';
+import '../domain/all_last_conditions.dart';
 
 /// 対局ダッシュボード（現在の局・点数・立直・和了/流局の入力）
 class DashboardScreen extends ConsumerWidget {
@@ -78,6 +80,7 @@ class DashboardScreen extends ConsumerWidget {
         child: Column(
           children: [
             _InfoBar(session: s),
+            if (AllLastConditions.applies(s)) AllLastConditionsBar(session: s),
             Expanded(
               child: s.finished
                   ? _FinishedView(session: s)
