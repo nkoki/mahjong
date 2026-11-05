@@ -6,7 +6,9 @@ import '../../draw/draw_input_screen.dart';
 import '../../history/history_detail_screen.dart';
 import '../../win/win_input_screen.dart';
 import '../domain/models.dart';
+import '../screen_awake.dart';
 import '../session_providers.dart';
+import 'table_view_screen.dart';
 
 /// 対局ダッシュボード（現在の局・点数・立直・和了/流局の入力）
 class DashboardScreen extends ConsumerWidget {
@@ -23,8 +25,12 @@ class DashboardScreen extends ConsumerWidget {
       );
     }
     final notifier = ref.read(sessionsProvider.notifier);
+    final awake = keepScreenOn(ref);
 
-    return Scaffold(
+    // 対局中は画面を自動で消さない（メニューで切り替えられる）
+    return KeepScreenOn(
+      active: !s.finished,
+      child: Scaffold(
       appBar: AppBar(
         title: Text(s.finished ? '終局' : s.roundLabel),
         actions: [
@@ -43,6 +49,11 @@ class DashboardScreen extends ConsumerWidget {
               if (v == 'history') {
                 Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => HistoryDetailScreen(sessionId: sessionId)));
+              } else if (v == 'table') {
+                Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => TableViewScreen(sessionId: sessionId)));
+              } else if (v == 'awake') {
+                ref.read(preferenceProvider(PreferenceKeys.keepScreenOn).notifier).set(awake ? '0' : '1');
               } else if (v == 'finish') {
                 final ok = await _confirm(context, '対局を終了しますか？（供託はトップが獲得）');
                 if (ok) notifier.finish(sessionId);
@@ -50,6 +61,8 @@ class DashboardScreen extends ConsumerWidget {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'history', child: Text('局の履歴')),
+              const PopupMenuItem(value: 'table', child: Text('卓に置いて表示（全員の向きで点数を表示）')),
+              CheckedPopupMenuItem(value: 'awake', checked: awake, child: const Text('対局中は画面を消さない')),
               if (!s.finished)
                 const PopupMenuItem(value: 'finish', child: Text('対局を終了')),
             ],
@@ -103,6 +116,7 @@ class DashboardScreen extends ConsumerWidget {
               ),
           ],
         ),
+      ),
       ),
     );
   }

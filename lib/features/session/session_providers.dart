@@ -35,6 +35,9 @@ class PreferenceKeys {
 
   /// 和了入力の入力方法（'hand' | 'hanfu'）
   static const winInputMode = 'win_input_mode';
+
+  /// 対局中は画面を消さないか（'1' | '0'。無ければオン）
+  static const keepScreenOn = 'keep_screen_on';
 }
 
 /// 全対局の一覧（変更のたびに端末へ自動保存）

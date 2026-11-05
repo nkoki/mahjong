@@ -17,6 +17,7 @@ dependencies:
     path: packages/mahjong_score_engine
   shared_preferences: ^2.3.0
   tflite_flutter: ^0.12.1
+  wakelock_plus: ^1.4.0
 
 dev_dependencies:
   flutter_test:
