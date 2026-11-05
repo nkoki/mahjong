@@ -189,6 +189,7 @@ void main() {
       expect(find.text('riichi-mahjong-tiles'), findsOneWidget);
       expect(find.text('ライセンス: CC0 1.0（パブリックドメイン）'), findsOneWidget);
       expect(find.text('MediaPipe Model Maker'), findsOneWidget);
+      expect(find.text('TensorFlow / Keras（MobileNetV3-Small の学習済みモデル）'), findsOneWidget);
     });
 
     test('標準のライセンス画面用の文にも出典が入る', () {

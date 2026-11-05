@@ -7,16 +7,20 @@ import 'package:image/image.dart' as img;
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
+import 'tile_classifier.dart';
 import 'tile_detection.dart';
 import 'tile_recognizer.dart';
 
 /// 端末の中で動く牌の認識モデル（TensorFlow Lite）を使った読み取り（Android・iOS）。
 ///
 /// 写真はどこにも送らない。モデルは assets/models/ に入っている。
+/// 検出モデルで牌を見つけたあと、分類モデルで1枚ずつ種類を見分け直す。
 class TfliteTileRecognizer implements TileRecognizer {
   static const modelAsset = 'assets/models/tile_detector.tflite';
   static const anchorsAsset = 'assets/models/tile_anchors.bin';
   static const labelsAsset = 'assets/models/tile_labels.txt';
+  static const classifierAsset = 'assets/models/tile_classifier.tflite';
+  static const classifierLabelsAsset = 'assets/models/tile_classifier_labels.txt';
 
   final AssetBundle bundle;
 
@@ -29,10 +33,15 @@ class TfliteTileRecognizer implements TileRecognizer {
     final model = await bundle.load(modelAsset);
     final anchors = await bundle.load(anchorsAsset);
     final labels = await bundle.loadString(labelsAsset);
+    final classifier = await bundle.load(classifierAsset);
+    final classifierLabels = await bundle.loadString(classifierLabelsAsset);
+    List<String> lines(String s) => s.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
     return _files = _ModelFiles(
       model.buffer.asUint8List(model.offsetInBytes, model.lengthInBytes),
       anchors.buffer.asFloat32List(anchors.offsetInBytes, anchors.lengthInBytes ~/ 4),
-      labels.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList(),
+      lines(labels),
+      classifier.buffer.asUint8List(classifier.offsetInBytes, classifier.lengthInBytes),
+      lines(classifierLabels),
     );
   }
 
@@ -58,8 +67,10 @@ class _ModelFiles {
   final Uint8List model;
   final Float32List anchors;
   final List<String> labels;
+  final Uint8List classifier;
+  final List<String> classifierLabels;
 
-  const _ModelFiles(this.model, this.anchors, this.labels);
+  const _ModelFiles(this.model, this.anchors, this.labels, this.classifier, this.classifierLabels);
 }
 
 class _Result {
@@ -95,8 +106,28 @@ _Result _run(_ModelFiles files, Uint8List bytes) {
             .toList();
       }
     }
+    // 3回目: 見つけた牌を1枚ずつ切り抜いて大きくし、分類モデルで種類を見分け直す
+    detections = _classify(files, photo, detections);
     final arranged = arrangeTiles(detections);
     return _Result(arranged.tiles);
+  } finally {
+    interpreter.close();
+  }
+}
+
+/// 見つけた牌の種類を、分類モデルの答えに置き換える
+List<TileDetection> _classify(_ModelFiles files, img.Image photo, List<TileDetection> detections) {
+  if (detections.isEmpty) return detections;
+  final interpreter = Interpreter.fromBuffer(files.classifier, options: InterpreterOptions()..threads = 2);
+  try {
+    final output = Float32List(files.classifierLabels.length);
+    final result = <TileDetection>[];
+    for (final d in detections) {
+      final input = classifierInput(photo, d);
+      interpreter.runForMultipleInputs([input.buffer.asUint8List()], {0: output.buffer.asUint8List()});
+      result.add(relabelWithClassifier(d, output, files.classifierLabels));
+    }
+    return result;
   } finally {
     interpreter.close();
   }

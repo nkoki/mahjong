@@ -325,7 +325,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                     child: Text('・$n', style: theme.textTheme.bodySmall),
                   ),
                 const SizedBox(height: 10),
-                Text('読み取りは間違えることがあります（特に萬子は、六萬と八萬・二萬と三萬などを取り違えやすいです）。'
+                Text('読み取りは間違えることがあります（牌を見落としたり、牌でないものを牌と読んだりすることがあります）。'
                     '入れたあとに、手牌をよく確認してください。',
                     style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
               ],

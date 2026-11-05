@@ -168,8 +168,8 @@ print(result); // 役・翻・符・点数
 ## カメラ認識について
 
 - 撮影・写真の選択に `image_picker`、画像の縮小に `image`（MIT）、認識モデルの実行に `tflite_flutter`（Apache-2.0）を使っています。
-- 認識モデルは SSD（MobileNet-MultiHW-AVG、入力 384×384）の牌の検出モデルです。牌の種類は37種類（萬子・筒子・索子・字牌の34種類＋赤5の3種類）。
-- 読み取りの手順: 写真全体から牌を探す → 牌が写っている範囲だけを切り抜いてもう一度読み取る → 重なった検出を1つにまとめる（NMS）→ 一番多く牌が並んだ列を手牌として左から順に並べる（離れた列の牌は使わない）。
+- 認識モデルは2つです。牌の位置を見つける検出モデル（SSD、MobileNet-MultiHW-AVG、入力 384×384）と、見つけた牌を1枚ずつ見分ける分類モデル（MobileNetV3-Small、入力 縦128×横96）。牌の種類は37種類（萬子・筒子・索子・字牌の34種類＋赤5の3種類）。
+- 読み取りの手順: 写真全体から牌を探す → 牌が写っている範囲だけを切り抜いてもう一度読み取る → 重なった検出を1つにまとめる（NMS）→ 見つけた牌を1枚ずつ切り抜いて大きくし、分類モデルで種類を見分け直す（写真全体を縮めると潰れてしまう萬子の漢数字などを見分けるため）→ 一番多く牌が並んだ列を手牌として左から順に並べる（離れた列の牌は使わない）。
 - 3人打ちでは二萬〜八萬を除き、赤ドラなしのルールでは赤5を普通の5として入れます。同じ牌が5枚以上なら5枚目から除きます。
 - Web 版では TensorFlow Lite を動かせないため、カメラ認識はありません（和了入力画面に「スマホのアプリ版で使えます」と表示します）。
 - 以前の版で保存した Qwen の API キーは、アプリの起動時に端末から消します。
@@ -185,6 +185,7 @@ print(result); // 役・翻・符・点数
 | もとにした学習済みモデル: TensorFlow Model Garden の MobileNet SSD | Apache-2.0 |
 | 合成データの材料: [FluffyStuff/riichi-mahjong-tiles](https://github.com/FluffyStuff/riichi-mahjong-tiles) の牌画像 | CC0 1.0 |
 | 実写データ: Roboflow Universe の2つのデータセット（下の「データの出典」） | CC BY 4.0 |
+| 分類モデルの学習: TensorFlow / Keras の MobileNetV3-Small（ImageNet で学習済み） | Apache-2.0 |
 | アプリでの実行: tflite_flutter | Apache-2.0 |
 
 Python 3.11 を使います。Roboflow の API キーは環境変数 `ROBOFLOW_API_KEY` に入れておきます（ファイルには書きません）。
@@ -204,9 +205,12 @@ python merge.py --out data/train --drop 0z --src data/synth $R/hust/train $R/rii
 python merge.py --out data/val --drop 0z --src data/synth_val $R/hust/valid $R/hust/test $R/riichi_detection/valid $R/riichi_detection/test
 python merge.py --out data/val_real --drop 0z --src $R/hust/valid $R/hust/test $R/riichi_detection/valid $R/riichi_detection/test
 python train.py --train data/train --val data/val --out out --epochs 15 --batch 16 --fp16
+python train_classifier.py --train data/train --val data/val --out out_cls --epochs 8
 python evaluate.py --model out --data data/val_real --save-preview preview.jpg   # 実写だけでの精度
+python evaluate.py --model out --classifier out_cls --data data/val_real --two-pass --hand-rows --per-class   # アプリと同じ読み取り方での精度
 python evaluate.py --model out --data data/val --dump-fixture ../../test/fixtures/tile_decode_fixture.json
 cp out/tile_detector.tflite out/tile_anchors.bin out/tile_labels.txt ../../assets/models/
+cp out_cls/tile_classifier.tflite out_cls/tile_classifier_labels.txt ../../assets/models/
 ```
 
 - ダウンロードしたデータを読むときは、`python -I`（同じフォルダや環境変数から余計なモジュールを読まない）で動かすと安全です。スクリプトは `python -I` でも同じフォルダの `classes.py` を読めます。
@@ -219,34 +223,37 @@ cp out/tile_detector.tflite out/tile_anchors.bin out/tile_labels.txt ../../asset
 - `fetch_roboflow.py`: `datasets.json` のデータセットを COCO 形式で取得します。API の情報でライセンスが CC BY 4.0 であることを確かめ、違えば止まります。出典の情報は `attribution.json` に書きます。
 - `merge.py`: クラス名をアプリの牌の表記（`1m`・`5mr` など）に変換してまとめます。変換できないクラス名があれば止まるので、`--map` で対応を指定します。
 - `train.py`: 学習して `tile_detector.tflite`・`tile_anchors.bin`（アンカー）・`tile_labels.txt`（クラス名）を書き出します。精度（COCO 指標）は `eval.json` に書きます。
+- `train_classifier.py`: merge.py の出力の箱から牌を1枚ずつ切り抜き、分類モデルを学習して `tile_classifier.tflite`・`tile_classifier_labels.txt` を書き出します。正解率は `eval.json` に書きます。
+- `tile_crop.py`: 分類モデルに渡す画像の切り抜き方（箱を 8% ずつ広げる、横長なら時計回りに 90 度回す、縦128×横96 に縮める）。アプリの `lib/features/camera/tile_classifier.dart` と同じにしてあり、`python tile_crop.py --dump-fixture ../../test/fixtures` でアプリのテスト用データを作ります。
 - `--epochs` などを変えたときは、確認用データでの精度（`eval.json`）が下がっていないか確かめてから入れ替えてください。
 
-**現在の状態**: `assets/models/` に学習したモデルが入っています（`tile_detector.tflite` 約 7.0MB（float16）、アンカー 27,621 個、37 種類）。
+**現在の状態**: `assets/models/` に学習したモデルが2つ入っています。
 
-- 学習データ: 合成 4000 枚＋実写 1437 枚（HUST 333 枚・Detection 1104 枚。Roboflow 側で水増しした枚数）。牌の写っていない画像は Model Maker が外すので、学習に使われたのは 5058 枚。15 エポック（CPU 4 コアで約3時間）
-- 確認用データでの COCO 指標（合成＋実写 566 枚）: AP50 = 0.953、AP = 0.726
+| モデル | ファイル | 大きさ | 学習 |
+|---|---|---|---|
+| 検出モデル（牌の位置を見つける） | `tile_detector.tflite`・`tile_anchors.bin`・`tile_labels.txt` | 約 7.0MB（float16）、アンカー 27,621 個 | 15 エポック（CPU 4 コアで約3時間） |
+| 分類モデル（牌を1枚ずつ見分け直す） | `tile_classifier.tflite`・`tile_classifier_labels.txt` | 約 1.9MB（float16） | 8 エポック（CPU 4 コアで約30分） |
 
-`evaluate.py`（アプリと同じ後処理、確信度 0.3 以上）での結果:
+- 学習データ: 合成 4000 枚＋実写 1437 枚（HUST 333 枚・Detection 1104 枚。Roboflow 側で水増しした枚数）。検出モデルは、牌の写っていない画像を Model Maker が外すので 5058 枚。分類モデルは、その箱から切り抜いた牌 63,439 枚
+- 検出モデルの確認用データでの COCO 指標（合成＋実写 566 枚）: AP50 = 0.953、AP = 0.726
+- 分類モデルだけの正解率（確認用データの箱から切り抜いた牌 9,790 枚）: 99.95%（実写 5,831 枚で 99.93%）
 
-| 確認用データ | 牌の数 | 見つけた割合 | 見つけた牌の種類が合っていた割合 | 牌ごとの精度 | 余計な検出（1枚あたり） | 写真の牌が全部正しかった割合 |
-|---|---|---|---|---|---|---|
-| 実写 200 枚（Roboflow の valid・test） | 5831 | 99.9% | 96.5% | 96.4% | 0.20 | 35% |
-| 合成 400 枚 | 3959 | 92.2% | 93.9% | 86.5% | 0.14 | 64% |
+`evaluate.py` での結果（確信度 0.3 以上）。「アプリと同じ」は、2回の読み取り（`--two-pass`）のあと分類モデルで見分け直したもの（`--classifier`）:
 
-アプリと同じ2回の読み取り（`--two-pass`：牌の写っている範囲を切り抜いてもう一度読み取る）での結果:
+| 確認用データ | 読み取り方 | 写真の数 | 牌の数 | 見つけた割合 | 見つけた牌の種類が合っていた割合 | 牌ごとの精度 | 余計な検出（1枚あたり） | 写真の牌が全部正しかった割合 |
+|---|---|---|---|---|---|---|---|---|
+| 実写を1列ずつ手牌の写真のようにしたもの | **アプリと同じ** | 634 | 5426 | 99.7% | 99.98% | **99.7%** | 0.36 | 79% |
+| 〃 | 検出モデルだけ（2回の読み取り） | 634 | 5426 | 99.7% | 98.3% | 98.0% | 0.36 | 72% |
+| 実写の写真そのまま（1枚に約30枚） | **アプリと同じ** | 200 | 5831 | 99.9% | 99.9% | **99.8%** | 0.21 | 81% |
+| 〃 | 検出モデルだけ（1回の読み取り） | 200 | 5831 | 99.9% | 96.5% | 96.4% | 0.20 | 35% |
+| 合成 | **アプリと同じ** | 400 | 3959 | 96.2% | 99.9% | **96.1%** | 0.12 | 83% |
+| 〃 | 検出モデルだけ（1回の読み取り） | 400 | 3959 | 92.2% | 93.9% | 86.5% | 0.14 | 64% |
 
-| 確認用データ | 写真の数 | 牌の数 | 見つけた割合 | 見つけた牌の種類が合っていた割合 | 牌ごとの精度 | 余計な検出（1枚あたり） | 写真の牌が全部正しかった割合 |
-|---|---|---|---|---|---|---|---|
-| 実写の写真そのまま | 200 | 5831 | 99.9% | 96.8% | 96.7% | 0.21 | 42% |
-| 実写を1列ずつ手牌の写真のようにしたもの（`--hand-rows`） | 634 | 5426 | 99.7% | 98.3% | **98.0%** | 0.36 | 72% |
-| 合成 | 400 | 3959 | 96.2% | 97.3% | 93.6% | 0.12 | 75% |
+「実写を1列ずつ手牌の写真のようにしたもの」（`--hand-rows`）は、実写の写真の牌の列（9枚前後）を1列ずつ取り出し、まわりを写真の色で埋めて、手牌を撮ったときに近い大きさ（11〜12枚ぶんの幅）にした画像です。
 
-`--hand-rows` は、実写の写真の牌の列（9枚前後）を1列ずつ取り出し、まわりを写真の色で埋めて、手牌を撮ったときに近い大きさ（11〜12枚ぶんの幅）にした画像で測ります。
-
-- 実写の確認用データは学習に使ったデータセットと同じ牌・同じ撮り方の写真なので、ほかの牌や撮り方では精度が下がることがあります。実写の写真は1枚に牌が約30枚写っているため、「全部正しかった割合」は低めに出ます。
-- 萬子が苦手です。手牌の写真に近い条件（`--two-pass --hand-rows`）で、六萬 85%・九萬 91%・三萬 95%（ほかの萬子は 95% 以上）。一番多い間違いは六萬→八萬です。萬子以外（筒子・索子・字牌）は平均 99% です。
-- 赤5は実写の確認用データに 50 個しかないので、数値はあまり当てになりません（同じ条件で 5萬赤 100%・5筒赤 88%・5索赤 61%。5索赤を5萬赤と取り違えた例あり）。
-- アプリでは、読み取り結果の画面に「萬子を取り違えやすいので確認してください」と表示しています。
+- 分類モデルを入れる前は萬子が苦手でした（手牌の写真に近い条件で六萬 85%・九萬 91%。六萬→八萬の取り違えが多い）。分類モデルを入れたあとは、同じ条件で萬子はすべて 98% 以上（六萬 99.3%）、赤5は 3 種類とも 100% です。残っている間違いのほとんどは、検出モデルの見落とし（牌を見つけられない）と余計な検出です。
+- 実写の確認用データは、学習に使ったデータセットと同じ牌・同じ撮り方の写真です。ほかの牌のセットや撮り方では精度が下がることがあります。赤5は実写の確認用データに 50 個しかないので、数値はあまり当てになりません。
+- アプリでは、読み取り結果の画面に「読み取りは間違えることがあるので確認してください」と表示しています。
 
 ## データの出典
 

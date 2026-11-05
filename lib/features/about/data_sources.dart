@@ -72,6 +72,14 @@ const modelToolSources = [
     licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0',
     changes: '学習済みの MobileNet（TensorFlow Model Garden, Apache License 2.0）をもとに、牌の検出を学習させました。',
   ),
+  DataSource(
+    title: 'TensorFlow / Keras（MobileNetV3-Small の学習済みモデル）',
+    author: 'Google（The TensorFlow Authors）',
+    url: 'https://github.com/keras-team/keras',
+    license: 'Apache License 2.0',
+    licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0',
+    changes: 'ImageNet で学習済みの MobileNetV3-Small をもとに、牌を1枚ずつ見分ける分類モデルを学習させました。',
+  ),
 ];
 
 /// 標準のライセンス画面にも出典を載せる（main で1回だけ呼ぶ）
