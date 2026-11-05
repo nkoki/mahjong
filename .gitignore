@@ -6,3 +6,6 @@ build/
 pubspec.lock
 *.iml
 .idea/
+
+# Python
+__pycache__/
