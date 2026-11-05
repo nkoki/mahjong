@@ -9,16 +9,68 @@ import '../storage/storage_info_screen.dart';
 import '../stats/stats_screen.dart';
 import 'history_detail_screen.dart';
 
+/// 戦績の絞り込み条件（UI に依存しない）
+class HistoryFilter {
+  /// 名前（一部でよい。大文字・小文字は区別しない）。空なら絞り込まない
+  final String name;
+  final StatsPeriod period;
+
+  /// 人数（4 か 3）。null ならすべて
+  final int? playerCount;
+  final bool favoritesOnly;
+
+  const HistoryFilter({
+    this.name = '',
+    this.period = StatsPeriod.all,
+    this.playerCount,
+    this.favoritesOnly = false,
+  });
+
+  /// 何か絞り込んでいるか
+  bool get isActive => name.trim().isNotEmpty || period != StatsPeriod.all || playerCount != null || favoritesOnly;
+
+  HistoryFilter copyWith({String? name, StatsPeriod? period, int? playerCount, bool clearPlayerCount = false, bool? favoritesOnly}) =>
+      HistoryFilter(
+        name: name ?? this.name,
+        period: period ?? this.period,
+        playerCount: clearPlayerCount ? null : (playerCount ?? this.playerCount),
+        favoritesOnly: favoritesOnly ?? this.favoritesOnly,
+      );
+
+  bool matches(GameSession s, DateTime now) {
+    if (favoritesOnly && !s.favorite) return false;
+    if (playerCount != null && s.playerCount != playerCount) return false;
+    final since = period.since(now);
+    if (since != null && s.createdAt.isBefore(since)) return false;
+    final q = name.trim().toLowerCase();
+    if (q.isNotEmpty && !s.playerNames.any((n) => n.toLowerCase().contains(q))) return false;
+    return true;
+  }
+
+  List<GameSession> apply(List<GameSession> sessions, DateTime now) =>
+      [for (final s in sessions) if (matches(s, now)) s];
+}
+
 /// 戦績一覧
 class HistoryListScreen extends ConsumerStatefulWidget {
-  const HistoryListScreen({super.key});
+  /// 絞り込みの基準の日時（テスト用。null なら今）
+  final DateTime? now;
+
+  const HistoryListScreen({super.key, this.now});
 
   @override
   ConsumerState<HistoryListScreen> createState() => _HistoryListScreenState();
 }
 
 class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
-  bool _favoritesOnly = false;
+  HistoryFilter _filter = const HistoryFilter();
+  final _nameController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
 
   String _date(DateTime d) =>
       '${d.year}/${d.month}/${d.day} ${d.hour}:${d.minute.toString().padLeft(2, '0')}';
@@ -29,7 +81,8 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
     final notifier = ref.read(sessionsProvider.notifier);
     final theme = Theme.of(context);
     final favCount = all.where((s) => s.favorite).length;
-    final sessions = _favoritesOnly ? all.where((s) => s.favorite).toList() : all;
+    final sessions = _filter.apply(all, widget.now ?? DateTime.now());
+    final f = _filter;
     // 次に新しい対局を始めたときに削除される対局
     final nextRemoved = {for (final s in notifier.sessionsRemovedByNextCreate()) s.id};
     const max = SessionLogic.maxSavedSessions;
@@ -85,29 +138,84 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
             ),
           ),
           Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+            child: TextField(
+              key: const ValueKey('history-name'),
+              controller: _nameController,
+              decoration: InputDecoration(
+                isDense: true,
+                prefixIcon: const Icon(Icons.search),
+                hintText: 'プレイヤーの名前で絞り込む',
+                border: const OutlineInputBorder(),
+                suffixIcon: f.name.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '名前の絞り込みを消す',
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => setState(() {
+                          _nameController.clear();
+                          _filter = f.copyWith(name: '');
+                        }),
+                      ),
+              ),
+              onChanged: (v) => setState(() => _filter = f.copyWith(name: v)),
+            ),
+          ),
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             child: Wrap(
               spacing: 8,
+              runSpacing: 4,
               children: [
-                ChoiceChip(
-                  label: Text('すべて（${all.length}）'),
-                  selected: !_favoritesOnly,
-                  onSelected: (_) => setState(() => _favoritesOnly = false),
-                ),
-                ChoiceChip(
-                  avatar: const Icon(Icons.star, size: 18),
+                FilterChip(
+                  avatar: f.favoritesOnly ? null : const Icon(Icons.star, size: 18),
                   label: Text('お気に入り（$favCount）'),
-                  selected: _favoritesOnly,
-                  onSelected: (_) => setState(() => _favoritesOnly = true),
+                  selected: f.favoritesOnly,
+                  onSelected: (v) => setState(() => _filter = f.copyWith(favoritesOnly: v)),
                 ),
+                for (final n in [4, 3])
+                  FilterChip(
+                    label: Text('$n人打ち'),
+                    selected: f.playerCount == n,
+                    onSelected: (v) => setState(
+                        () => _filter = v ? f.copyWith(playerCount: n) : f.copyWith(clearPlayerCount: true)),
+                  ),
+                for (final p in StatsPeriod.values.where((p) => p != StatsPeriod.all))
+                  FilterChip(
+                    label: Text(p.label),
+                    selected: f.period == p,
+                    onSelected: (v) => setState(() => _filter = f.copyWith(period: v ? p : StatsPeriod.all)),
+                  ),
               ],
             ),
           ),
+          if (f.isActive)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('${all.length}件中 ${sessions.length}件を表示', style: theme.textTheme.bodySmall),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _nameController.clear();
+                      _filter = const HistoryFilter();
+                    }),
+                    child: const Text('絞り込みを解除'),
+                  ),
+                ],
+              ),
+            ),
           if (sessions.isEmpty)
             Padding(
               padding: const EdgeInsets.all(32),
               child: Text(
-                _favoritesOnly ? 'お気に入りの対局はありません。\n★ を押すとお気に入りにできます。' : 'まだ対局がありません',
+                all.isEmpty
+                    ? 'まだ対局がありません'
+                    : f.favoritesOnly && favCount == 0
+                        ? 'お気に入りの対局はありません。\n★ を押すとお気に入りにできます。'
+                        : 'この条件に合う対局はありません',
                 textAlign: TextAlign.center,
               ),
             ),
