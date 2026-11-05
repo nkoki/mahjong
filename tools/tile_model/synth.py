@@ -29,6 +29,11 @@ BACK_COLORS = [
     (236, 186, 52), (40, 90, 170), (30, 120, 70), (225, 120, 40),
     (170, 40, 45), (40, 40, 45), (150, 150, 155), (70, 160, 200),
 ]
+# 紛らわしいものとして置く牌の背の色。灰色・黒は使わない（色の薄い背は白（5z）と見分けにくく、
+# 白を「牌ではない」と覚えさせてしまうため）
+DISTRACTOR_BACK_COLORS = [
+    (236, 186, 52), (40, 90, 170), (30, 120, 70), (225, 120, 40), (170, 40, 45), (70, 160, 200),
+]
 # 卓・マットの色
 MAT_COLORS = [
     (30, 110, 60), (20, 80, 50), (40, 70, 130), (25, 50, 100), (90, 90, 95),
@@ -198,7 +203,7 @@ def layout_hand(faces, back, rng: random.Random, W: int, H: int):
         bw = int(w * rng.uniform(0.7, 1.1))
         bsp = back.resize((bw, int(bw * 1.33)))
         arr = np.asarray(bsp).copy()
-        arr[..., :3] = (np.array(rng.choice(BACK_COLORS)) * 0.6 + arr[..., :3] * 0.4).astype(np.uint8)
+        arr[..., :3] = (np.array(rng.choice(DISTRACTOR_BACK_COLORS)) * 0.85 + arr[..., :3] * 0.15).astype(np.uint8)
         bsp = Image.fromarray(arr, "RGBA")
         bx, by = rng.randint(0, max(1, W - bw)), rng.randint(0, max(1, H - bsp.size[1]))
         if all(bx + bw < b[1] or bx > b[3] or by + bsp.size[1] < b[2] or by > b[4] for b in boxes):

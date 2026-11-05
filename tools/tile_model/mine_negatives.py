@@ -11,10 +11,18 @@ train_classifier.py の --negatives に渡す。
   - --skip-prefix のデータ（merge.py の --src の順番で s0_, s1_, ... が付く）からは集めない
   - --classifier を渡すと、--trusted-prefix 以外のデータでは、その分類モデルが確率 --max-tile-prob 以上で
     何かの牌だと答えたものを外す（ラベルの付いていない本物の牌の可能性が高い）
+  - --classifier を渡すと、--trusted-prefix のデータ（合成）では、検出モデルが間違えて見つけたもののうち、
+    色の薄いもの（彩度 --haku-like-saturation 未満）で、その分類モデルが確率 --haku-like-prob 以上で白（5z）だと
+    答えたものを外す。合成データの紛らわしい牌の背のうち灰色のものは白と見分けにくく、「牌ではない」と覚えると
+    本物の白を捨てるようになるため。色のはっきりした牌の背は外さない（暗槓などの牌の背を白と読まないように）。
+    実写のデータでは外さない（トレイの空いた所なども白と答えるが、それは「牌ではない」と覚えさせたい）
+  - --label-negatives で、元のデータセットでラベルの付いた「牌ではないもの」（Riichi Mahjong Detection の
+    牌の背 0z など）も加える
 
 使い方:
   python mine_negatives.py --model out --data data/train --out data/train/negatives.json \
-      --classifier out_cls_first --trusted-prefix s0_ s1_ s2_ --skip-prefix s4_
+      --classifier out_cls_first --trusted-prefix s0_ --skip-prefix s2_ \
+      --label-negatives data/roboflow/riichi_detection/train:s2_:0z
   （out_cls_first は「牌ではない」なしで先に学習した分類モデル）
 """
 
@@ -24,6 +32,7 @@ import random
 import sys
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -44,6 +53,10 @@ def main():
     ap.add_argument("--classifier", type=Path, help="ラベルの付いていない牌を外すのに使う分類モデル")
     ap.add_argument("--trusted-prefix", nargs="*", default=[], help="ラベルに漏れがないデータ（合成など）のファイル名の頭")
     ap.add_argument("--max-tile-prob", type=float, default=0.98)
+    ap.add_argument("--haku-like-prob", type=float, default=0.5)
+    ap.add_argument("--haku-like-saturation", type=float, default=0.3)
+    ap.add_argument("--label-negatives", nargs="*", default=[],
+                    help="元のデータセットのフォルダ:merge.py で付いたファイル名の頭:クラス名（例 data/roboflow/riichi_detection/train:s2_:0z）")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -67,6 +80,17 @@ def main():
                 return False
             return classifier.probs(img, x, y, x + w, y + h).max() >= args.max_tile_prob
 
+        def looks_like_haku(x, y, w, h):
+            if classifier is None or not trusted:
+                return False
+            # 箱の中央の彩度（HSV の S）の平均。色のはっきりしたもの（牌の背など）は白に似ていない
+            crop = np.asarray(img.convert("RGB").crop((x + w * 0.2, y + h * 0.2, x + w * 0.8, y + h * 0.8)), np.float32)
+            mx, mn = crop.max(-1), crop.min(-1)
+            saturation = float(np.mean((mx - mn) / np.maximum(mx, 1)))
+            if saturation >= args.haku_like_saturation:
+                return False
+            return classifier.probs(img, x, y, x + w, y + h)[classifier.labels.index("5z")] >= args.haku_like_prob
+
         img = Image.open(args.data / "images" / im["file_name"])
         W, H = img.size
         gt = [(None, 1.0, a["bbox"][0] / W, a["bbox"][1] / H,
@@ -75,7 +99,7 @@ def main():
         wrong = [d for d in dets if all(evaluate.iou(d, g) < args.max_iou for g in gt)]
         for d in wrong[: args.per_image]:
             bbox = [d[2] * W, d[3] * H, (d[4] - d[2]) * W, (d[5] - d[3]) * H]
-            if looks_like_tile(*bbox):
+            if looks_like_tile(*bbox) or looks_like_haku(*bbox):
                 n_skip += 1
                 continue
             items.append({"file": im["file_name"], "bbox": bbox, "source": "detector", "score": round(d[1], 3)})
@@ -104,8 +128,23 @@ def main():
         if k % 500 == 0:
             print(f"  {k}/{len(coco['images'])} images: 間違いの検出 {n_det}、背景 {n_rand}", flush=True)
 
+    # 元のデータセットでラベルの付いた「牌ではないもの」（牌の背など）
+    names = {im["file_name"] for im in coco["images"]}
+    n_label = 0
+    for spec in args.label_negatives:
+        src, prefix, cls = spec.rsplit(":", 2)
+        raw = json.loads((Path(src) / "_annotations.coco.json").read_text())
+        ids = {c["id"] for c in raw["categories"] if c["name"] == cls}
+        files = {im["id"]: prefix + Path(im["file_name"]).name for im in raw["images"]}
+        for a in raw["annotations"]:
+            if a["category_id"] in ids and files[a["image_id"]] in names and a["bbox"][2] > 1 and a["bbox"][3] > 1:
+                items.append({"file": files[a["image_id"]], "bbox": a["bbox"], "source": f"label:{cls}"})
+                n_label += 1
+
     args.out.write_text(json.dumps({"items": items}))
-    print(f"{args.out}: 間違いの検出 {n_det}、背景 {n_rand}（合計 {len(items)}）、牌らしいので外した {n_skip}")
+    if n_label:
+        print(f"ラベルの付いた牌ではないもの: {n_label}")
+    print(f"{args.out}: 間違いの検出 {n_det}、背景 {n_rand}（合計 {len(items)}）、牌・白らしいので外した {n_skip}")
 
 
 if __name__ == "__main__":

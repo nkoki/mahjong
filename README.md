@@ -206,9 +206,9 @@ python merge.py --out data/val --drop 0z --src data/synth_val $R/hust/valid $R/h
 python merge.py --out data/val_real --drop 0z --src $R/hust/valid $R/hust/test $R/riichi_detection/valid $R/riichi_detection/test
 python train.py --train data/train --val data/val --out out --epochs 15 --batch 16 --fp16
 python train_classifier.py --train data/train --val data/val --out out_cls_first --epochs 8   # まず「牌ではない」なしで学習
-python mine_negatives.py --model out --data data/train --out data/train/negatives.json --classifier out_cls_first --trusted-prefix s0_ --skip-prefix s2_
-python mine_negatives.py --model out --data data/val --out data/val/negatives.json --classifier out_cls_first --trusted-prefix s0_ --skip-prefix s3_ s4_
-python train_classifier.py --train data/train --val data/val --out out_cls --epochs 8 --negatives data/train/negatives.json --val-negatives data/val/negatives.json
+python mine_negatives.py --model out --data data/train --out data/train/negatives.json --classifier out_cls_first --trusted-prefix s0_ --skip-prefix s2_ --label-negatives $R/riichi_detection/train:s2_:0z
+python mine_negatives.py --model out --data data/val --out data/val/negatives.json --classifier out_cls_first --trusted-prefix s0_ --skip-prefix s3_ s4_ --label-negatives $R/riichi_detection/valid:s3_:0z $R/riichi_detection/test:s4_:0z
+python train_classifier.py --train data/train --val data/val --out out_cls --epochs 8 --negatives data/train/negatives.json --val-negatives data/val/negatives.json --plain-negatives 1500
 python evaluate.py --model out --data data/val_real --save-preview preview.jpg   # 実写だけでの精度
 python evaluate.py --model out --classifier out_cls --data data/val_real --two-pass --hand-rows --per-class   # アプリと同じ読み取り方での精度
 python evaluate.py --model out --data data/val --dump-fixture ../../test/fixtures/tile_decode_fixture.json
@@ -227,7 +227,7 @@ cp out_cls/tile_classifier.tflite out_cls/tile_classifier_labels.txt ../../asset
 - `merge.py`: クラス名をアプリの牌の表記（`1m`・`5mr` など）に変換してまとめます。変換できないクラス名があれば止まるので、`--map` で対応を指定します。
 - `train.py`: 学習して `tile_detector.tflite`・`tile_anchors.bin`（アンカー）・`tile_labels.txt`（クラス名）を書き出します。精度（COCO 指標）は `eval.json` に書きます。
 - `train_classifier.py`: merge.py の出力の箱から牌を1枚ずつ切り抜き、分類モデル（37種類＋`--negatives` を渡せば「牌ではない（bg）」）を学習して `tile_classifier.tflite`・`tile_classifier_labels.txt` を書き出します。正解率は `eval.json` に書きます。
-- `mine_negatives.py`: 分類モデルに「牌ではない（bg）」を覚えさせる例を集めます（検出モデルが間違えて見つけたもの・牌の無い所の切り抜き）。`--src` の順番でファイル名の頭に `s0_`, `s1_`, … が付くので、ラベルに漏れがないデータ（合成）を `--trusted-prefix`、ラベルの漏れが多いデータ（Riichi Mahjong Detection）を `--skip-prefix` で指定します。
+- `mine_negatives.py`: 分類モデルに「牌ではない（bg）」を覚えさせる例を集めます（検出モデルが間違えて見つけたもの・牌の無い所の切り抜き）。`--src` の順番でファイル名の頭に `s0_`, `s1_`, … が付くので、ラベルに漏れがないデータ（合成）を `--trusted-prefix`、ラベルの漏れが多いデータ（Riichi Mahjong Detection）を `--skip-prefix` で指定します。合成データの色の薄い「白らしいもの」は外し（白を捨てないように）、`--label-negatives` で元のデータセットのラベル（牌の背 0z）も加えます。
 - `tile_crop.py`: 分類モデルに渡す画像の切り抜き方（箱を 8% ずつ広げる、横長なら時計回りに 90 度回す、縦128×横96 に縮める）。アプリの `lib/features/camera/tile_classifier.dart` と同じにしてあり、`python tile_crop.py --dump-fixture ../../test/fixtures` でアプリのテスト用データを作ります。
 - `--epochs` などを変えたときは、確認用データでの精度（`eval.json`）が下がっていないか確かめてから入れ替えてください。
 
@@ -239,30 +239,31 @@ cp out_cls/tile_classifier.tflite out_cls/tile_classifier_labels.txt ../../asset
 | 分類モデル（牌を1枚ずつ見分け直す。37種類＋「牌ではない」） | `tile_classifier.tflite`・`tile_classifier_labels.txt` | 約 1.9MB（float16） | 8 エポック（CPU 4 コアで約30分） |
 
 - 学習データ: 合成 4000 枚＋実写 1437 枚（HUST 333 枚・Detection 1104 枚。Roboflow 側で水増しした枚数）。検出モデルは、牌の写っていない画像を Model Maker が外すので 5058 枚
-- 分類モデルの学習データ: 箱から切り抜いた牌 63,439 枚と、「牌ではない」例 2,701 枚（`mine_negatives.py` で集めた、検出モデルが間違えて見つけたもの 842 枚と背景 1,859 枚）
+- 分類モデルの学習データ: 箱から切り抜いた牌 63,439 枚と、「牌ではない」例 4,378 枚（`mine_negatives.py` で集めた、検出モデルが間違えて見つけたもの 713 枚・背景 1,859 枚・Riichi Mahjong Detection でラベルの付いた牌の背 306 枚と、`train_classifier.py --plain-negatives` で作った縁のない平らな面 1,500 枚）
 - 検出モデルの確認用データでの COCO 指標（合成＋実写 566 枚）: AP50 = 0.953、AP = 0.726
-- 分類モデルだけの正解率（確認用データの切り抜き 10,201 枚）: 99.86%（実写の牌 99.93%、「牌ではない」98.5%）
+- 分類モデルだけの正解率（確認用データの切り抜き 10,401 枚）: 99.88%（実写の牌 99.92%、「牌ではない」99.0%）
 - アプリは、検出モデルの確信度 0.2 以上を牌の候補にし（`TfliteTileRecognizer.detectionThreshold`）、分類モデルが「牌ではない」と答えた候補を捨てます
 
 `evaluate.py` での結果。「アプリと同じ」は、確信度 0.2 以上・2回の読み取り（`--two-pass`）・分類モデルで見分け直して「牌ではない」を捨てる（`--classifier`）:
 
 | 確認用データ | 読み取り方 | 写真の数 | 牌の数 | 見つけた割合 | 見つけた牌の種類が合っていた割合 | 牌ごとの精度 | 余計な検出（1枚あたり） | 写真の牌が全部正しかった割合 |
 |---|---|---|---|---|---|---|---|---|
-| 実写を1列ずつ手牌の写真のようにしたもの | **アプリと同じ** | 634 | 5426 | 99.89% | 99.94% | **99.83%** | 0.215 | **92.6%** |
+| 実写を1列ずつ手牌の写真のようにしたもの | **アプリと同じ** | 634 | 5426 | 99.89% | 99.96% | **99.85%** | 0.207 | **93.1%** |
 | 〃 | 前の版（「牌ではない」なし、確信度 0.3） | 634 | 5426 | 99.69% | 99.98% | 99.67% | 0.364 | 78.9% |
 | 〃 | 検出モデルだけ（確信度 0.3） | 634 | 5426 | 99.7% | 98.3% | 98.0% | 0.36 | 72% |
-| 上のうち HUST だけ（ラベルの漏れがない） | **アプリと同じ** | 556 | 4869 | 99.98% | 99.98% | **99.96%** | **0.005** | **99.1%** |
+| 上のうち HUST だけ（ラベルの漏れがない） | **アプリと同じ** | 556 | 4869 | 99.98% | 99.98% | **99.96%** | **0.002** | **99.5%** |
 | 〃 | 前の版 | 556 | 4869 | 99.92% | 99.98% | 99.90% | 0.129 | 86.2% |
-| 実写の写真そのまま（1枚に約30枚） | **アプリと同じ** | 200 | 5831 | 99.93% | 99.93% | **99.86%** | 0.125 | 88.0% |
+| 実写の写真そのまま（1枚に約30枚） | **アプリと同じ** | 200 | 5831 | 99.93% | 99.93% | **99.86%** | 0.110 | 89.5% |
 | 〃 | 検出モデルだけ（確信度 0.3、1回の読み取り） | 200 | 5831 | 99.9% | 96.5% | 96.4% | 0.20 | 35% |
-| 合成 | **アプリと同じ** | 400 | 3959 | 98.46% | 100% | **98.46%** | 0.150 | 84.3% |
+| 合成 | **アプリと同じ** | 400 | 3959 | 98.56% | 99.95% | **98.51%** | 0.152 | 83.5% |
 | 〃 | 検出モデルだけ（確信度 0.3、1回の読み取り） | 400 | 3959 | 92.2% | 93.9% | 86.5% | 0.14 | 64% |
 
 「実写を1列ずつ手牌の写真のようにしたもの」（`--hand-rows`）は、実写の写真の牌の列（9枚前後）を1列ずつ取り出し、まわりを写真の色で埋めて、手牌を撮ったときに近い大きさ（11〜12枚ぶんの幅）にした画像です。
 
-- 分類モデルで萬子の取り違えがほぼ無くなり（手牌の写真に近い条件で萬子はすべて 99.4% 以上）、「牌ではない」を足したことで、トレイの空いた所などを牌と読む余計な検出がほぼ無くなりました（HUST で 1列あたり 0.129 → 0.005）。
+- 分類モデルで萬子の取り違えがほぼ無くなり（手牌の写真に近い条件で萬子はすべて 99.4% 以上）、「牌ではない」を足したことで、トレイの空いた所などを牌と読む余計な検出がほぼ無くなりました（HUST で 1列あたり 0.129 → 0.002）。
 - Riichi Mahjong Detection の写真には、ラベルの付いていない牌が写っています。それを正しく読んでも「余計な検出」と数えられるので、Detection を含む結果は実際より悪く出ます。そのため HUST だけの結果も載せています。ラベルの付いていない牌を「牌ではない」と覚えさせないよう、`mine_negatives.py` では Detection から例を集めず、ほかの実写のデータでは、先に学習した分類モデルがはっきり牌だと答えるもの（確率 0.98 以上）を外しています。
-- 合成データでは、白（5z）を見落とす割合が少し増えました（白の精度 96.6% → 94.0%）。無地のカードなどを「牌ではない」と覚えたためと考えられます。実写では白は 99.7% 以上です。
+- 白（5z）は無地なので「牌ではない」と紛れやすく、合成データで白の精度が 94.0% まで下がったことがありました。合成データの紛らわしい牌の背のうち灰色のものが白とほとんど同じ見た目で、それを「牌ではない」と覚えていたためです。`mine_negatives.py` で合成データの色の薄い「白らしいもの」を外し、代わりに縁のない平らな面と本物の牌の背（Detection の 0z）を「牌ではない」に加えて、白の精度を 96.6% に戻しました（実写では白は 99.7% 以上）。牌の背（暗槓など）は白と読まずに捨てます。合成で残る白の見落とし（116 枚中 4 枚）は、強くぼけた写真で検出モデルが見つけられないものです。
+- `synth.py` の紛らわしい牌の背には、色のはっきりしたものだけを使うようにしました（灰色・黒を使わず、色も濃く混ぜる）。今の検出モデルは直す前の合成データで学習しています。
 - 実写の確認用データは、学習に使ったデータセットと同じ牌・同じ撮り方の写真です。ほかの牌のセットや撮り方では精度が下がることがあります。赤5は実写の確認用データに 50 個しかないので、数値はあまり当てになりません。
 - アプリでは、読み取り結果の画面に「読み取りは間違えることがあるので確認してください」と表示しています。
 

@@ -35,7 +35,7 @@ NOT_A_TILE = "bg"
 class Classifier:
     """牌を1枚ずつ見分ける分類モデル（アプリの tile_classifier.dart と同じ使い方）"""
 
-    def __init__(self, model_dir: Path):
+    def __init__(self, model_dir: Path, haku_min_prob: float = 1.1):
         import sys
         import tensorflow as tf
         sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -45,6 +45,7 @@ class Classifier:
         self.interp.allocate_tensors()
         self.labels = [l.strip() for l in (model_dir / "tile_classifier_labels.txt").read_text().splitlines()
                        if l.strip()]
+        self.haku_min_prob = haku_min_prob
 
     def probs(self, image: Image.Image, left, top, right, bottom):
         x = np.asarray(self.classifier_input(image, left, top, right, bottom), np.float32)[None]
@@ -60,6 +61,9 @@ class Classifier:
         for d in dets:
             p = self.probs(image, d[2] * W, d[3] * H, d[4] * W, d[5] * H)
             label = self.labels[int(p.argmax())]
+            # 「牌ではない」でも、白の確率が haku_min_prob 以上なら白とする（無地の白は「牌ではない」と紛れやすい）
+            if label == NOT_A_TILE and "5z" in self.labels and p[self.labels.index("5z")] >= self.haku_min_prob:
+                label = "5z"
             if label != NOT_A_TILE:
                 result.append((label,) + tuple(d[1:]))
         return result
@@ -220,6 +224,8 @@ def main():
     ap.add_argument("--hand-rows", action="store_true", help="牌の列を1列ずつ手牌の写真のようにして測る")
     ap.add_argument("--per-class", action="store_true", help="牌の種類ごとの精度と多い取り違えを出す")
     ap.add_argument("--classifier", type=Path, help="分類モデルのフォルダ（見つけた牌の種類を決め直す）")
+    ap.add_argument("--haku-min-prob", type=float, default=1.1,
+                    help="分類モデルが「牌ではない」と答えても、白の確率がこれ以上なら白とする（1.1 なら使わない）")
     ap.add_argument("--dump-fixture", type=Path,
                     help="アプリのテスト用に、確信度の高いアンカーの生の出力と期待する箱を JSON に書く")
     args = ap.parse_args()
@@ -237,7 +243,7 @@ def main():
     perfect = count = 0
     previews = []
     per_total, per_ok, confusions = Counter(), Counter(), Counter()
-    classifier = Classifier(args.classifier) if args.classifier else None
+    classifier = Classifier(args.classifier, args.haku_min_prob) if args.classifier else None
     for img, gt in samples(args, coco, cats, gts):
         count += 1
         W, H = img.size

@@ -11,7 +11,7 @@
 
 使い方:
   python train_classifier.py --train data/train --val data/val --out out_cls --epochs 8 \
-      --negatives data/train/negatives.json --val-negatives data/val/negatives.json
+      --negatives data/train/negatives.json --val-negatives data/val/negatives.json --plain-negatives 1500
 
 出力（--out の中）:
   tile_classifier.tflite         アプリに入れるモデル（assets/models/ にコピーする）
@@ -83,6 +83,24 @@ def extract(folder: Path, items, for_training: bool):
     return np.stack(xs), np.array(ys, np.int32)
 
 
+def plain_patches(n, h, w, seed):
+    """縁のない平らな面（無地の卓・壁など）の画像を作る。「牌ではない」として使う。
+
+    白（5z）は無地だが、牌の縁や影がある。縁のない平らな面を白と読まないように覚えさせる。
+    """
+    rng = np.random.default_rng(seed)
+    out = np.empty((n, h, w, 3), np.uint8)
+    yy, xx = np.mgrid[0:h, 0:w] / max(h, w)
+    for i in range(n):
+        base = rng.uniform(40, 245) if rng.random() < 0.6 else None  # 灰色・白っぽい色が多め
+        color = np.full(3, base) if base is not None else rng.uniform(30, 245, 3)
+        color = color * rng.uniform(0.93, 1.07, 3)
+        grad = (rng.uniform(-25, 25) * xx + rng.uniform(-25, 25) * yy)[..., None]
+        img = color + grad + rng.normal(0, rng.uniform(0, 7), (h, w, 3))
+        out[i] = np.clip(img, 0, 255).astype(np.uint8)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--train", required=True, type=Path)
@@ -96,6 +114,8 @@ def main():
     ap.add_argument("--max-images", type=int, default=None, help="試しに動かすときの画像数の上限")
     ap.add_argument("--negatives", type=Path, help="学習用の「牌ではない」例（mine_negatives.py の出力）")
     ap.add_argument("--val-negatives", type=Path, help="確認用の「牌ではない」例（mine_negatives.py の出力）")
+    ap.add_argument("--plain-negatives", type=int, default=0,
+                    help="縁のない平らな面の画像をこの数だけ作って「牌ではない」に足す（確認用にはその 1/8）")
     args = ap.parse_args()
 
     import tensorflow as tf
@@ -108,6 +128,13 @@ def main():
     x_train, y_train = extract(args.train, train_items, True)
     x_val, y_val = extract(args.val, val_items, False)
     val_real = np.array([not name.startswith("s0_") for name, _, _ in val_items])  # merge.py の最初の --src（合成）以外
+    if args.plain_negatives:
+        n_val = args.plain_negatives // 8
+        x_train = np.concatenate([x_train, plain_patches(args.plain_negatives, CTX_H, CTX_W, args.seed + 1)])
+        y_train = np.concatenate([y_train, np.full(args.plain_negatives, LABELS.index(NOT_A_TILE), np.int32)])
+        x_val = np.concatenate([x_val, plain_patches(n_val, INPUT_H, INPUT_W, args.seed + 2)])
+        y_val = np.concatenate([y_val, np.full(n_val, LABELS.index(NOT_A_TILE), np.int32)])
+        val_real = np.concatenate([val_real, np.zeros(n_val, bool)])
     bg = LABELS.index(NOT_A_TILE)
     print(f"train: {len(y_train)}（うち牌ではない {(y_train == bg).sum()}）, "
           f"val: {len(y_val)}（実写 {val_real.sum()}、牌ではない {(y_val == bg).sum()}）"
