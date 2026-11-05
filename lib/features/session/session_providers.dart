@@ -198,11 +198,12 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
     required List<ScoredWin> wins,
     int? loser,
     required String description,
+    Map<int, int> chips = const {},
   }) =>
       _update(
         id,
         (s) => SessionLogic.applyWins(s,
-            wins: wins, loser: loser, description: description),
+            wins: wins, loser: loser, description: description, chips: chips),
       );
 
   void applyDraw(

@@ -39,6 +39,11 @@ class _WinResultScreenState extends ConsumerState<WinResultScreen> {
   /// 和了者ごとの包（責任払い）の人
   final Map<int, int?> _pao = {};
 
+  /// 和了者ごとの祝儀の枚数（変えていなければ目安の枚数）
+  final Map<int, int> _chips = {};
+
+  int _chipsOf(GameSession s, ScoredWin w) => _chips[w.winner] ?? SessionLogic.suggestedChips(s, w);
+
   String get sessionId => widget.sessionId;
   List<WinEntry> get entries => widget.entries;
   int? get loser => widget.loser;
@@ -75,6 +80,7 @@ class _WinResultScreenState extends ConsumerState<WinResultScreen> {
                     ? (p) => setState(() => _pao[w.winner] = p)
                     : null,
               ),
+              if (s.settings.chips && w.result.isValid) _chipRow(s, w),
               const SizedBox(height: 12),
             ],
             if (isDouble && (s.honba > 0 || s.riichiSticks > 0))
@@ -131,6 +137,7 @@ class _WinResultScreenState extends ConsumerState<WinResultScreen> {
                       wins: wins,
                       loser: loser,
                       description: _description(s, wins),
+                      chips: s.settings.chips ? {for (final w in wins) w.winner: _chipsOf(s, w)} : const {},
                     );
                 popToDashboard(context);
               },
@@ -172,6 +179,50 @@ class _WinResultScreenState extends ConsumerState<WinResultScreen> {
     );
   }
 
+  /// 祝儀の枚数を入れる欄（祝儀ありのルールのとき）
+  Widget _chipRow(GameSession s, ScoredWin w) {
+    final theme = Theme.of(context);
+    final n = _chipsOf(s, w);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('祝儀（${s.playerNames[w.winner]}）', style: theme.textTheme.titleSmall),
+                  Text(
+                    w.hanFu != null
+                        ? '翻・符で入力したときは自動で数えません'
+                        : '目安: 赤ドラ・裏ドラ・一発の数（${SessionLogic.suggestedChips(s, w)}枚）。'
+                            '${loser == null ? 'ツモなので、ほかの全員が$n枚ずつ払います' : '放銃者が払います'}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            IconButton.outlined(
+              tooltip: '祝儀を減らす',
+              onPressed: n > 0 ? () => setState(() => _chips[w.winner] = n - 1) : null,
+              icon: const Icon(Icons.remove),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text('$n枚', key: ValueKey('chips-${w.winner}'), style: theme.textTheme.titleMedium),
+            ),
+            IconButton.outlined(
+              tooltip: '祝儀を増やす',
+              onPressed: n < 99 ? () => setState(() => _chips[w.winner] = n + 1) : null,
+              icon: const Icon(Icons.add),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _description(GameSession s, List<ScoredWin> wins) {
     final parts = [
       for (final w in wins)
@@ -181,6 +232,7 @@ class _WinResultScreenState extends ConsumerState<WinResultScreen> {
             '${ScoreCalculator.formatScore(w.result, isDealer: w.input.isDealer, isTsumo: w.input.isTsumo)}  '
             '[${w.result.yakuList.map((y) => y.name).join(' ')}]'
             '${w.pao != null ? '（包: ${s.playerNames[w.pao!]}）' : ''}'
+            '${s.settings.chips && _chipsOf(s, w) > 0 ? '（祝儀${_chipsOf(s, w)}枚）' : ''}'
     ];
     return wins.length > 1 ? 'ダブロン: ${parts.join(' / ')}' : parts.single;
   }

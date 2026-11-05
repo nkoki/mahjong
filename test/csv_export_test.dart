@@ -31,7 +31,7 @@ void main() {
     final l = lines(CsvExport.games([ongoing, g3, g4]));
     expect(l, hasLength(4));
     expect(l[0].split(',').take(9), ['日時', '人数', '種類', '状態', 'お気に入り', '持ち点', '返し', 'ウマ', '局数']);
-    expect(l[0].split(','), hasLength(9 + 16));
+    expect(l[0].split(","), hasLength(9 + 16 + 4));
     expect(l[1], startsWith('2026/01/02 09:05,4人,半荘戦,終局,,25000,30000,'));
     expect(l[1], contains(',佐藤,'));
     expect(l[1], contains('"鈴,木"'));

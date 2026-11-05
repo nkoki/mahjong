@@ -91,7 +91,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               padding: EdgeInsets.all(32),
               child: Text('この条件で終局した対局はまだありません', textAlign: TextAlign.center),
             ),
-          for (var i = 0; i < summary.players.length; i++) _PlayerCard(rank: i + 1, stats: summary.players[i]),
+          for (var i = 0; i < summary.players.length; i++)
+            _PlayerCard(rank: i + 1, stats: summary.players[i], showChips: summary.hasChips),
         ],
       ),
     );
@@ -103,8 +104,9 @@ String _percent(double? v) => v == null ? '－' : '${(v * 100).toStringAsFixed(1
 class _PlayerCard extends StatelessWidget {
   final int rank;
   final PlayerStats stats;
+  final bool showChips;
 
-  const _PlayerCard({required this.rank, required this.stats});
+  const _PlayerCard({required this.rank, required this.stats, this.showChips = false});
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +146,7 @@ class _PlayerCard extends StatelessWidget {
                 _Stat('放銃率', _percent(s.dealInRate)),
                 _Stat('立直率', _percent(s.riichiRate)),
                 _Stat('平均打点', s.averageWinPoints == null ? '－' : formatPoints(s.averageWinPoints!.round())),
+                if (showChips) _Stat('祝儀', '${s.chips > 0 ? '+' : ''}${s.chips}枚'),
               ],
             ),
             const SizedBox(height: 6),

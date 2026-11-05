@@ -78,7 +78,8 @@ class HistoryDetailScreen extends ConsumerWidget {
                   ListTile(
                     leading: CircleAvatar(child: Text('${r.rank}')),
                     title: Text(s.playerNames[r.player]),
-                    subtitle: Text('${formatPoints(r.score)}点'),
+                    subtitle: Text('${formatPoints(r.score)}点'
+                        '${s.settings.chips ? '  祝儀 ${_chipText(s.chipTotals[r.player])}' : ''}'),
                     trailing: s.finished
                         ? Text(formatPoint(r.point), style: theme.textTheme.titleMedium)
                         : null,
@@ -197,6 +198,9 @@ class HistoryDetailScreen extends ConsumerWidget {
     );
   }
 }
+
+/// 祝儀の枚数の表示（例: +3枚、-2枚、0枚）
+String _chipText(int n) => '${n > 0 ? '+' : ''}$n枚';
 
 /// ウマを変更するダイアログ。変更すると最終ポイントが計算し直される
 Future<void> _editUma(

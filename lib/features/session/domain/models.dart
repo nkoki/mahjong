@@ -58,6 +58,9 @@ class GameSettings {
   /// 赤ドラあり（和了入力の牌に赤5を表示する）
   final bool redDora;
 
+  /// 祝儀（チップ）を記録する。和了ごとに枚数を入れ、ロンは放銃者が、ツモはほかの全員が払う
+  final bool chips;
+
   // ---- 人数・3人打ちのルール ----
 
   /// 人数（4人打ち: 4 / 3人打ち: 3）
@@ -87,6 +90,7 @@ class GameSettings {
     this.nagashiMangan = true,
     this.abortiveDraws = true,
     this.redDora = true,
+    this.chips = false,
     this.playerCount = 4,
     this.nukiDora = true,
     this.sanmaTsumoSplit = false,
@@ -111,6 +115,7 @@ class GameSettings {
     this.nagashiMangan = true,
     this.abortiveDraws = true,
     this.redDora = true,
+    this.chips = false,
     this.nukiDora = true,
     this.sanmaTsumoSplit = false,
   }) : playerCount = 3;
@@ -159,6 +164,7 @@ class GameSettings {
         '流し満貫${nagashiMangan ? "あり" : "なし"}',
         '途中流局${abortiveDraws ? "あり" : "なし"}',
         '赤ドラ${redDora ? "あり" : "なし"}',
+        if (chips) '祝儀あり',
       ];
 
   GameSettings copyWith({
@@ -179,6 +185,7 @@ class GameSettings {
     bool? nagashiMangan,
     bool? abortiveDraws,
     bool? redDora,
+    bool? chips,
     bool? nukiDora,
     bool? sanmaTsumoSplit,
   }) =>
@@ -200,6 +207,7 @@ class GameSettings {
         nagashiMangan: nagashiMangan ?? this.nagashiMangan,
         abortiveDraws: abortiveDraws ?? this.abortiveDraws,
         redDora: redDora ?? this.redDora,
+        chips: chips ?? this.chips,
         playerCount: playerCount,
         nukiDora: nukiDora ?? this.nukiDora,
         sanmaTsumoSplit: sanmaTsumoSplit ?? this.sanmaTsumoSplit,
@@ -225,6 +233,7 @@ class GameSettings {
           'nagashiMangan': nagashiMangan,
           'abortiveDraws': abortiveDraws,
           'redDora': redDora,
+          if (chips) 'chips': true,
           if (isSanma) 'nukiDora': nukiDora,
           if (isSanma) 'sanmaTsumoSplit': sanmaTsumoSplit,
         },
@@ -253,6 +262,8 @@ class GameSettings {
       nagashiMangan: r['nagashiMangan'] as bool? ?? d.nagashiMangan,
       abortiveDraws: r['abortiveDraws'] as bool? ?? d.abortiveDraws,
       redDora: r['redDora'] as bool? ?? d.redDora,
+      // version 4 以前のデータには無い（祝儀なし）
+      chips: r['chips'] as bool? ?? false,
       // 3人打ちを入れる前のデータは4人打ち
       playerCount: j['playerCount'] as int? ?? 4,
       nukiDora: r['nukiDora'] as bool? ?? d.nukiDora,
@@ -396,6 +407,9 @@ class RoundRecord {
   /// 和了者ごとの和了点（本場・供託を含まない。[winners] と同じ順）
   final List<int>? winPoints;
 
+  /// この局の祝儀（チップ）の枚数の増減（祝儀なし・祝儀の動きが無い局は null）
+  final List<int>? chips;
+
   const RoundRecord({
     required this.roundLabel,
     required this.kind,
@@ -407,6 +421,7 @@ class RoundRecord {
     this.loser,
     this.riichi,
     this.winPoints,
+    this.chips,
   });
 
   /// 和了者・放銃者・立直の記録がある局か（version 4 以降に記録した局）
@@ -429,6 +444,7 @@ class RoundRecord {
         loser: loser,
         riichi: riichi,
         winPoints: winPoints,
+        chips: chips,
       );
 
   Map<String, dynamic> toJson() => {
@@ -443,6 +459,7 @@ class RoundRecord {
         if (loser != null) 'loser': loser,
         if (riichi != null) 'riichi': riichi,
         if (winPoints != null) 'winPoints': winPoints,
+        if (chips != null) 'chips': chips,
       };
 
   factory RoundRecord.fromJson(Map<String, dynamic> j) => RoundRecord(
@@ -457,6 +474,7 @@ class RoundRecord {
         loser: j['loser'] as int?,
         riichi: j['riichi'] == null ? null : _intList(j['riichi']),
         winPoints: j['winPoints'] == null ? null : _intList(j['winPoints']),
+        chips: j['chips'] == null ? null : _intList(j['chips']),
       );
 }
 
@@ -752,6 +770,19 @@ class GameSession {
       return c != 0 ? c : a.compareTo(b);
     });
     return order;
+  }
+
+  /// 祝儀（チップ）の枚数の合計（プレイヤーごと）
+  List<int> get chipTotals {
+    final t = List<int>.filled(playerCount, 0);
+    for (final r in records) {
+      final c = r.chips;
+      if (c == null) continue;
+      for (var i = 0; i < playerCount && i < c.length; i++) {
+        t[i] += c[i];
+      }
+    }
+    return t;
   }
 
   /// 最終結果（ウマ・オカ込み）

@@ -89,7 +89,9 @@ class SharedPrefsSessionRepository implements SessionRepository {
   /// - 3: 対局ごとに別のキーに保存（version 1・2 のデータは起動時に自動で移行）
   /// - 4: 局の記録に和了者・放銃者・立直した人・和了点を追加（個人成績の集計用）。
   ///      version 3 のデータはそのまま読める（その局は個人成績の和了率などに含めない）
-  static const formatVersion = 4;
+  /// - 5: ルールに祝儀（チップ）を記録するか、局の記録に祝儀の増減を追加。
+  ///      version 4 以前のデータはそのまま読める（祝儀なしとして扱う）
+  static const formatVersion = 5;
 
   static String sessionKey(String id) => '$sessionKeyPrefix$id';
 

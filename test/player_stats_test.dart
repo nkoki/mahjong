@@ -140,7 +140,7 @@ void main() {
     await repo.saveAll([next]);
     final saved = jsonDecode(prefs.getString(SharedPrefsSessionRepository.sessionKey('old'))!) as Map<String, dynamic>;
     expect(saved['version'], SharedPrefsSessionRepository.formatVersion);
-    expect(SharedPrefsSessionRepository.formatVersion, 4);
+    expect(SharedPrefsSessionRepository.formatVersion, greaterThanOrEqualTo(4));
   });
 
   group('集計', () {

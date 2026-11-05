@@ -130,6 +130,42 @@ class SessionLogic {
     return total;
   }
 
+  /// 祝儀（チップ）の枚数の増減。[chips] は和了者ごとの枚数。
+  /// ロンは放銃者が払い、ツモはほかの全員がその枚数ずつ払う
+  static List<int> chipDeltas(GameSession s, Map<int, int> chips, {int? loser}) {
+    final d = List<int>.filled(s.playerCount, 0);
+    chips.forEach((winner, n) {
+      if (n <= 0) return;
+      if (loser != null) {
+        d[loser] -= n;
+        d[winner] += n;
+      } else {
+        for (var p = 0; p < s.playerCount; p++) {
+          if (p == winner) continue;
+          d[p] -= n;
+          d[winner] += n;
+        }
+      }
+    });
+    return d;
+  }
+
+  /// 祝儀の枚数の目安（赤ドラ・裏ドラ・一発の数）。翻・符で入力した和了は 0
+  static int suggestedChips(GameSession s, ScoredWin w) {
+    if (w.hanFu != null || !w.result.isValid) return 0;
+    final input = w.input;
+    final tiles = [
+      ...input.handTiles,
+      input.winningTile,
+      for (final m in input.melds) ...m.tiles,
+    ];
+    final aka = tiles.where(isRedDora).length;
+    final ura = (input.isRiichi || input.isDoubleRiichi)
+        ? countDora(tiles, input.uraDoraTiles, sanma: s.settings.isSanma)
+        : 0;
+    return aka + ura + (input.isIppatsu ? 1 : 0);
+  }
+
   /// 包（責任払い）の対象になる役満
   static const paoYakuman = ['大三元', '大四喜'];
 
@@ -201,6 +237,7 @@ class SessionLogic {
     required List<ScoredWin> wins,
     int? loser,
     required String description,
+    Map<int, int> chips = const {},
   }) {
     final error = validateWins([for (final w in wins) w.winner],
         loser: loser, doubleRon: s.settings.doubleRon);
@@ -220,6 +257,7 @@ class SessionLogic {
       winners: [for (final w in wins) w.winner],
       loser: loser,
       winPoints: [for (final w in wins) w.result.totalScore],
+      chips: s.settings.chips ? chipDeltas(s, chips, loser: loser) : null,
     );
   }
 
@@ -306,6 +344,7 @@ class SessionLogic {
     List<int> winners = const [],
     int? loser,
     List<int>? winPoints,
+    List<int>? chips,
   }) {
     final record = RoundRecord(
       roundLabel: s.roundLabel,
@@ -317,6 +356,7 @@ class SessionLogic {
       loser: loser,
       riichi: List.unmodifiable([for (var i = 0; i < s.playerCount; i++) if (s.riichi[i]) i]),
       winPoints: List.unmodifiable(winPoints ?? const <int>[]),
+      chips: chips == null || chips.every((c) => c == 0) ? null : List.unmodifiable(chips),
     );
     final nextRound = renchan ? s.roundIndex : s.roundIndex + 1;
     var next = s.copyWith(

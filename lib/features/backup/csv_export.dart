@@ -31,6 +31,7 @@ class CsvExport {
     final header = [
       '日時', '人数', '種類', '状態', 'お気に入り', '持ち点', '返し', 'ウマ', '局数',
       for (var i = 1; i <= 4; i++) ...['名前$i', '点数$i', '順位$i', 'ポイント$i'],
+      for (var i = 1; i <= 4; i++) '祝儀$i',
     ];
     final rows = <List<String>>[header];
     for (final s in _oldestFirst(sessions)) {
@@ -53,6 +54,7 @@ class CsvExport {
             s.finished ? _point(results[p]!.point) : '',
           ] else
             ...['', '', '', ''],
+        for (var p = 0; p < 4; p++) p < s.playerCount && s.settings.chips ? '${s.chipTotals[p]}' : '',
       ]);
     }
     return _rows(rows);

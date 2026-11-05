@@ -19,6 +19,9 @@ class PlayerStats {
   /// 和了点の合計（本場・供託を含まない）
   final int winPointsTotal;
 
+  /// 祝儀（チップ）の枚数の合計
+  final int chips;
+
   const PlayerStats({
     required this.name,
     required this.rankCounts,
@@ -28,6 +31,7 @@ class PlayerStats {
     required this.dealIns,
     required this.riichi,
     required this.winPointsTotal,
+    this.chips = 0,
   });
 
   int get games => rankCounts.fold(0, (a, v) => a + v);
@@ -65,7 +69,11 @@ class StatsSummary {
   /// 和了者などの記録が無く、和了率などに含めなかった局の数（以前の版で記録した局）
   final int roundsWithoutDetails;
 
-  const StatsSummary({required this.players, required this.games, required this.roundsWithoutDetails});
+  /// 祝儀ありのルールの対局があるか（祝儀の合計を表示するか）
+  final bool hasChips;
+
+  const StatsSummary(
+      {required this.players, required this.games, required this.roundsWithoutDetails, this.hasChips = false});
 }
 
 /// 個人成績を集計する（UI に依存しない）。
@@ -84,10 +92,12 @@ class PlayerStatsCalculator {
     final acc = <String, _Acc>{};
     var noDetails = 0;
     for (final s in target) {
+      final chips = s.chipTotals;
       for (final r in s.finalResults) {
         final a = acc.putIfAbsent(s.playerNames[r.player], () => _Acc(playerCount));
         a.ranks[r.rank - 1]++;
         a.points += r.point;
+        a.chips += chips[r.player];
       }
       for (final rec in s.records) {
         if (!rec.hasPlayDetails) {
@@ -119,18 +129,23 @@ class PlayerStatsCalculator {
           dealIns: e.value.dealIns,
           riichi: e.value.riichi,
           winPointsTotal: e.value.winPoints,
+          chips: e.value.chips,
         )
     ]..sort((a, b) {
         final c = b.totalPoints.compareTo(a.totalPoints);
         return c != 0 ? c : a.name.compareTo(b.name);
       });
-    return StatsSummary(players: players, games: target.length, roundsWithoutDetails: noDetails);
+    return StatsSummary(
+        players: players,
+        games: target.length,
+        roundsWithoutDetails: noDetails,
+        hasChips: target.any((s) => s.settings.chips));
   }
 }
 
 class _Acc {
   final List<int> ranks;
   double points = 0;
-  int rounds = 0, wins = 0, dealIns = 0, riichi = 0, winPoints = 0;
+  int rounds = 0, wins = 0, dealIns = 0, riichi = 0, winPoints = 0, chips = 0;
   _Acc(int playerCount) : ranks = List.filled(playerCount, 0);
 }

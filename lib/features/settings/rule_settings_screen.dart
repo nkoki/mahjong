@@ -269,6 +269,12 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
                   : '和了入力で赤5（5萬・5筒・5索）を選べるようにします',
               s.redDora,
               (v) => update((c) => c.copyWith(redDora: v))),
+          section('祝儀'),
+          sw('祝儀（チップ）を記録する',
+              '和了ごとに祝儀の枚数を入れます（赤ドラ・裏ドラ・一発の数を目安に表示）。'
+                  'ロンは放銃者が、ツモはほかの全員が払います。戦績・個人成績に合計を表示します',
+              s.chips,
+              (v) => update((c) => c.copyWith(chips: v))),
           const SizedBox(height: 24),
           FilledButton(onPressed: _isValid ? _save : null, child: const Text('保存')),
           if (!_isValid)
