@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../core/l10n.dart';
 import '../session/data/session_repository.dart';
 import '../session/domain/models.dart';
 
@@ -77,23 +78,25 @@ class BackupCodec {
     try {
       data = jsonDecode(text.trim());
     } on FormatException {
-      throw const BackupFormatException(
-          'バックアップの形式になっていません。このアプリで書き出したファイル（またはテキスト）を選んでください。');
+      throw BackupFormatException(tr(
+          'バックアップの形式になっていません。このアプリで書き出したファイル（またはテキスト）を選んでください。',
+          'This is not a backup. Choose a file (or text) exported by this app.'));
     }
     if (data is! Map<String, dynamic> || data['app'] != appId || data['kind'] != kind) {
-      throw const BackupFormatException('このアプリのバックアップではありません。');
+      throw BackupFormatException(tr('このアプリのバックアップではありません。', 'This is not a backup from this app.'));
     }
     final version = data['version'];
     if (version is! int) {
-      throw const BackupFormatException('バックアップのバージョンが分かりません。');
+      throw BackupFormatException(tr('バックアップのバージョンが分かりません。', 'Unknown backup version.'));
     }
     if (version > SharedPrefsSessionRepository.formatVersion) {
-      throw const BackupFormatException(
-          '新しいバージョンのアプリで作られたバックアップです。アプリを最新版に更新してから読み込んでください。');
+      throw BackupFormatException(tr(
+          '新しいバージョンのアプリで作られたバックアップです。アプリを最新版に更新してから読み込んでください。',
+          'This backup was made by a newer version of the app. Update the app before importing it.'));
     }
     final list = data['sessions'];
     if (list is! List) {
-      throw const BackupFormatException('バックアップに対局のデータがありません。');
+      throw BackupFormatException(tr('バックアップに対局のデータがありません。', 'The backup contains no game data.'));
     }
     final sessions = <GameSession>[];
     final ids = <String>{};

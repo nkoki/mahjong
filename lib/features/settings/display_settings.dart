@@ -5,7 +5,8 @@ import '../../core/l10n.dart';
 import '../session/session_providers.dart';
 
 /// 選べる文字の大きさ（表示名, 倍率）
-const textScaleChoices = [('標準', 1.0), ('大', 1.15), ('特大', 1.3)];
+List<(String, double)> get textScaleChoices =>
+    [(tr('標準', 'Normal'), 1.0), (tr('大', 'Large'), 1.15), (tr('特大', 'Extra large'), 1.3)];
 
 /// 画面の明るさ（端末の設定に合わせる・明るい・暗い）
 ThemeMode themeModeOf(String? v) => switch (v) {
@@ -48,7 +49,7 @@ class DisplaySettingsScreen extends ConsumerWidget {
     final mode = ref.watch(themeModeProvider);
     final scale = ref.watch(textScaleProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('表示の設定')),
+      appBar: AppBar(title: Text(tr('表示の設定', 'Display'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -69,13 +70,13 @@ class DisplaySettingsScreen extends ConsumerWidget {
                   'Switching returns to the home screen.'),
               style: theme.textTheme.bodySmall),
           const SizedBox(height: 24),
-          Text('画面の明るさ', style: theme.textTheme.titleMedium),
+          Text(tr('画面の明るさ', 'Theme'), style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           SegmentedButton<ThemeMode>(
-            segments: const [
-              ButtonSegment(value: ThemeMode.system, label: Text('端末に合わせる')),
-              ButtonSegment(value: ThemeMode.light, label: Text('明るい')),
-              ButtonSegment(value: ThemeMode.dark, label: Text('暗い')),
+            segments: [
+              ButtonSegment(value: ThemeMode.system, label: Text(tr('端末に合わせる', 'System'))),
+              ButtonSegment(value: ThemeMode.light, label: Text(tr('明るい', 'Light'))),
+              ButtonSegment(value: ThemeMode.dark, label: Text(tr('暗い', 'Dark'))),
             ],
             selected: {mode},
             onSelectionChanged: (v) => ref
@@ -83,9 +84,9 @@ class DisplaySettingsScreen extends ConsumerWidget {
                 .set(switch (v.first) { ThemeMode.light => 'light', ThemeMode.dark => 'dark', _ => 'system' }),
           ),
           const SizedBox(height: 6),
-          Text('「暗い」は夜や暗い場所で見やすく、画面のまぶしさを抑えます。', style: theme.textTheme.bodySmall),
+          Text(tr('「暗い」は夜や暗い場所で見やすく、画面のまぶしさを抑えます。', '"Dark" is easier on the eyes at night or in dim places.'), style: theme.textTheme.bodySmall),
           const SizedBox(height: 24),
-          Text('文字の大きさ', style: theme.textTheme.titleMedium),
+          Text(tr('文字の大きさ', 'Text size'), style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           SegmentedButton<double>(
             segments: [for (final c in textScaleChoices) ButtonSegment(value: c.$2, label: Text(c.$1))],
@@ -94,7 +95,9 @@ class DisplaySettingsScreen extends ConsumerWidget {
                 ref.read(preferenceProvider(PreferenceKeys.textScale).notifier).set('${v.first}'),
           ),
           const SizedBox(height: 6),
-          Text('端末の文字の大きさの設定に、さらに掛け合わせます。大きくすると、画面によっては1行に入りきらず折り返します。',
+          Text(
+              tr('端末の文字の大きさの設定に、さらに掛け合わせます。大きくすると、画面によっては1行に入りきらず折り返します。',
+                  'Multiplied by your device text size setting. Larger sizes may wrap onto more lines on some screens.'),
               style: theme.textTheme.bodySmall),
           const SizedBox(height: 16),
           Card(
@@ -103,10 +106,10 @@ class DisplaySettingsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('見本', style: theme.textTheme.labelMedium),
-                  Text('東1局 0本場', style: theme.textTheme.titleLarge),
+                  Text(tr('見本', 'Preview'), style: theme.textTheme.labelMedium),
+                  Text(displayRoundLabel('東1局 0本場'), style: theme.textTheme.titleLarge),
                   Text('25,000', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const Text('この大きさで表示します。設定はこの端末に保存されます。'),
+                  Text(tr('この大きさで表示します。設定はこの端末に保存されます。', 'Text will appear at this size. The setting is saved on this device.')),
                 ],
               ),
             ),

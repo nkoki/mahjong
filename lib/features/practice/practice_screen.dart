@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../core/l10n.dart';
 import '../../shared/widgets/tile_view.dart';
-import '../session/domain/models.dart';
 import '../session/session_providers.dart';
 import 'practice_generator.dart';
 
@@ -58,32 +58,34 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
     final theme = Theme.of(context);
     final q = _q;
     final input = q.input;
-    final seat = GameSession.windNames[int.parse(input.playerWind[0]) - 1];
-    final round = GameSession.windNames[int.parse(input.roundWind[0]) - 1];
+    final seat = windName(int.parse(input.playerWind[0]) - 1);
+    final round = windName(int.parse(input.roundWind[0]) - 1);
     final small = theme.textTheme.bodySmall;
     final done = _picked != null;
     final r = q.result;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('点数計算の練習')),
+      appBar: AppBar(title: Text(tr('点数計算の練習', 'Scoring practice'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('正解 $_correct / $_answered問${_streak >= 2 ? '（$_streak問連続正解）' : ''}',
+          Text(
+              tr('正解 $_correct / $_answered問${_streak >= 2 ? '（$_streak問連続正解）' : ''}',
+                  'Correct $_correct / $_answered${_streak >= 2 ? ' ($_streak in a row)' : ''}'),
               key: const ValueKey('practice-score'), style: theme.textTheme.titleSmall),
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
             runSpacing: 4,
             children: [
-              Chip(label: Text('$round場')),
-              Chip(label: Text('$seat家（${q.isDealer ? "親" : "子"}）')),
-              Chip(label: Text(q.isTsumo ? 'ツモ' : 'ロン')),
-              if (input.isRiichi) const Chip(label: Text('立直')),
+              Chip(label: Text(tr('$round場', '$round round'))),
+              Chip(label: Text(tr('$seat家（${q.isDealer ? "親" : "子"}）', '$seat seat (${q.isDealer ? "dealer" : "non-dealer"})'))),
+              Chip(label: Text(q.isTsumo ? tr('ツモ', 'Tsumo') : tr('ロン', 'Ron'))),
+              if (input.isRiichi) Chip(label: Text(tr('立直', 'Riichi'))),
             ],
           ),
           const SizedBox(height: 8),
-          Text('手牌', style: theme.textTheme.titleSmall),
+          Text(tr('手牌', 'Hand'), style: theme.textTheme.titleSmall),
           const SizedBox(height: 4),
           Wrap(
             spacing: 2,
@@ -95,7 +97,7 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(q.isTsumo ? 'ツモ' : 'ロン', style: small),
+                  Text(q.isTsumo ? tr('ツモ', 'Tsumo') : tr('ロン', 'Ron'), style: small),
                   TileView(input.winningTile, width: 26, selected: true),
                 ],
               ),
@@ -103,7 +105,7 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
           ),
           if (input.melds.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('鳴き', style: small),
+            Text(tr('鳴き', 'Calls'), style: small),
             Wrap(
               spacing: 10,
               children: [
@@ -115,7 +117,7 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
                       for (var i = 0; i < m.tiles.length; i++)
                         TileView(m.tiles[i], width: 26, sideways: i == 0),
                       const SizedBox(width: 4),
-                      Text(m.type == MeldType.chi ? 'チー' : 'ポン', style: small),
+                      Text(m.type == MeldType.chi ? tr('チー', 'Chi') : tr('ポン', 'Pon'), style: small),
                     ],
                   ),
               ],
@@ -124,16 +126,16 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              Text('ドラ表示牌 ', style: small),
+              Text(tr('ドラ表示牌 ', 'Dora indicator '), style: small),
               for (final t in input.doraTiles) TileView(t, width: 22),
               if (input.uraDoraTiles.isNotEmpty) ...[
-                Text('  裏ドラ表示牌 ', style: small),
+                Text(tr('  裏ドラ表示牌 ', '  Ura dora indicator '), style: small),
                 for (final t in input.uraDoraTiles) TileView(t, width: 22),
               ],
             ],
           ),
           const SizedBox(height: 16),
-          Text('この和了の点数は？（本場・供託なし）', style: theme.textTheme.titleMedium),
+          Text(tr('この和了の点数は？（本場・供託なし）', 'How many points is this win? (no honba or deposits)'), style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           for (final c in q.choices)
             Padding(
@@ -162,30 +164,48 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_picked == q.answer ? '正解！' : '不正解。正しくは ${q.answer}',
+                    Text(_picked == q.answer ? tr('正解！', 'Correct!') : tr('不正解。正しくは ${q.answer}', 'Wrong. The answer is ${q.answer}'),
                         style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 6),
-                    Text(
+                    Text(tr(
                         '${r.han}翻 ${r.fu}符${r.limitName != null ? '（${r.limitName}）' : ''}'
-                        '・${q.isDealer ? "親" : "子"}の${q.isTsumo ? "ツモ" : "ロン"}'),
+                            '・${q.isDealer ? "親" : "子"}の${q.isTsumo ? "ツモ" : "ロン"}',
+                        '${r.han} han ${r.fu} fu${r.limitName != null ? ' (${limitName(r.limitName!)})' : ''}'
+                            ', ${q.isDealer ? "dealer" : "non-dealer"} ${q.isTsumo ? "tsumo" : "ron"}')),
                     const SizedBox(height: 4),
-                    Text('役: ${r.yakuList.map((y) => y.toString()).join('、')}', style: small),
+                    Text(tr('役: ${r.yakuList.map((y) => y.toString()).join('、')}', 'Yaku: ${r.yakuList.map(_yakuEn).join(', ')}'),
+                        style: small),
                     if (r.limitName == null || r.han < 5) ...[
                       const SizedBox(height: 4),
-                      Text('符: ${r.fuDetails.map((f) => f.toString()).join('、')}', style: small),
+                      Text(
+                          tr('符: ${r.fuDetails.map((f) => f.toString()).join('、')}',
+                              'Fu: ${r.fuDetails.map((f) => '${fuName(f.name)}: ${f.fu} fu').join(', ')}'),
+                          style: small),
                     ],
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            FilledButton(key: const ValueKey('practice-next'), onPressed: _next, child: const Text('次の問題')),
+            FilledButton(key: const ValueKey('practice-next'), onPressed: _next, child: Text(tr('次の問題', 'Next question'))),
           ],
           const SizedBox(height: 12),
-          Text('問題はでたらめに作ったあがり形です（鳴きは1つまで、赤ドラ・槓・役満は出ません）。'
-              'ルール設定（4人打ち）の喰いタン・切り上げ満貫などに従って計算しています。', style: small),
+          Text(
+              tr(
+                  '問題はでたらめに作ったあがり形です（鳴きは1つまで、赤ドラ・槓・役満は出ません）。'
+                      'ルール設定（4人打ち）の喰いタン・切り上げ満貫などに従って計算しています。',
+                  'Questions are randomly generated winning hands (at most one call; no red dora, kans or yakuman). '
+                      'Scores follow the rule settings (4-player), such as open tanyao and rounded-up mangan.'),
+              style: small),
         ],
       ),
     );
   }
+}
+
+/// 役の英語の表示（例: Riichi (1 han)）
+String _yakuEn(Yaku y) {
+  final name = yakuName(y.name);
+  if (!y.isYakuman) return '$name (${y.han} han)';
+  return y.han >= 2 ? '$name (${y.han}x yakuman)' : '$name (yakuman)';
 }

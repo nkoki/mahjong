@@ -1,16 +1,20 @@
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../../core/l10n.dart';
 import 'models.dart';
 import 'session_logic.dart';
 
 /// 和了の仕方
 enum WinWay {
-  ron('ロン'),
-  direct('直撃'),
-  tsumo('ツモ');
+  ron,
+  direct,
+  tsumo;
 
-  final String label;
-  const WinWay(this.label);
+  String get label => switch (this) {
+        WinWay.ron => tr('ロン', 'Ron'),
+        WinWay.direct => tr('直撃', 'Direct hit'),
+        WinWay.tsumo => tr('ツモ', 'Tsumo'),
+      };
 }
 
 /// トップになるのに必要な、いちばん安い和了
@@ -38,9 +42,9 @@ class WinCondition {
 
   /// 必要な手の表示（例: 2翻40符、満貫、役満）
   String get handLabel {
-    if (hand.yakuman > 0) return '役満';
-    if (result.limitName != null) return result.limitName!;
-    return '${hand.han}翻${hand.fu}符';
+    if (hand.yakuman > 0) return limitName('役満');
+    if (result.limitName != null) return limitName(result.limitName!);
+    return tr('${hand.han}翻${hand.fu}符', '${hand.han} han ${hand.fu} fu');
   }
 }
 

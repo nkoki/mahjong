@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../core/l10n.dart';
+
 /// 点数計算の練習の1問
 class PracticeQuestion {
   final WinInput input;
@@ -40,7 +42,10 @@ class PracticeGenerator {
   }
 
   static String _format(ScoreResult r, bool dealer, bool tsumo) =>
-      tsumo ? ScoreCalculator.formatScore(r, isDealer: dealer, isTsumo: true) : '${r.totalScore}点';
+      tsumo ? _tsumoText(ScoreCalculator.formatScore(r, isDealer: dealer, isTsumo: true)) : tr('${r.totalScore}点', '${r.totalScore} pts');
+
+  /// ツモの点数の表示（英語では「オール」を all にする）
+  static String _tsumoText(String s) => tr(s, s.replaceAll('オール', ' all'));
 
   static PracticeQuestion? _try(Random rng, ScoreRules rules) {
     final count = <String, int>{};

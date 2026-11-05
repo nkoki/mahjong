@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../core/l10n.dart';
+
 /// 読み取りに失敗したときのエラー（[message] は利用者向けの説明）
 class RecognitionException implements Exception {
   final String message;
@@ -64,19 +66,21 @@ RecognizedHand applyRecognition(
     counts[key] = (counts[key] ?? 0) + 1;
     usable.add(t);
   }
-  if (removedSanma > 0) notes.add('3人打ちでは使わない二萬〜八萬を$removedSanma枚除きました');
-  if (normalizedRed > 0) notes.add('赤5を$normalizedRed枚、普通の5として入れました');
-  if (removedOver > 0) notes.add('同じ牌が5枚以上あったので、$removedOver枚除きました');
+  if (removedSanma > 0) notes.add(tr('3人打ちでは使わない二萬〜八萬を$removedSanma枚除きました', 'Removed $removedSanma tiles of 2m-8m (not used in 3-player)'));
+  if (normalizedRed > 0) notes.add(tr('赤5を$normalizedRed枚、普通の5として入れました', 'Entered $normalizedRed red fives as normal fives'));
+  if (removedOver > 0) notes.add(tr('同じ牌が5枚以上あったので、$removedOver枚除きました', 'Removed $removedOver tiles (5+ copies of the same tile)'));
 
   final hand = usable.take(needHand).toList();
   final winningTile = usable.length > needHand ? usable[needHand] : null;
   if (usable.length > needHand + 1) {
-    notes.add('読み取った牌が多すぎたので、後ろの${usable.length - needHand - 1}枚は使いませんでした');
+    notes.add(tr('読み取った牌が多すぎたので、後ろの${usable.length - needHand - 1}枚は使いませんでした',
+        'Too many tiles read; the last ${usable.length - needHand - 1} were not used'));
   }
   if (hand.length < needHand) {
-    notes.add('手牌が${needHand - hand.length}枚足りません。残りは手で入力してください');
+    notes.add(tr('手牌が${needHand - hand.length}枚足りません。残りは手で入力してください',
+        'Hand is ${needHand - hand.length} tiles short. Enter the rest manually'));
   } else if (winningTile == null) {
-    notes.add('和了牌は手で選んでください');
+    notes.add(tr('和了牌は手で選んでください', 'Select the winning tile manually'));
   }
   return RecognizedHand(hand: sortTiles(hand), winningTile: winningTile, notes: notes);
 }

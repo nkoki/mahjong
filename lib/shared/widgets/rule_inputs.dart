@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../features/session/domain/models.dart';
 
@@ -67,8 +68,8 @@ class _PointsInputState extends State<PointsInput> {
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: InputDecoration(
             labelText: widget.label,
-            suffixText: '点',
-            helperText: '上のボタン以外の値も入力できます（100点単位）',
+            suffixText: tr('点', 'pts'),
+            helperText: tr('上のボタン以外の値も入力できます（100点単位）', 'You can also type other values (in units of 100)'),
             errorText: widget.errorText,
             border: const OutlineInputBorder(),
           ),
@@ -171,7 +172,7 @@ class _UmaInputState extends State<UmaInput> {
                   ],
                   textAlign: TextAlign.center,
                   decoration: InputDecoration(
-                    labelText: '${i + 1}位',
+                    labelText: tr('${i + 1}位', _ordinal(i + 1)),
                     border: const OutlineInputBorder(),
                     isDense: true,
                   ),
@@ -189,8 +190,10 @@ class _UmaInputState extends State<UmaInput> {
           child: Text(
             widget.errorText ??
                 (widget.playerCount == 3
-                    ? '千点単位で入力します（例: ±15 なら 1位+15・2位0・3位-15）。合計は0にしてください。'
-                    : '千点単位で入力します（例: 10-20 なら 1位+20・2位+10・3位-10・4位-20）。合計は0にしてください。'),
+                    ? tr('千点単位で入力します（例: ±15 なら 1位+15・2位0・3位-15）。合計は0にしてください。',
+                        'In thousands (e.g. ±15: 1st +15, 2nd 0, 3rd -15). The total must be 0.')
+                    : tr('千点単位で入力します（例: 10-20 なら 1位+20・2位+10・3位-10・4位-20）。合計は0にしてください。',
+                        'In thousands (e.g. 10-20: 1st +20, 2nd +10, 3rd -10, 4th -20). The total must be 0.')),
             style: theme.textTheme.bodySmall?.copyWith(
                 color: widget.errorText != null ? theme.colorScheme.error : null),
           ),
@@ -199,3 +202,6 @@ class _UmaInputState extends State<UmaInput> {
     );
   }
 }
+
+/// 英語の順位（1st, 2nd, 3rd, 4th）
+String _ordinal(int n) => '$n${switch (n) { 1 => 'st', 2 => 'nd', 3 => 'rd', _ => 'th' }}';

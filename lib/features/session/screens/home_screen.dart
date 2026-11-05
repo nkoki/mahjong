@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n.dart';
 import '../../../core/routes.dart';
 import '../../../core/theme.dart';
 import '../../about/license_screen.dart';
@@ -30,27 +31,27 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('麻雀点数計算'),
+        title: Text(tr('麻雀点数計算', 'Mahjong Scorer')),
         actions: [
           IconButton(
-            tooltip: 'ルール設定',
+            tooltip: tr('ルール設定', 'Rules'),
             icon: const Icon(Icons.tune),
             onPressed: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const RuleSettingsScreen())),
           ),
           IconButton(
-            tooltip: '表示の設定（明るさ・文字の大きさ）',
+            tooltip: tr('表示の設定（明るさ・文字の大きさ）', 'Display (theme, text size, language)'),
             icon: const Icon(Icons.brightness_6_outlined),
             onPressed: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const DisplaySettingsScreen())),
           ),
           IconButton(
-            tooltip: 'データの保存について',
+            tooltip: tr('データの保存について', 'About data storage'),
             icon: const Icon(Icons.info_outline),
             onPressed: openInfo,
           ),
           IconButton(
-            tooltip: 'ライセンス・データの出典',
+            tooltip: tr('ライセンス・データの出典', 'Licenses & data sources'),
             icon: const Icon(Icons.description_outlined),
             onPressed: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const LicenseScreen())),
@@ -79,12 +80,12 @@ class HomeScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Icon(Icons.grid_view_rounded, size: 72, color: theme.colorScheme.primary),
           const SizedBox(height: 8),
-          Text('4人打ち 点数計算・対局管理',
+          Text(tr('4人打ち 点数計算・対局管理', '4-player scoring & game manager'),
               textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
           const SizedBox(height: 32),
           FilledButton.icon(
             icon: const Icon(Icons.play_arrow),
-            label: const Text('新規対局'),
+            label: Text(tr('新規対局', 'New game')),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const NewSessionScreen()),
             ),
@@ -93,7 +94,7 @@ class HomeScreen extends ConsumerWidget {
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
             icon: const Icon(Icons.history),
-            label: const Text('戦績'),
+            label: Text(tr('戦績', 'Records')),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const HistoryListScreen()),
             ),
@@ -102,7 +103,7 @@ class HomeScreen extends ConsumerWidget {
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
             icon: const Icon(Icons.leaderboard_outlined),
-            label: const Text('個人成績'),
+            label: Text(tr('個人成績', 'Player stats')),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const StatsScreen()),
             ),
@@ -111,7 +112,7 @@ class HomeScreen extends ConsumerWidget {
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
             icon: const Icon(Icons.table_chart_outlined),
-            label: const Text('点数早見表'),
+            label: Text(tr('点数早見表', 'Score table')),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ScoreTableScreen()),
             ),
@@ -120,14 +121,14 @@ class HomeScreen extends ConsumerWidget {
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
             icon: const Icon(Icons.school_outlined),
-            label: const Text('点数計算の練習'),
+            label: Text(tr('点数計算の練習', 'Scoring practice')),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const PracticeScreen()),
             ),
           ),
           if (ongoing.isNotEmpty) ...[
             const SizedBox(height: 32),
-            Text('対局中（続きから）', style: theme.textTheme.titleSmall),
+            Text(tr('対局中（続きから）', 'In progress (continue)'), style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
             for (final s in ongoing)
               Card(
@@ -135,7 +136,7 @@ class HomeScreen extends ConsumerWidget {
                   leading: const Icon(Icons.casino_outlined),
                   title: Text(s.playerNames.join(' / ')),
                   subtitle: Text(
-                      '${s.roundLabel}  供託${s.riichiSticks}本\n'
+                      '${displayRoundLabel(s.roundLabel)}  ${tr('供託${s.riichiSticks}本', 'Riichi sticks: ${s.riichiSticks}')}\n'
                       '${[for (final v in s.scores) formatPoints(v)].join(' / ')}'),
                   isThreeLine: true,
                   trailing: const Icon(Icons.chevron_right),
@@ -158,15 +159,18 @@ class HomeScreen extends ConsumerWidget {
                         Icon(Icons.save_outlined, size: 20, color: theme.colorScheme.primary),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text('データの保存について', style: theme.textTheme.titleSmall),
+                          child: Text(tr('データの保存について', 'About data storage'), style: theme.textTheme.titleSmall),
                         ),
                         const Icon(Icons.chevron_right),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '対局データはこの端末に自動で保存されます。'
-                      'アプリを削除したり、ブラウザのデータを消したりすると消えてしまいます。',
+                      tr(
+                          '対局データはこの端末に自動で保存されます。'
+                              'アプリを削除したり、ブラウザのデータを消したりすると消えてしまいます。',
+                          'Game data is saved automatically on this device. '
+                              'It will be lost if you uninstall the app or clear browser data.'),
                       style: theme.textTheme.bodySmall,
                     ),
                     const SizedBox(height: 8),
@@ -214,7 +218,7 @@ class _NoticeCard extends StatelessWidget {
         trailing: onClose == null
             ? null
             : IconButton(
-                tooltip: '閉じる',
+                tooltip: tr('閉じる', 'Close'),
                 icon: Icon(Icons.close, color: fg),
                 onPressed: onClose,
               ),
@@ -241,9 +245,9 @@ class _BackupRow extends ConsumerWidget {
         Expanded(
           child: Text(
             last == null
-                ? 'まだバックアップしていません'
-                : '最後のバックアップ: ${formatDateTime(last)}'
-                    '${recommend ? '（30日以上前）' : ''}',
+                ? tr('まだバックアップしていません', 'No backup yet')
+                : tr('最後のバックアップ: ${formatDateTime(last)}', 'Last backup: ${formatDateTime(last)}') +
+                    (recommend ? tr('（30日以上前）', ' (over 30 days ago)') : ''),
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: recommend ? theme.colorScheme.error : null),
           ),
@@ -251,7 +255,7 @@ class _BackupRow extends ConsumerWidget {
         TextButton(
           onPressed: () => Navigator.of(context)
               .push(MaterialPageRoute(builder: (_) => const BackupScreen())),
-          child: const Text('バックアップ'),
+          child: Text(tr('バックアップ', 'Backup')),
         ),
       ],
     );

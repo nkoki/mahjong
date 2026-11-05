@@ -1,5 +1,7 @@
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../../core/l10n.dart';
+
 /// 対局ルール設定
 class GameSettings {
   /// 配給原点（持ち点）
@@ -139,7 +141,7 @@ class GameSettings {
   int get totalRounds => tonpuu ? playerCount : playerCount * 2;
 
   /// 延長の呼び方（半荘戦は西入、東風戦は南入）
-  String get extensionName => tonpuu ? '南入' : '西入';
+  String get extensionName => tonpuu ? tr('南入', 'South extension') : tr('西入', 'West extension');
 
   /// オカ（トップ取り、千点単位）
   double get oka => (returnPoints - startingPoints) * playerCount / 1000;
@@ -161,24 +163,24 @@ class GameSettings {
   /// ルールの要約（画面表示用）
   List<String> get ruleSummary => [
         if (isSanma) ...[
-          '北抜き${nukiDora ? "あり" : "なし"}',
-          sanmaTsumoSplit ? 'ツモ折半' : 'ツモ損',
+          tr('北抜き${nukiDora ? "あり" : "なし"}', 'Nuki dora (North) ${nukiDora ? "on" : "off"}'),
+          sanmaTsumoSplit ? tr('ツモ折半', 'Tsumo split') : tr('ツモ損', 'Tsumo loss'),
         ],
-        '喰いタン${kuitan ? "あり" : "なし"}',
-        '切り上げ満貫${kiriageMangan ? "あり" : "なし"}',
-        '数え役満${kazoeYakuman ? "あり" : "なし"}',
-        'ダブル役満${doubleYakuman ? "あり" : "なし"}',
-        '連風牌の雀頭$renpuuPairFu符',
-        doubleRon ? 'ダブロンあり' : 'ダブロンなし（頭ハネ）',
-        '和了止め${agariYame ? "あり" : "なし"}',
-        '$extensionName${westRound ? "あり" : "なし"}',
-        '包${pao ? "あり" : "なし"}',
-        '流し満貫${nagashiMangan ? "あり" : "なし"}',
-        '途中流局${abortiveDraws ? "あり" : "なし"}',
-        '赤ドラ${redDora ? "あり" : "なし"}',
-        if (chips) '祝儀あり',
-        if (yakitori > 0) '焼き鳥 ${yakitori}P',
-        if (tobiBonus > 0) 'トビ賞 ${tobiBonus}P',
+        tr('喰いタン${kuitan ? "あり" : "なし"}', 'Kuitan ${kuitan ? "on" : "off"}'),
+        tr('切り上げ満貫${kiriageMangan ? "あり" : "なし"}', 'Kiriage mangan ${kiriageMangan ? "on" : "off"}'),
+        tr('数え役満${kazoeYakuman ? "あり" : "なし"}', 'Kazoe yakuman ${kazoeYakuman ? "on" : "off"}'),
+        tr('ダブル役満${doubleYakuman ? "あり" : "なし"}', 'Double yakuman ${doubleYakuman ? "on" : "off"}'),
+        tr('連風牌の雀頭$renpuuPairFu符', 'Double wind pair $renpuuPairFu fu'),
+        doubleRon ? tr('ダブロンあり', 'Double ron on') : tr('ダブロンなし（頭ハネ）', 'Double ron off (head bump)'),
+        tr('和了止め${agariYame ? "あり" : "なし"}', 'Agari-yame ${agariYame ? "on" : "off"}'),
+        tr('$extensionName${westRound ? "あり" : "なし"}', '$extensionName ${westRound ? "on" : "off"}'),
+        tr('包${pao ? "あり" : "なし"}', 'Pao ${pao ? "on" : "off"}'),
+        tr('流し満貫${nagashiMangan ? "あり" : "なし"}', 'Nagashi mangan ${nagashiMangan ? "on" : "off"}'),
+        tr('途中流局${abortiveDraws ? "あり" : "なし"}', 'Abortive draws ${abortiveDraws ? "on" : "off"}'),
+        tr('赤ドラ${redDora ? "あり" : "なし"}', 'Red dora ${redDora ? "on" : "off"}'),
+        if (chips) tr('祝儀あり', 'Chips on'),
+        if (yakitori > 0) tr('焼き鳥 ${yakitori}P', 'Yakitori ${yakitori}P'),
+        if (tobiBonus > 0) tr('トビ賞 ${tobiBonus}P', 'Bust bonus ${tobiBonus}P'),
       ];
 
   GameSettings copyWith({
@@ -296,8 +298,8 @@ class GameSettings {
 }
 
 /// よく使われるウマ（1位〜4位、千点単位）
-const umaPresets = <(String, List<int>)>[
-  ('なし', [0, 0, 0, 0]),
+List<(String, List<int>)> get umaPresets => [
+  (tr('なし', 'None'), [0, 0, 0, 0]),
   ('5-10', [10, 5, -5, -10]),
   ('10-20', [20, 10, -10, -20]),
   ('10-30', [30, 10, -10, -30]),
@@ -305,8 +307,8 @@ const umaPresets = <(String, List<int>)>[
 ];
 
 /// 3人打ちでよく使われるウマ（1位〜3位、千点単位）
-const umaPresetsSanma = <(String, List<int>)>[
-  ('なし', [0, 0, 0]),
+List<(String, List<int>)> get umaPresetsSanma => [
+  (tr('なし', 'None'), [0, 0, 0]),
   ('±10', [10, 0, -10]),
   ('±15', [15, 0, -15]),
   ('±20', [20, 0, -20]),
@@ -321,7 +323,7 @@ List<(String, List<int>)> umaPresetsFor(int playerCount) =>
 /// 3人打ちで「1位+a / 2位0 / 3位-a」の形なら "±a"、
 /// それ以外は "+30 / +10 / -10 / -30" のように並べる
 String formatUma(List<int> uma) {
-  if (uma.every((v) => v == 0)) return 'なし';
+  if (uma.every((v) => v == 0)) return tr('なし', 'None');
   if (uma.length == 4) {
     final big = uma[0], small = uma[1];
     if (uma[2] == -small && uma[3] == -big && big >= small && small >= 0) {
@@ -336,9 +338,9 @@ String formatUma(List<int> uma) {
 
 /// 持ち点・返しの入力チェック（問題なければ null）
 String? validatePoints(int? v) {
-  if (v == null) return '数字を入力してください';
-  if (v < 1000 || v > 1000000) return '1,000〜1,000,000点の範囲で入力してください';
-  if (v % 100 != 0) return '100点単位で入力してください';
+  if (v == null) return tr('数字を入力してください', 'Enter a number');
+  if (v < 1000 || v > 1000000) return tr('1,000〜1,000,000点の範囲で入力してください', 'Enter a value from 1,000 to 1,000,000 pts');
+  if (v % 100 != 0) return tr('100点単位で入力してください', 'Enter in units of 100 pts');
   return null;
 }
 
@@ -346,18 +348,21 @@ String? validatePoints(int? v) {
 String? validateReturnPoints(int? ret, int? starting) {
   final e = validatePoints(ret);
   if (e != null) return e;
-  if (starting != null && ret! < starting) return '持ち点以上の値を入力してください';
+  if (starting != null && ret! < starting) return tr('持ち点以上の値を入力してください', 'Enter a value at least the starting points');
   return null;
 }
 
 /// ウマの入力チェック（問題なければ null）
 String? validateUma(List<int?> uma, {int playerCount = 4}) {
   if (uma.length != playerCount || uma.any((v) => v == null)) {
-    return '1位〜$playerCount位のすべてに数字を入力してください';
+    return tr('1位〜$playerCount位のすべてに数字を入力してください', 'Enter a number for every place from 1st to ${playerCount == 3 ? "3rd" : "${playerCount}th"}');
   }
-  if (uma.any((v) => v!.abs() > 1000)) return '-1000〜1000の範囲で入力してください';
+  if (uma.any((v) => v!.abs() > 1000)) return tr('-1000〜1000の範囲で入力してください', 'Enter a value from -1000 to 1000');
   final sum = uma.fold<int>(0, (a, v) => a + v!);
-  if (sum != 0) return '合計が0になるようにしてください（今の合計: ${sum > 0 ? "+" : ""}$sum）';
+  if (sum != 0) {
+    return tr('合計が0になるようにしてください（今の合計: ${sum > 0 ? "+" : ""}$sum）',
+        'The total must be 0 (current total: ${sum > 0 ? "+" : ""}$sum)');
+  }
   return null;
 }
 
@@ -369,16 +374,20 @@ List<bool> _boolList(Object? v) =>
 
 /// 流局の種類
 enum DrawType {
-  exhaustive('荒牌平局（通常流局）'),
-  nagashiMangan('流し満貫'),
-  kyuushu('九種九牌'),
-  suufon('四風連打'),
-  suucha('四家立直'),
-  suukan('四開槓'),
-  sanchaho('三家和');
+  exhaustive('荒牌平局（通常流局）', 'Exhaustive draw'),
+  nagashiMangan('流し満貫', 'Nagashi mangan'),
+  kyuushu('九種九牌', 'Kyuushu kyuuhai'),
+  suufon('四風連打', 'Suufon renda'),
+  suucha('四家立直', 'Suucha riichi'),
+  suukan('四開槓', 'Suukaikan'),
+  sanchaho('三家和', 'Sanchahou');
 
-  final String label;
-  const DrawType(this.label);
+  final String _ja;
+  final String _en;
+  const DrawType(this._ja, this._en);
+
+  /// 表示名（今の言語）
+  String get label => tr(_ja, _en);
 
   /// 途中流局（親が連荘・テンパイ料なし）
   bool get isAbortive =>

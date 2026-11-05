@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
@@ -54,7 +55,7 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
   Widget build(BuildContext context) {
     final s = ref.watch(sessionProvider(widget.sessionId));
     if (s == null || widget.index >= s.records.length) {
-      return Scaffold(appBar: AppBar(), body: const Center(child: Text('局が見つかりません')));
+      return Scaffold(appBar: AppBar(), body: Center(child: Text(tr('局が見つかりません', 'Round not found'))));
     }
     final theme = Theme.of(context);
     final record = s.records[widget.index];
@@ -80,7 +81,7 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
             whoChanged);
 
     return Scaffold(
-      appBar: AppBar(title: Text('局の修正  ${record.roundLabel}')),
+      appBar: AppBar(title: Text(tr('局の修正  ${record.roundLabel}', 'Edit  ${displayRoundLabel(record.roundLabel)}'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -90,21 +91,30 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  '・修正できるのは、この局の点数の増減・内容のメモと、和了の局なら和了した人・放銃した人です'
-                  '（手牌は記録していないため、入力し直すことはできません）。\n'
-                  '・和了した人・放銃した人は個人成績（和了率・放銃率・平均打点）に使います。点数の増減は自動では変わらないので、合わせて直してください。\n'
-                  '・修正した差分は、この局より後のすべての局の点数と、今の点数に反映されます。\n'
-                  '・局の進行（親・本場・終局したかどうか）は変わりません。'
-                  'トビの有無が変わる修正をしても、対局が途中で終わったり再開したりはしません。\n'
-                  '・保存した直後に表示される「元に戻す」で取り消せます'
-                  '（対局中の対局なら、対局画面の元に戻すボタンでも取り消せます）。',
+                  tr(
+                      '・修正できるのは、この局の点数の増減・内容のメモと、和了の局なら和了した人・放銃した人です'
+                          '（手牌は記録していないため、入力し直すことはできません）。\n'
+                          '・和了した人・放銃した人は個人成績（和了率・放銃率・平均打点）に使います。点数の増減は自動では変わらないので、合わせて直してください。\n'
+                          '・修正した差分は、この局より後のすべての局の点数と、今の点数に反映されます。\n'
+                          '・局の進行（親・本場・終局したかどうか）は変わりません。'
+                          'トビの有無が変わる修正をしても、対局が途中で終わったり再開したりはしません。\n'
+                          '・保存した直後に表示される「元に戻す」で取り消せます'
+                          '（対局中の対局なら、対局画面の元に戻すボタンでも取り消せます）。',
+                      '- You can edit this round\'s score changes, the memo, and for a win, the winner(s) and the player who dealt in '
+                          '(the hand was not recorded, so it cannot be re-entered).\n'
+                          '- Winners and dealer-in are used for player stats (win rate, deal-in rate, average win). Score changes are not updated automatically, so fix them too.\n'
+                          '- The difference is applied to all later rounds and the current scores.\n'
+                          '- Game progress (dealer, honba, game over) does not change. '
+                          'Even if a bust appears or disappears, the game will not end or resume.\n'
+                          '- You can revert with "Undo" shown right after saving '
+                          '(for a game in progress, the undo button on the game screen also works).'),
                   style: TextStyle(color: theme.colorScheme.onTertiaryContainer, fontSize: 13),
                 ),
               ),
             ),
             if (winners != null) ...[
               const SizedBox(height: 16),
-              Text('和了した人', style: theme.textTheme.titleSmall),
+              Text(tr('和了した人', 'Winner(s)'), style: theme.textTheme.titleSmall),
               const SizedBox(height: 4),
               Wrap(
                 spacing: 8,
@@ -122,14 +132,14 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              Text('放銃した人', style: theme.textTheme.titleSmall),
+              Text(tr('放銃した人', 'Dealt in'), style: theme.textTheme.titleSmall),
               const SizedBox(height: 4),
               Wrap(
                 spacing: 8,
                 children: [
                   ChoiceChip(
                     key: const ValueKey('loser-tsumo'),
-                    label: const Text('なし（ツモ）'),
+                    label: Text(tr('なし（ツモ）', 'None (tsumo)')),
                     selected: _loser == null,
                     onSelected: (_) => setState(() => _loser = null),
                   ),
@@ -151,12 +161,14 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
               else if (whoChanged && winners.length != record.winners!.length)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text('和了した人の人数を変えると、この局の和了点は分からなくなるので、個人成績の平均打点に含めません。',
+                  child: Text(
+                      tr('和了した人の人数を変えると、この局の和了点は分からなくなるので、個人成績の平均打点に含めません。',
+                          'Changing the number of winners makes the win value unknown, so this round is excluded from average win in player stats.'),
                       style: theme.textTheme.bodySmall),
                 ),
             ],
             const SizedBox(height: 16),
-            Text('点数の増減', style: theme.textTheme.titleSmall),
+            Text(tr('点数の増減', 'Score changes'), style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
             for (var p = 0; p < s.playerCount; p++)
               Padding(
@@ -164,7 +176,7 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                 child: Row(
                   children: [
                     Expanded(child: Text(s.playerNames[p], overflow: TextOverflow.ellipsis)),
-                    Text('修正前 ${formatDelta(record.deltas[p])}  →  ',
+                    Text(tr('修正前 ${formatDelta(record.deltas[p])}  →  ', 'Before ${formatDelta(record.deltas[p])}  →  '),
                         style: theme.textTheme.bodySmall),
                     SizedBox(
                       width: 120,
@@ -174,10 +186,10 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                         keyboardType: const TextInputType.numberWithOptions(signed: true),
                         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*'))],
                         textAlign: TextAlign.end,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           isDense: true,
-                          suffixText: '点',
-                          border: OutlineInputBorder(),
+                          suffixText: tr('点', 'pts'),
+                          border: const OutlineInputBorder(),
                         ),
                         onChanged: (_) => setState(() {}),
                       ),
@@ -187,13 +199,16 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
               ),
             Text(
               deltaError ??
-                  '${s.playerCount}人の合計: ${formatDelta(originalSum)}'
-                      '${originalSum != 0 ? "（供託リーチ棒の出入りの分。修正前と同じにしてください）" : "（修正前と同じ0にしてください）"}',
+                  tr(
+                      '${s.playerCount}人の合計: ${formatDelta(originalSum)}'
+                          '${originalSum != 0 ? "（供託リーチ棒の出入りの分。修正前と同じにしてください）" : "（修正前と同じ0にしてください）"}',
+                      'Total of ${s.playerCount}: ${formatDelta(originalSum)}'
+                          '${originalSum != 0 ? " (riichi sticks in/out; keep it the same as before)" : " (keep it 0 as before)"}'),
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: deltaError != null ? theme.colorScheme.error : null),
             ),
             const SizedBox(height: 16),
-            Text('内容のメモ', style: theme.textTheme.titleSmall),
+            Text(tr('内容のメモ', 'Memo'), style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
             TextField(
               controller: _descController,
@@ -204,7 +219,7 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
             ),
             if (preview != null) ...[
               const SizedBox(height: 16),
-              Text(s.finished ? '修正後の最終点数' : '修正後の今の点数',
+              Text(s.finished ? tr('修正後の最終点数', 'Final scores after edit') : tr('修正後の今の点数', 'Current scores after edit'),
                   style: theme.textTheme.titleSmall),
               Card(
                 child: Column(
@@ -222,7 +237,9 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                 ),
               ),
               if (preview.scores.any((v) => v < 0) && s.settings.tobi)
-                Text('修正後に0点未満の人がいますが、局の進行は変わらないので対局は終わりません。',
+                Text(
+                    tr('修正後に0点未満の人がいますが、局の進行は変わらないので対局は終わりません。',
+                        'Someone is below 0 after the edit, but game progress does not change, so the game will not end.'),
                     style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
             ],
             const SizedBox(height: 24),
@@ -239,16 +256,20 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                       Navigator.pop(context, true);
                     }
                   : null,
-              child: const Text('修正を保存'),
+              child: Text(tr('修正を保存', 'Save changes')),
             ),
             const SizedBox(height: 32),
             const Divider(),
-            Text('この局を削除', style: theme.textTheme.titleSmall),
+            Text(tr('この局を削除', 'Delete this round'), style: theme.textTheme.titleSmall),
             const SizedBox(height: 4),
             Text(
-              '二重に入れた局などを消します。この局の点数の増減を取り消し、後の局の点数と今の点数をずらします'
-              '（この局で場に出た立直棒は持ち主に戻ります）。今の局・本場は変わらないので、'
-              'ずれたときは対局画面のメニュー「局・本場・供託を直す」で直してください。',
+              tr(
+                  '二重に入れた局などを消します。この局の点数の増減を取り消し、後の局の点数と今の点数をずらします'
+                      '（この局で場に出た立直棒は持ち主に戻ります）。今の局・本場は変わらないので、'
+                      'ずれたときは対局画面のメニュー「局・本場・供託を直す」で直してください。',
+                  'Removes a round entered twice, etc. Its score changes are undone and later scores shift accordingly '
+                      '(riichi sticks put out this round return to their owners). The current round/honba does not change; '
+                      'if it is off, use "Fix round / honba / riichi sticks" in the game screen menu.'),
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
@@ -256,7 +277,7 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
               key: const ValueKey('delete-round'),
               style: OutlinedButton.styleFrom(foregroundColor: theme.colorScheme.error),
               icon: const Icon(Icons.delete_outline),
-              label: const Text('この局を削除'),
+              label: Text(tr('この局を削除', 'Delete this round')),
               onPressed: () async {
                 final why = SessionLogic.validateDeleteRound(s, widget.index);
                 if (why != null) {
@@ -268,10 +289,11 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                 final ok = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    content: Text('${record.roundLabel}（${record.description}）を削除しますか？'),
+                    content: Text(tr('${record.roundLabel}（${record.description}）を削除しますか？',
+                        'Delete ${displayRoundLabel(record.roundLabel)} (${record.description})?')),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
-                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('削除')),
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('キャンセル', 'Cancel'))),
+                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('削除', 'Delete'))),
                     ],
                   ),
                 );

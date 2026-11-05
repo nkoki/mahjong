@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../session/session_providers.dart';
 import 'player_detail.dart';
@@ -13,15 +14,15 @@ class PlayerDetailScreen extends ConsumerWidget {
   final int playerCount;
   final DateTime? since;
 
-  /// 期間の表示（例: すべて、直近30日）
-  final String periodLabel;
+  /// 期間の表示（例: すべて、直近30日）。null なら「すべて」
+  final String? periodLabel;
 
   const PlayerDetailScreen({
     super.key,
     required this.name,
     required this.playerCount,
     this.since,
-    this.periodLabel = 'すべて',
+    this.periodLabel,
   });
 
   @override
@@ -29,22 +30,28 @@ class PlayerDetailScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final d = PlayerDetail.compute(ref.watch(sessionsProvider), name, playerCount: playerCount, since: since);
     final small = theme.textTheme.bodySmall;
+    final period = periodLabel ?? tr('すべて', 'All');
 
     return Scaffold(
       appBar: AppBar(title: Text(name)),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          Text('${playerCount == 3 ? "3人打ち" : "4人打ち"}・$periodLabel（終局した${d.games.length}対局）', style: small),
+          Text(
+              tr('${playerCount == 3 ? "3人打ち" : "4人打ち"}・$period（終局した${d.games.length}対局）',
+                  '${playerCount == 3 ? "3-player" : "4-player"} · $period (${d.games.length} finished games)'),
+              style: small),
           const SizedBox(height: 12),
-          Text('合計ポイントの推移', style: theme.textTheme.titleMedium),
+          Text(tr('合計ポイントの推移', 'Point trend'), style: theme.textTheme.titleMedium),
           Card(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 12, 12, 8),
               child: d.games.isEmpty
-                  ? const Padding(padding: EdgeInsets.all(16), child: Text('終局した対局がありません'))
+                  ? Padding(
+                      padding: const EdgeInsets.all(16), child: Text(tr('終局した対局がありません', 'No finished games')))
                   : Semantics(
-                      label: '合計ポイントの推移のグラフ。${d.games.length}対局で ${formatPoint(d.games.last.cumulative)}',
+                      label: tr('合計ポイントの推移のグラフ。${d.games.length}対局で ${formatPoint(d.games.last.cumulative)}',
+                          'Point trend chart. ${formatPoint(d.games.last.cumulative)} over ${d.games.length} games'),
                       child: SizedBox(
                         height: 200,
                         width: double.infinity,
@@ -61,13 +68,17 @@ class PlayerDetailScreen extends ConsumerWidget {
             ),
           ),
           if (d.games.isNotEmpty)
-            Text('点は1対局ごとの合計。横軸は対局の日付です。', style: small),
+            Text(tr('点は1対局ごとの合計。横軸は対局の日付です。', 'Each dot is the running total after a game. The horizontal axis shows game dates.'),
+                style: small),
           const SizedBox(height: 16),
-          Text('対戦相手との成績', style: theme.textTheme.titleMedium),
-          Text('同じ卓で終局まで打った相手ごとに、自分が上の順位だった回数・下だった回数と、平均順位を比べます。', style: small),
+          Text(tr('対戦相手との成績', 'Results against opponents'), style: theme.textTheme.titleMedium),
+          Text(
+              tr('同じ卓で終局まで打った相手ごとに、自分が上の順位だった回数・下だった回数と、平均順位を比べます。',
+                  'For each opponent you finished a game with: how often you placed above / below them, and average places compared.'),
+              style: small),
           const SizedBox(height: 4),
           if (d.opponents.isEmpty)
-            const Padding(padding: EdgeInsets.all(16), child: Text('まだありません'))
+            Padding(padding: const EdgeInsets.all(16), child: Text(tr('まだありません', 'None yet')))
           else
             Card(
               child: SingleChildScrollView(
@@ -75,12 +86,12 @@ class PlayerDetailScreen extends ConsumerWidget {
                 child: DataTable(
                   key: const ValueKey('opponents'),
                   columnSpacing: 16,
-                  columns: const [
-                    DataColumn(label: Text('相手')),
-                    DataColumn(label: Text('同卓'), numeric: true),
-                    DataColumn(label: Text('上-下'), numeric: true),
-                    DataColumn(label: Text('平均順位\n自分/相手'), numeric: true),
-                    DataColumn(label: Text('ポイント\n自分/相手'), numeric: true),
+                  columns: [
+                    DataColumn(label: Text(tr('相手', 'Opponent'))),
+                    DataColumn(label: Text(tr('同卓', 'Games')), numeric: true),
+                    DataColumn(label: Text(tr('上-下', 'Above-below')), numeric: true),
+                    DataColumn(label: Text(tr('平均順位\n自分/相手', 'Avg. place\nyou/them')), numeric: true),
+                    DataColumn(label: Text(tr('ポイント\n自分/相手', 'Points\nyou/them')), numeric: true),
                   ],
                   rows: [
                     for (final o in d.opponents)
@@ -97,15 +108,18 @@ class PlayerDetailScreen extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: 16),
-          Text('役の出現回数', style: theme.textTheme.titleMedium),
+          Text(tr('役の出現回数', 'Yaku counts'), style: theme.textTheme.titleMedium),
           Text(
-            '手牌で入力した和了（${d.yakuWins}回）の役を数えます（ドラは除く）。'
-            '${d.unknownYakuWins > 0 ? '翻・符で入力した和了・以前の版で記録した和了など${d.unknownYakuWins}回は、役が分からないので含みません。' : ''}',
+            tr(
+                '手牌で入力した和了（${d.yakuWins}回）の役を数えます（ドラは除く）。'
+                    '${d.unknownYakuWins > 0 ? '翻・符で入力した和了・以前の版で記録した和了など${d.unknownYakuWins}回は、役が分からないので含みません。' : ''}',
+                'Counts yaku in wins entered with tiles (${d.yakuWins} wins), excluding dora.'
+                    '${d.unknownYakuWins > 0 ? ' ${d.unknownYakuWins} wins entered as han/fu or recorded with an older version are not included, as their yaku are unknown.' : ''}'),
             style: small,
           ),
           const SizedBox(height: 4),
           if (d.yaku.isEmpty)
-            const Padding(padding: EdgeInsets.all(16), child: Text('まだありません'))
+            Padding(padding: const EdgeInsets.all(16), child: Text(tr('まだありません', 'None yet')))
           else
             Card(
               child: Padding(
@@ -117,7 +131,7 @@ class PlayerDetailScreen extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(vertical: 3),
                         child: Row(
                           children: [
-                            SizedBox(width: 120, child: Text(y, overflow: TextOverflow.ellipsis)),
+                            SizedBox(width: 120, child: Text(yakuName(y), overflow: TextOverflow.ellipsis)),
                             Expanded(
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(3),
@@ -130,7 +144,9 @@ class PlayerDetailScreen extends ConsumerWidget {
                             ),
                             SizedBox(
                               width: 100,
-                              child: Text('$n回（${(n * 100 / d.yakuWins).round()}%）',
+                              child: Text(
+                                  tr('$n回（${(n * 100 / d.yakuWins).round()}%）',
+                                      '${n}x (${(n * 100 / d.yakuWins).round()}%)'),
                                   textAlign: TextAlign.end, style: small),
                             ),
                           ],

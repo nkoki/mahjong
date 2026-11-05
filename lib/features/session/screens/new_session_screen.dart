@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n.dart';
 import '../../../core/routes.dart';
 import '../../../core/theme.dart';
 import '../../../shared/widgets/rule_inputs.dart';
@@ -98,7 +99,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
     }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('空いている欄がありません。入れ替える欄の名前を消してから選んでください')));
+      ..showSnackBar(SnackBar(content: Text(tr('空いている欄がありません。入れ替える欄の名前を消してから選んでください', 'No empty field. Clear a name first, then choose'))));
   }
 
   /// 前回のメンバーを座順のまま入れる
@@ -150,31 +151,35 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
     final r = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('古い対局が削除されます'),
+        title: Text(tr('古い対局が削除されます', 'Old games will be deleted')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('保存できる対局は${SessionLogic.maxSavedSessions}件までです。'
-                '新しい対局を始めると、お気に入り（★）にしていない一番古い対局'
-                '${removed.length > 1 ? "から${removed.length}件" : ""}が削除されます。'
-                '削除すると元に戻せません。'),
+            Text(tr(
+                '保存できる対局は${SessionLogic.maxSavedSessions}件までです。'
+                    '新しい対局を始めると、お気に入り（★）にしていない一番古い対局'
+                    '${removed.length > 1 ? "から${removed.length}件" : ""}が削除されます。'
+                    '削除すると元に戻せません。',
+                'Up to ${SessionLogic.maxSavedSessions} games can be saved. '
+                    'Starting a new game deletes the oldest ${removed.length > 1 ? "${removed.length} games" : "game"} not marked as favorite (★). '
+                    'This cannot be undone.')),
             const SizedBox(height: 12),
             for (final s in removed.take(3))
-              Text('・${date(s.createdAt)}  ${s.playerNames.join(" / ")}',
+              Text('${tr('・', '• ')}${date(s.createdAt)}  ${s.playerNames.join(" / ")}',
                   style: Theme.of(ctx).textTheme.bodySmall),
             if (removed.length > 3)
-              Text('・ほか${removed.length - 3}件', style: Theme.of(ctx).textTheme.bodySmall),
+              Text(tr('・ほか${removed.length - 3}件', '• ${removed.length - 3} more'), style: Theme.of(ctx).textTheme.bodySmall),
             const SizedBox(height: 12),
-            Text('残したい対局は、戦績画面で ★ を押してお気に入りにしてください。',
+            Text(tr('残したい対局は、戦績画面で ★ を押してお気に入りにしてください。', 'To keep a game, tap ★ on the records screen to mark it as favorite.'),
                 style: Theme.of(ctx).textTheme.bodySmall),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
+              onPressed: () => Navigator.pop(ctx, false), child: Text(tr('キャンセル', 'Cancel'))),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true), child: const Text('削除して開始')),
+              onPressed: () => Navigator.pop(ctx, true), child: Text(tr('削除して開始', 'Delete and start'))),
         ],
       ),
     );
@@ -195,12 +200,12 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
             icon: const Icon(Icons.history),
-            label: Text('前回のメンバー（${last.join("・")}）', overflow: TextOverflow.ellipsis),
+            label: Text(tr('前回のメンバー（${last.join("・")}）', 'Last members (${last.join(", ")})'), overflow: TextOverflow.ellipsis),
             onPressed: () => _fillMembers(last),
           ),
         ),
       if (recent.isNotEmpty) ...[
-        Text('最近のプレイヤー（タップすると空いている欄に入ります）', style: small),
+        Text(tr('最近のプレイヤー（タップすると空いている欄に入ります）', 'Recent players (tap to fill an empty field)'), style: small),
         const SizedBox(height: 4),
         Wrap(
           spacing: 6,
@@ -224,16 +229,21 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const winds = ['東家（起家）', '南家', '西家', '北家'];
+    final winds = [
+      tr('東家（起家）', 'East (first dealer)'),
+      tr('南家', 'South'),
+      tr('西家', 'West'),
+      tr('北家', 'North'),
+    ];
     return Scaffold(
-      appBar: AppBar(title: const Text('新規対局')),
+      appBar: AppBar(title: Text(tr('新規対局', 'New game'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 4, label: Text('4人打ち')),
-              ButtonSegment(value: 3, label: Text('3人打ち')),
+            segments: [
+              ButtonSegment(value: 4, label: Text(tr('4人打ち', '4-player'))),
+              ButtonSegment(value: 3, label: Text(tr('3人打ち', '3-player'))),
             ],
             selected: {_playerCount},
             onSelectionChanged: (v) => setState(() {
@@ -245,14 +255,18 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                '3人打ち: 二萬〜八萬を使わない・チーなし・'
-                '${_defaults.nukiDora ? "北抜きあり" : "北抜きなし"}・'
-                '${_defaults.sanmaTsumoSplit ? "ツモ折半" : "ツモ損"}',
+                tr(
+                    '3人打ち: 二萬〜八萬を使わない・チーなし・'
+                        '${_defaults.nukiDora ? "北抜きあり" : "北抜きなし"}・'
+                        '${_defaults.sanmaTsumoSplit ? "ツモ折半" : "ツモ損"}',
+                    '3-player: no 2m-8m, no chi, '
+                        '${_defaults.nukiDora ? "North as nuki dora" : "no nuki dora"}, '
+                        '${_defaults.sanmaTsumoSplit ? "tsumo split" : "tsumo loss"}'),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
           const SizedBox(height: 16),
-          Text('プレイヤー', style: Theme.of(context).textTheme.titleMedium),
+          Text(tr('プレイヤー', 'Players'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           for (var i = 0; i < _playerCount; i++)
             Padding(
@@ -268,7 +282,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
                   suffixIcon: _controllers[i].text.isEmpty
                       ? null
                       : IconButton(
-                          tooltip: '名前を消す',
+                          tooltip: tr('名前を消す', 'Clear name'),
                           icon: const Icon(Icons.clear),
                           onPressed: () => setState(() => _controllers[i].clear()),
                         ),
@@ -283,7 +297,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             ),
           ..._nameSuggestions(context),
           const SizedBox(height: 16),
-          Text('ルール', style: Theme.of(context).textTheme.titleMedium),
+          Text(tr('ルール', 'Rules'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           if (ref.watch(rulePresetsProvider).where((p) => p.playerCount == _playerCount).toList()
               case final presets when presets.isNotEmpty) ...[
@@ -303,31 +317,33 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             ),
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 8),
-              child: Text('保存したルールのセットを選ぶと、下の持ち点・ウマなどと詳細ルールが切り替わります。',
+              child: Text(
+                  tr('保存したルールのセットを選ぶと、下の持ち点・ウマなどと詳細ルールが切り替わります。',
+                      'Choosing a saved rule set switches the starting points, uma, etc. below and the detailed rules.'),
                   style: Theme.of(context).textTheme.bodySmall),
             ),
           ],
           SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('半荘戦')),
-              ButtonSegment(value: true, label: Text('東風戦')),
+            segments: [
+              ButtonSegment(value: false, label: Text(tr('半荘戦', 'Hanchan'))),
+              ButtonSegment(value: true, label: Text(tr('東風戦', 'East-only'))),
             ],
             selected: {_tonpuu},
             onSelectionChanged: (v) => setState(() => _tonpuu = v.first),
           ),
           const SizedBox(height: 12),
-          _label(context, '持ち点（配給原点）'),
+          _label(context, tr('持ち点（配給原点）', 'Starting points')),
           PointsInput(
-            label: '持ち点',
+            label: tr('持ち点', 'Starting points'),
             key: ValueKey('starting-$_formKey'),
             initialValue: _defaults.startingPoints,
             presets: _pointPresets,
             errorText: _startingError,
             onChanged: (v) => setState(() => _starting = v),
           ),
-          _label(context, '返し（オカの基準）'),
+          _label(context, tr('返し（オカの基準）', 'Return points (basis for oka)')),
           PointsInput(
-            label: '返し',
+            label: tr('返し', 'Return points'),
             key: ValueKey('return-$_formKey'),
             initialValue: _defaults.returnPoints,
             presets: _pointPresets,
@@ -338,12 +354,12 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 6, left: 4),
               child: Text(
-                'オカ（トップが受け取る分）: '
+                '${tr('オカ（トップが受け取る分）: ', 'Oka (goes to 1st place): ')}'
                 '${formatPoint((_return! - _starting!) * _playerCount / 1000)}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-          _label(context, 'ウマ'),
+          _label(context, tr('ウマ', 'Uma')),
           UmaInput(
             key: ValueKey('uma-input-$_formKey'),
             initialValue: _defaults.uma,
@@ -352,7 +368,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('トビあり（0点未満で終了）'),
+            title: Text(tr('トビあり（0点未満で終了）', 'Bust (game ends below 0)')),
             value: _tobi,
             onChanged: (v) => setState(() => _tobi = v),
           ),
@@ -363,15 +379,15 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('詳細ルール', style: Theme.of(context).textTheme.titleSmall),
+                  Text(tr('詳細ルール', 'Detailed rules'), style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 4),
-                  Text(_defaults.ruleSummary.join('・'),
+                  Text(_defaults.ruleSummary.join(tr('・', ', ')),
                       style: Theme.of(context).textTheme.bodySmall),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: _openRuleSettings,
-                      child: const Text('ルール設定を開く'),
+                      child: Text(tr('ルール設定を開く', 'Open rule settings')),
                     ),
                   ),
                 ],
@@ -381,12 +397,12 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _isValid ? _start : null,
-            child: const Text('対局開始'),
+            child: Text(tr('対局開始', 'Start game')),
           ),
           if (!_isValid)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text('入力内容を確認してください',
+              child: Text(tr('入力内容を確認してください', 'Please check your input'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),

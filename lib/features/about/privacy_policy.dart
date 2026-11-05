@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/l10n.dart';
+
 /// プライバシーポリシー。
 ///
 /// 同じ内容を web/privacy.html にも書いている（GitHub Pages で公開し、ストアに登録する URL にする）。
@@ -68,6 +70,67 @@ class PrivacyPolicy {
       'このアプリやこのポリシーについてのお問い合わせは、次のページ（GitHub の Issues）で受け付けています。\n$contactUrl',
     ),
   ];
+
+  /// 英語の制定日
+  static const enactedOnEn = 'November 5, 2026';
+
+  /// [intro] の英語版（正式なものは日本語版）
+  static const introEn = '"Mahjong Score" (hereinafter "this app") does not have its developer collect any personal '
+      'information or privacy-related information about its users. This app handles information as follows.';
+
+  /// [sections] の英語版（正式なものは日本語版）
+  static const sectionsEn = [
+    (
+      '1. Information collected',
+      'The developer does not collect any user information. There is no account registration.',
+    ),
+    (
+      '2. Information stored on the device',
+      'Game records (player names, points and hand records), rule settings and display settings are stored only on '
+          'your device (in the browser for the web version) and are never sent outside, including to the developer. '
+          'Deleting the app (clearing the browser site data for the web version) deletes this data.',
+    ),
+    (
+      '3. Camera and photos',
+      'Photos taken or selected for camera recognition are used only to read tiles with the recognition model on '
+          'the device, and are neither saved nor sent. The camera and photos are used only when you press the camera '
+          'recognition button.',
+    ),
+    (
+      '4. Network communication',
+      'The smartphone app has no feature that communicates over the internet (the Android version does not have '
+          'the internet permission). The web version is served from GitHub Pages, and GitHub may keep access logs '
+          '(such as IP addresses) when the page is opened. These are handled according to the GitHub Privacy Statement. '
+          'The web version also loads fonts from Google Fonts to display Japanese and other characters, so Google may '
+          'also keep access logs. These are handled according to the Google Privacy Policy.',
+    ),
+    (
+      '5. Backups and CSV',
+      'Exported backup and CSV files, copied text and shared result images contain player names and game records. '
+          'You choose where they are saved or sent; this app never sends them automatically.',
+    ),
+    (
+      '6. Advertising and usage analytics',
+      'This app uses no advertising and no tools that analyze usage (such as access analytics).',
+    ),
+    (
+      '7. Disclosure to third parties',
+      'Since no information is collected, none is provided to third parties.',
+    ),
+    (
+      "8. Children's information",
+      'Regardless of age, no user information is collected.',
+    ),
+    (
+      '9. Changes to this policy',
+      'When this policy changes, it will be announced on this screen in the app and on the privacy policy page of '
+          'the web version.',
+    ),
+    (
+      '10. Contact',
+      'Questions about this app or this policy are accepted on the following page (GitHub Issues).\n$contactUrl',
+    ),
+  ];
 }
 
 /// プライバシーポリシーの画面
@@ -78,23 +141,35 @@ class PrivacyPolicyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('プライバシーポリシー')),
+      appBar: AppBar(title: Text(tr('プライバシーポリシー', 'Privacy policy'))),
       body: SelectionArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(PrivacyPolicy.intro, style: theme.textTheme.bodyMedium),
-            for (final (heading, body) in PrivacyPolicy.sections) ...[
+            if (L10n.isEnglish) ...[
+              Text('This is a translation for reference. The Japanese version is the official privacy policy.',
+                  style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic)),
+              const SizedBox(height: 12),
+            ],
+            Text(tr(PrivacyPolicy.intro, PrivacyPolicy.introEn), style: theme.textTheme.bodyMedium),
+            for (final (heading, body) in L10n.isEnglish ? PrivacyPolicy.sectionsEn : PrivacyPolicy.sections) ...[
               const SizedBox(height: 16),
               Text(heading, style: theme.textTheme.titleSmall),
               const SizedBox(height: 4),
               Text(body, style: theme.textTheme.bodyMedium),
             ],
             const SizedBox(height: 16),
-            Text('GitHub のプライバシーステートメント: ${PrivacyPolicy.githubPrivacyUrl}', style: theme.textTheme.bodySmall),
-            Text('Google のプライバシーポリシー: ${PrivacyPolicy.googlePrivacyUrl}', style: theme.textTheme.bodySmall),
+            Text(
+                tr('GitHub のプライバシーステートメント: ${PrivacyPolicy.githubPrivacyUrl}',
+                    'GitHub Privacy Statement: ${PrivacyPolicy.githubPrivacyUrl}'),
+                style: theme.textTheme.bodySmall),
+            Text(
+                tr('Google のプライバシーポリシー: ${PrivacyPolicy.googlePrivacyUrl}',
+                    'Google Privacy Policy: ${PrivacyPolicy.googlePrivacyUrl}'),
+                style: theme.textTheme.bodySmall),
             const SizedBox(height: 8),
-            Text('制定日: ${PrivacyPolicy.enactedOn}', style: theme.textTheme.bodySmall),
+            Text(tr('制定日: ${PrivacyPolicy.enactedOn}', 'Effective: ${PrivacyPolicy.enactedOnEn}'),
+                style: theme.textTheme.bodySmall),
           ],
         ),
       ),

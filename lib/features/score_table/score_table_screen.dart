@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../core/l10n.dart';
 import '../session/domain/session_logic.dart' show HanFuEntry;
 import '../session/session_providers.dart';
 
@@ -90,15 +91,15 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
         child: Column(
           children: [
-            Text(c.ron ?? '—', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
-            Text(c.tsumo ?? '—', style: small),
+            Text(_score(c.ron), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
+            Text(_score(c.tsumo), style: small),
           ],
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('点数早見表')),
+      appBar: AppBar(title: Text(tr('点数早見表', 'Score table'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -107,17 +108,17 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
             runSpacing: 8,
             children: [
               SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: false, label: Text('子')),
-                  ButtonSegment(value: true, label: Text('親')),
+                segments: [
+                  ButtonSegment(value: false, label: Text(tr('子', 'Non-dealer'))),
+                  ButtonSegment(value: true, label: Text(tr('親', 'Dealer'))),
                 ],
                 selected: {_dealer},
                 onSelectionChanged: (v) => setState(() => _dealer = v.first),
               ),
               SegmentedButton<int>(
-                segments: const [
-                  ButtonSegment(value: 4, label: Text('4人打ち')),
-                  ButtonSegment(value: 3, label: Text('3人打ち')),
+                segments: [
+                  ButtonSegment(value: 4, label: Text(tr('4人打ち', '4-player'))),
+                  ButtonSegment(value: 3, label: Text(tr('3人打ち', '3-player'))),
                 ],
                 selected: {_players},
                 onSelectionChanged: (v) => setState(() => _players = v.first),
@@ -126,11 +127,19 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '上の数字がロン、下の数字がツモ（${_dealer ? "全員が払う額" : "子-親が払う額"}）です。本場・供託は含みません。'
-            '色の付いたマスは満貫です。ルール設定（${_players == 3 ? "3人打ち" : "4人打ち"}）の'
-            '「切り上げ満貫${settings.kiriageMangan ? "あり" : "なし"}」'
-            '${_players == 3 ? "・${settings.sanmaTsumoSplit ? "ツモ折半" : "ツモ損"}" : ""}で計算しています。'
-            '20符はツモ（平和ツモ）だけ、25符（七対子）は2翻からです。',
+            tr(
+              '上の数字がロン、下の数字がツモ（${_dealer ? "全員が払う額" : "子-親が払う額"}）です。本場・供託は含みません。'
+                  '色の付いたマスは満貫です。ルール設定（${_players == 3 ? "3人打ち" : "4人打ち"}）の'
+                  '「切り上げ満貫${settings.kiriageMangan ? "あり" : "なし"}」'
+                  '${_players == 3 ? "・${settings.sanmaTsumoSplit ? "ツモ折半" : "ツモ損"}" : ""}で計算しています。'
+                  '20符はツモ（平和ツモ）だけ、25符（七対子）は2翻からです。',
+              'Top: ron. Bottom: tsumo (${_dealer ? "paid by each player" : "non-dealer-dealer payments"}). '
+                  'Honba and riichi deposits are not included. Shaded cells are mangan. '
+                  'Calculated with the rule settings (${_players == 3 ? "3-player" : "4-player"}): '
+                  'rounded-up mangan ${settings.kiriageMangan ? "on" : "off"}'
+                  '${_players == 3 ? ", ${settings.sanmaTsumoSplit ? "tsumo split" : "tsumo loss"}" : ""}. '
+                  '20 fu is tsumo only (pinfu tsumo); 25 fu (chiitoitsu) starts at 2 han.',
+            ),
             style: small,
           ),
           const SizedBox(height: 12),
@@ -144,10 +153,10 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
                 defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                 border: TableBorder(horizontalInside: border, verticalInside: border, top: border, bottom: border),
                 children: [
-                  TableRow(children: [head('符＼翻'), for (final h in ScoreTable.hans) head('$h翻')]),
+                  TableRow(children: [head(tr('符＼翻', 'Fu / Han')), for (final h in ScoreTable.hans) head(tr('$h翻', '$h han'))]),
                   for (final fu in ScoreTable.fus)
                     TableRow(children: [
-                      head('$fu符'),
+                      head(tr('$fu符', '$fu fu')),
                       for (final h in ScoreTable.hans)
                         body(ScoreTable.cell(han: h, fu: fu, isDealer: _dealer, rules: rules)),
                     ]),
@@ -156,14 +165,14 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('満貫以上', style: theme.textTheme.titleSmall),
+          Text(tr('満貫以上', 'Mangan and above'), style: theme.textTheme.titleSmall),
           const SizedBox(height: 4),
           Table(
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             columnWidths: const {0: IntrinsicColumnWidth()},
             border: TableBorder(horizontalInside: border, top: border, bottom: border),
             children: [
-              TableRow(children: [head(''), head('ロン'), head('ツモ')]),
+              TableRow(children: [head(''), head(tr('ロン', 'Ron')), head(tr('ツモ', 'Tsumo'))]),
               for (final (name, hint, hand) in ScoreTable.limits)
                 () {
                   final c = ScoreTable.cell(
@@ -174,22 +183,23 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(name, style: theme.textTheme.labelLarge),
-                          if (hint.isNotEmpty) Text(hint, style: small),
+                          Text(limitName(name), style: theme.textTheme.labelLarge),
+                          if (hint.isNotEmpty) Text(_hint(hint), style: small),
                         ],
                       ),
                     ),
-                    Text(c.ron ?? '—',
+                    Text(_score(c.ron),
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
-                    Text(c.tsumo ?? '—', textAlign: TextAlign.center),
+                    Text(_score(c.tsumo), textAlign: TextAlign.center),
                   ]);
                 }(),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            '数え役満（13翻以上）は「数え役満${settings.kazoeYakuman ? "あり" : "なし（三倍満止まり）"}」の設定に従います。',
+            tr('数え役満（13翻以上）は「数え役満${settings.kazoeYakuman ? "あり" : "なし（三倍満止まり）"}」の設定に従います。',
+                'Kazoe yakuman (13+ han) follows the setting: ${settings.kazoeYakuman ? "on" : "off (capped at sanbaiman)"}.'),
             style: small,
           ),
         ],
@@ -197,3 +207,9 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
     );
   }
 }
+
+/// 点数の表示（英語では「オール」を all にする）。無ければ —
+String _score(String? s) => s == null ? '—' : tr(s, s.replaceAll('オール', ' all'));
+
+/// 翻の目安の表示（例: 6・7翻 → 6/7 han）
+String _hint(String s) => tr(s, s.replaceAll('翻', ' han').replaceAll('・', '/').replaceAll('〜', '-'));

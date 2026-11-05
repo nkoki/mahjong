@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../core/l10n.dart';
 import '../../shared/widgets/tile_palette.dart';
 import '../../shared/widgets/tile_view.dart';
 import '../camera/camera_providers.dart';
@@ -190,15 +191,15 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
   void _calculateQuick(GameSession s) {
     String? err;
     if (_winner == null) {
-      err = '和了者を選択してください';
+      err = tr('和了者を選択してください', 'Select the winner');
     } else if (!_tsumo && _loser == null) {
-      err = '放銃者を選択してください';
+      err = tr('放銃者を選択してください', 'Select the discarder');
     } else if (_quickYakuman == 0 && _quickHan == null) {
-      err = '翻数を選んでください';
+      err = tr('翻数を選んでください', 'Choose the han');
     } else if (_quickYakuman == 0 && _quickHan! < 5 && _quickFu == null) {
-      err = '符を選んでください';
+      err = tr('符を選んでください', 'Choose the fu');
     }
-    err ??= _quickResult(s, _winner).error;
+    err ??= switch (_quickResult(s, _winner).error) { final e? => engineError(e), null => null };
     if (err != null) {
       _snack(err);
       return;
@@ -225,13 +226,13 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     }
     String? err;
     if (_winner == null) {
-      err = '和了者を選択してください';
+      err = tr('和了者を選択してください', 'Select the winner');
     } else if (!_tsumo && _loser == null) {
-      err = '放銃者を選択してください';
+      err = tr('放銃者を選択してください', 'Select the discarder');
     } else if (_hand.length != _needHand) {
-      err = '手牌をあと${_needHand - _hand.length}枚入力してください';
+      err = tr('手牌をあと${_needHand - _hand.length}枚入力してください', 'Enter ${_needHand - _hand.length} more tiles in hand');
     } else if (_winTile == null) {
-      err = '和了牌を入力してください';
+      err = tr('和了牌を入力してください', 'Enter the winning tile');
     }
     if (err != null) {
       _snack(err);
@@ -264,7 +265,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     // （ダッシュボードで立直宣言していなくても、和了者自身の立直棒は自分に戻るだけなので収支は同じ）
     final result = ScoreCalculator.calculate(input, rules: s.settings.scoreRules);
     if (!result.isValid) {
-      _snack(result.error ?? '計算できませんでした');
+      _snack(result.error != null ? engineError(result.error!) : tr('計算できませんでした', 'Could not calculate'));
       return;
     }
     Navigator.of(context).push(MaterialPageRoute(
@@ -284,20 +285,24 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const ListTile(
-              title: Text('手牌の写真'),
-              subtitle: Text('牌を横一列に並べ、全部の牌が大きくはっきり写るように撮ってください。'
-                  '和了牌は一番右に置くと、和了牌として入ります。'
-                  '読み取りはこの端末の中で行い、写真はどこにも送りません。'),
+            ListTile(
+              title: Text(tr('手牌の写真', 'Photo of hand')),
+              subtitle: Text(tr(
+                  '牌を横一列に並べ、全部の牌が大きくはっきり写るように撮ってください。'
+                      '和了牌は一番右に置くと、和了牌として入ります。'
+                      '読み取りはこの端末の中で行い、写真はどこにも送りません。',
+                  'Line the tiles up in one row and make every tile large and clear. '
+                      'Put the winning tile at the far right to enter it as the winning tile. '
+                      'Recognition runs on this device; the photo is not sent anywhere.')),
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera),
-              title: const Text('撮影する'),
+              title: Text(tr('撮影する', 'Take photo')),
               onTap: () => Navigator.pop(ctx, true),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('写真から選ぶ'),
+              title: Text(tr('写真から選ぶ', 'Choose from photos')),
               onTap: () => Navigator.pop(ctx, false),
             ),
           ],
@@ -310,7 +315,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     try {
       bytes = await ref.read(photoPickerProvider).pick(fromCamera: fromCamera);
     } catch (e) {
-      _snack('写真を取得できませんでした: $e');
+      _snack(tr('写真を取得できませんでした: $e', 'Could not get the photo: $e'));
       return;
     }
     if (bytes == null || !mounted) return;
@@ -319,12 +324,12 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const AlertDialog(
+      builder: (_) => AlertDialog(
         content: Row(
           children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 20),
-            Expanded(child: Text('牌を読み取っています…')),
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            Expanded(child: Text(tr('牌を読み取っています…', 'Reading tiles…'))),
           ],
         ),
       ),
@@ -336,7 +341,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     } on RecognitionException catch (e) {
       error = e.message;
     } catch (e) {
-      error = '読み取りに失敗しました: $e';
+      error = tr('読み取りに失敗しました: $e', 'Recognition failed: $e');
     }
     if (!mounted) return;
     Navigator.of(context).pop(); // 読み取り中の表示を閉じる
@@ -345,7 +350,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('読み取れませんでした'),
+          title: Text(tr('読み取れませんでした', 'Could not read tiles')),
           content: Text(error!),
           actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
         ),
@@ -361,44 +366,49 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       builder: (ctx) {
         final theme = Theme.of(ctx);
         return AlertDialog(
-          title: const Text('読み取り結果'),
+          title: Text(tr('読み取り結果', 'Recognition result')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('読み取った牌（${tiles!.length}枚）', style: theme.textTheme.titleSmall),
+                Text(tr('読み取った牌（${tiles!.length}枚）', 'Tiles read (${tiles.length})'), style: theme.textTheme.titleSmall),
                 const SizedBox(height: 4),
                 TileRow(tiles, tileWidth: 22),
                 const SizedBox(height: 12),
-                Text('手牌（${r.hand.length}/$_needHand枚）', style: theme.textTheme.titleSmall),
+                Text(tr('手牌（${r.hand.length}/$_needHand枚）', 'Hand (${r.hand.length}/$_needHand)'), style: theme.textTheme.titleSmall),
                 const SizedBox(height: 4),
                 TileRow(r.hand, tileWidth: 22),
                 if (r.winningTile != null && !fixedWin) ...[
                   const SizedBox(height: 8),
                   Row(children: [
-                    Text('和了牌: ', style: theme.textTheme.titleSmall),
+                    Text(tr('和了牌: ', 'Winning tile: '), style: theme.textTheme.titleSmall),
                     TileView(r.winningTile!, width: 22),
                   ]),
                 ],
                 for (final n in [
                   ...r.notes,
-                  if (fixedWin && r.winningTile != null) '和了牌は1人目と同じなので、読み取った和了牌は使いません',
+                  if (fixedWin && r.winningTile != null) tr('和了牌は1人目と同じなので、読み取った和了牌は使いません',
+                        'The winning tile is the same as the 1st winner, so the read winning tile is not used'),
                 ])
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text('・$n', style: theme.textTheme.bodySmall),
                   ),
                 const SizedBox(height: 10),
-                Text('読み取りは間違えることがあります（牌を見落としたり、牌でないものを牌と読んだりすることがあります）。'
-                    '入れたあとに、手牌をよく確認してください。',
+                Text(
+                    tr(
+                        '読み取りは間違えることがあります（牌を見落としたり、牌でないものを牌と読んだりすることがあります）。'
+                            '入れたあとに、手牌をよく確認してください。',
+                        'Recognition can be wrong (it may miss tiles or read non-tiles as tiles). '
+                            'Check the hand carefully after entering it.'),
                     style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('手牌に入れる')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('キャンセル', 'Cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('手牌に入れる', 'Use as hand'))),
           ],
         );
       },
@@ -413,7 +423,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
           ? _Target.hand
           : (_winTile == null ? _Target.win : _Target.dora);
     });
-    _snack('読み取った牌を入れました。間違いがないか確認してください');
+    _snack(tr('読み取った牌を入れました。間違いがないか確認してください', 'Tiles entered. Please check they are correct'));
   }
 
   void _snack(String msg) {
@@ -430,12 +440,14 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isAdditionalRon ? '2人目の和了入力' : '和了入力  ${s.roundLabel}'),
+        title: Text(widget.isAdditionalRon
+            ? tr('2人目の和了入力', '2nd winner')
+            : tr('和了入力  ${s.roundLabel}', 'Win  ${displayRoundLabel(s.roundLabel)}')),
         actions: [
           // カメラ認識は Android・iOS のアプリ版だけ（Web 版ではボタンを出さない）
           if (ref.watch(cameraSupportedProvider))
             IconButton(
-              tooltip: 'カメラで手牌を読み取る',
+              tooltip: tr('カメラで手牌を読み取る', 'Read hand with camera'),
               icon: const Icon(Icons.photo_camera_outlined),
               onPressed: () => _readFromCamera(s),
             ),
@@ -454,14 +466,18 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Text(
-                          'ダブロンの2人目の和了を入力します。'
-                          '${widget.previousWins.first.hanFu == null ? '放銃者・和了牌・ドラ表示牌' : '放銃者'}は1人目（'
-                          '${widget.previousWins.map((e) => s.playerNames[e.winner]).join("・")}）と同じです。',
+                          tr(
+                              'ダブロンの2人目の和了を入力します。'
+                                  '${widget.previousWins.first.hanFu == null ? '放銃者・和了牌・ドラ表示牌' : '放銃者'}は1人目（'
+                                  '${widget.previousWins.map((e) => s.playerNames[e.winner]).join("・")}）と同じです。',
+                              'Enter the 2nd winner of a double ron. '
+                                  '${widget.previousWins.first.hanFu == null ? 'Discarder, winning tile and dora indicators are' : 'Discarder is'} the same as the 1st winner ('
+                                  '${widget.previousWins.map((e) => s.playerNames[e.winner]).join(", ")}).'),
                           style: TextStyle(color: theme.colorScheme.onTertiaryContainer),
                         ),
                       ),
                     ),
-                  _section(theme, '和了者'),
+                  _section(theme, tr('和了者', 'Winner')),
                   Wrap(
                     spacing: 6,
                     children: [
@@ -470,7 +486,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                             p != widget.fixedLoser)
                         ChoiceChip(
                           label: Text(
-                              '${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}'),
+                              '${windName(s.seatWindIndexOf(p))} ${s.playerNames[p]}'),
                           selected: _winner == p,
                           onSelected: (_) => _selectWinner(s, p),
                         ),
@@ -479,18 +495,18 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                   const SizedBox(height: 8),
                   if (!widget.isAdditionalRon)
                     SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('ロン')),
-                        ButtonSegment(value: true, label: Text('ツモ')),
+                      segments: [
+                        ButtonSegment(value: false, label: Text(tr('ロン', 'Ron'))),
+                        ButtonSegment(value: true, label: Text(tr('ツモ', 'Tsumo'))),
                       ],
                       selected: {_tsumo},
                       onSelectionChanged: (v) => setState(() => _tsumo = v.first),
                     ),
                   if (widget.isAdditionalRon) ...[
-                    _section(theme, '放銃者'),
-                    Text('${s.playerNames[widget.fixedLoser!]}（1人目と同じ）'),
+                    _section(theme, tr('放銃者', 'Discarder')),
+                    Text(tr('${s.playerNames[widget.fixedLoser!]}（1人目と同じ）', '${s.playerNames[widget.fixedLoser!]} (same as 1st winner)')),
                   ] else if (!_tsumo) ...[
-                    _section(theme, '放銃者'),
+                    _section(theme, tr('放銃者', 'Discarder')),
                     Wrap(
                       spacing: 6,
                       children: [
@@ -498,7 +514,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                           if (p != _winner)
                             ChoiceChip(
                               label: Text(
-                                  '${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}'),
+                                  '${windName(s.seatWindIndexOf(p))} ${s.playerNames[p]}'),
                               selected: _loser == p,
                               onSelected: (_) => setState(() => _loser = p),
                             ),
@@ -507,9 +523,10 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                   ],
                   const SizedBox(height: 14),
                   SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('手牌で入力'), icon: Icon(Icons.grid_view)),
-                      ButtonSegment(value: true, label: Text('翻・符で入力'), icon: Icon(Icons.calculate_outlined)),
+                    segments: [
+                      ButtonSegment(value: false, label: Text(tr('手牌で入力', 'By hand')), icon: const Icon(Icons.grid_view)),
+                      ButtonSegment(
+                          value: true, label: Text(tr('翻・符で入力', 'By han/fu')), icon: const Icon(Icons.calculate_outlined)),
                     ],
                     selected: {_quick},
                     onSelectionChanged: (v) {
@@ -520,33 +537,33 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                     },
                   ),
                   if (_quick) ..._quickSection(theme, s) else ...[
-                  _section(theme, '手牌（${_hand.length}/$_needHand枚・タップで削除）'),
+                  _section(theme, tr('手牌（${_hand.length}/$_needHand枚・タップで削除）', 'Hand (${_hand.length}/$_needHand, tap to remove)')),
                   _targetBox(
                     target: _Target.hand,
                     child: _hand.isEmpty
-                        ? const Text('下の牌をタップして入力')
+                        ? Text(tr('下の牌をタップして入力', 'Tap tiles below to enter'))
                         : TileRow(_hand,
                             onTap: (i) => setState(() => _hand.removeAt(i))),
                   ),
                   if (!ref.watch(cameraSupportedProvider))
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: Text('カメラで手牌を読み取る機能は、スマホのアプリ版（Android・iOS）で使えます',
+                      child: Text(tr('カメラで手牌を読み取る機能は、スマホのアプリ版（Android・iOS）で使えます', 'Reading the hand with the camera is available in the phone app (Android/iOS)'),
                           style: theme.textTheme.bodySmall),
                     ),
-                  _section(theme, '和了牌'),
+                  _section(theme, tr('和了牌', 'Winning tile')),
                   _targetBox(
                     target: _Target.win,
                     child: _winTile == null
-                        ? const Text('和了牌を選択')
+                        ? Text(tr('和了牌を選択', 'Select the winning tile'))
                         : Row(children: [
                             TileView(_winTile!, width: 30,
                                 onTap: () => setState(() => _winTile = null)),
                             const SizedBox(width: 8),
-                            Text(_tsumo ? 'ツモ' : 'ロン'),
+                            Text(_tsumo ? tr('ツモ', 'Tsumo') : tr('ロン', 'Ron')),
                           ]),
                   ),
-                  _section(theme, '鳴き（${_melds.length}）'),
+                  _section(theme, tr('鳴き（${_melds.length}）', 'Calls (${_melds.length})')),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -567,44 +584,44 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                       if (_melds.length < 4)
                         ActionChip(
                           avatar: const Icon(Icons.add),
-                          label: const Text('鳴きを追加'),
+                          label: Text(tr('鳴きを追加', 'Add call')),
                           onPressed: _addMeld,
                         ),
                     ],
                   ),
-                  _section(theme, 'ドラ表示牌（タップで削除）'),
+                  _section(theme, tr('ドラ表示牌（タップで削除）', 'Dora indicators (tap to remove)')),
                   _targetBox(
                     target: _Target.dora,
                     child: _dora.isEmpty
-                        ? const Text('ドラ表示牌を選択（なしでも可）')
+                        ? Text(tr('ドラ表示牌を選択（なしでも可）', 'Select dora indicators (optional)'))
                         : TileRow(_dora,
                             onTap: (i) => setState(() => _dora.removeAt(i))),
                   ),
                   if (_riichi || _doubleRiichi) ...[
-                    _section(theme, '裏ドラ表示牌'),
+                    _section(theme, tr('裏ドラ表示牌', 'Ura dora indicators')),
                     _targetBox(
                       target: _Target.ura,
                       child: _ura.isEmpty
-                          ? const Text('裏ドラ表示牌を選択')
+                          ? Text(tr('裏ドラ表示牌を選択', 'Select ura dora indicators'))
                           : TileRow(_ura,
                               onTap: (i) => setState(() => _ura.removeAt(i))),
                     ),
                   ],
                   if (s.settings.isSanma && s.settings.nukiDora) ...[
-                    _section(theme, '抜きドラ（抜いた北の枚数）'),
+                    _section(theme, tr('抜きドラ（抜いた北の枚数）', 'Nuki dora (North tiles set aside)')),
                     Row(
                       children: [
                         IconButton.outlined(
-                          tooltip: '減らす',
+                          tooltip: tr('減らす', 'Decrease'),
                           onPressed: _nuki > 0 ? () => setState(() => _nuki--) : null,
                           icon: const Icon(Icons.remove),
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('北 × $_nuki', style: theme.textTheme.titleMedium),
+                          child: Text(tr('北 × $_nuki', 'North × $_nuki'), style: theme.textTheme.titleMedium),
                         ),
                         IconButton.outlined(
-                          tooltip: '増やす',
+                          tooltip: tr('増やす', 'Increase'),
                           onPressed: _nuki < 4 && _remaining('4z') > 0
                               ? () => setState(() => _nuki++)
                               : null,
@@ -613,32 +630,32 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                       ],
                     ),
                   ],
-                  _section(theme, 'オプション'),
+                  _section(theme, tr('オプション', 'Options')),
                   Wrap(
                     spacing: 6,
                     runSpacing: 4,
                     children: [
-                      _flag('立直', _riichi, _menzen, (v) {
+                      _flag(tr('立直', 'Riichi'), _riichi, _menzen, (v) {
                         _riichi = v;
                         if (!v) {
                           _doubleRiichi = false;
                           _ippatsu = false;
                         }
                       }),
-                      _flag('ダブル立直', _doubleRiichi, _menzen, (v) {
+                      _flag(tr('ダブル立直', 'Double riichi'), _doubleRiichi, _menzen, (v) {
                         _doubleRiichi = v;
                         if (v) _riichi = true;
                       }),
-                      _flag('一発', _ippatsu, _riichi || _doubleRiichi,
+                      _flag(tr('一発', 'Ippatsu'), _ippatsu, _riichi || _doubleRiichi,
                           (v) => _ippatsu = v),
                       if (_tsumo) ...[
-                        _flag('嶺上開花', _rinshan, true, (v) => _rinshan = v),
-                        _flag('海底摸月', _haitei, true, (v) => _haitei = v),
-                        _flag(_winner == s.dealer ? '天和' : '地和', _tenho,
+                        _flag(tr('嶺上開花', 'Rinshan kaihou'), _rinshan, true, (v) => _rinshan = v),
+                        _flag(tr('海底摸月', 'Haitei'), _haitei, true, (v) => _haitei = v),
+                        _flag(_winner == s.dealer ? tr('天和', 'Tenhou') : tr('地和', 'Chiihou'), _tenho,
                             _melds.isEmpty, (v) => _tenho = v),
                       ] else ...[
-                        _flag('槍槓', _chankan, true, (v) => _chankan = v),
-                        _flag('河底撈魚', _houtei, true, (v) => _houtei = v),
+                        _flag(tr('槍槓', 'Chankan'), _chankan, true, (v) => _chankan = v),
+                        _flag(tr('河底撈魚', 'Houtei'), _houtei, true, (v) => _houtei = v),
                       ],
                     ],
                   ),
@@ -680,14 +697,19 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
           playerWind: isDealer ? '1z' : '2z',
           rules: rules);
       if (!r.isValid) return null;
-      return _tsumo ? ScoreCalculator.formatScore(r, isDealer: isDealer, isTsumo: true) : '${r.totalScore}';
+      return _tsumo
+          ? ScoreCalculator.formatScore(r, isDealer: isDealer, isTsumo: true).replaceAll('オール', tr('オール', ' all'))
+          : '${r.totalScore}';
     }
 
     bool selected(HanFuEntry e) =>
         e.yakuman > 0 ? _quickYakuman == e.yakuman : _quickYakuman == 0 && _quickHan == e.han && (e.han >= 5 || _quickFu == e.fu);
 
     return [
-      _section(theme, 'よく使う（${_winner == null ? "子" : isDealer ? "親" : "子"}の${_tsumo ? "ツモ" : "ロン"}）'),
+      _section(
+          theme,
+          tr('よく使う（${_winner == null ? "子" : isDealer ? "親" : "子"}の${_tsumo ? "ツモ" : "ロン"}）',
+              'Common (${_winner == null ? "non-dealer" : isDealer ? "dealer" : "non-dealer"} ${_tsumo ? "tsumo" : "ron"})')),
       Wrap(
         spacing: 6,
         runSpacing: 4,
@@ -710,24 +732,30 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       ),
       Padding(
         padding: const EdgeInsets.only(top: 4),
-        child: Text('時計の印が付いたものは最近入力した手です（新しい順）。下で翻数・符を選んでも入力できます。', style: theme.textTheme.bodySmall),
+        child: Text(
+            tr('時計の印が付いたものは最近入力した手です（新しい順）。下で翻数・符を選んでも入力できます。',
+                'Clock icons mark recent entries (newest first). You can also choose han and fu below.'),
+            style: theme.textTheme.bodySmall),
       ),
       Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Text(
-          'ドラ・赤ドラ・裏ドラ${s.settings.isSanma && s.settings.nukiDora ? '・抜きドラ' : ''}も含めた翻数を選んでください。'
-          '本場・供託は自動で加えます。包（責任払い）は手牌で入力したときだけ選べます。',
+          tr(
+              'ドラ・赤ドラ・裏ドラ${s.settings.isSanma && s.settings.nukiDora ? '・抜きドラ' : ''}も含めた翻数を選んでください。'
+                  '本場・供託は自動で加えます。包（責任払い）は手牌で入力したときだけ選べます。',
+              'Choose han including dora, red fives, ura dora${s.settings.isSanma && s.settings.nukiDora ? ', nuki dora' : ''}. '
+                  'Honba and riichi sticks are added automatically. Pao can only be chosen when entering the hand.'),
           style: theme.textTheme.bodySmall,
         ),
       ),
-      _section(theme, '翻数'),
+      _section(theme, tr('翻数', 'Han')),
       Wrap(
         spacing: 6,
         runSpacing: 4,
         children: [
           for (var h = 1; h <= 13; h++)
             ChoiceChip(
-              label: Text(h == 13 ? '13翻以上' : '$h翻'),
+              label: Text(h == 13 ? tr('13翻以上', '13+ han') : tr('$h翻', '$h han')),
               selected: _quickYakuman == 0 && _quickHan == h,
               onSelected: (_) => setState(() {
                 _quickHan = h;
@@ -737,21 +765,25 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
             ),
           for (var y = 1; y <= (rules.doubleYakuman ? 3 : 1); y++)
             ChoiceChip(
-              label: Text(y == 1 ? '役満' : y == 2 ? '二倍役満' : '三倍役満'),
+              label: Text(y == 1
+                  ? tr('役満', 'Yakuman')
+                  : y == 2
+                      ? tr('二倍役満', 'Double yakuman')
+                      : tr('三倍役満', 'Triple yakuman')),
               selected: _quickYakuman == y,
               onSelected: (_) => setState(() => _quickYakuman = y),
             ),
         ],
       ),
       if (needFu) ...[
-        _section(theme, '符'),
+        _section(theme, tr('符', 'Fu')),
         Wrap(
           spacing: 6,
           runSpacing: 4,
           children: [
             for (final f in ScoreCalculator.hanFuChoices)
               ChoiceChip(
-                label: Text('$f符'),
+                label: Text(tr('$f符', '$f fu')),
                 selected: _quickFu == f,
                 onSelected: fuEnabled(f) ? (_) => setState(() => _quickFu = f) : null,
               ),
@@ -759,7 +791,9 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
         ),
         Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: Text('20符は平和ツモ、25符は七対子（どちらも2翻以上）。5翻以上は符に関係なく満貫以上です。',
+          child: Text(
+              tr('20符は平和ツモ、25符は七対子（どちらも2翻以上）。5翻以上は符に関係なく満貫以上です。',
+                  '20 fu is pinfu tsumo, 25 fu is chiitoitsu (both 2+ han). 5+ han is mangan or more regardless of fu.'),
               style: theme.textTheme.bodySmall),
         ),
       ],
@@ -769,20 +803,24 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
   /// 翻・符で入力するときの下の欄（点数の見込みと計算ボタン）
   Widget _quickBottom(ThemeData theme, GameSession s) {
     final ready = _quickYakuman > 0 || (_quickHan != null && (_quickHan! >= 5 || _quickFu != null));
-    var preview = '翻数と符を選んでください';
+    var preview = tr('翻数と符を選んでください', 'Choose han and fu');
     if (ready) {
       final r = _quickResult(s, _winner);
       if (!r.isValid) {
-        preview = r.error ?? '';
+        preview = engineError(r.error ?? '');
       } else {
         final isDealer = _winner != null && _winner == s.dealer;
-        final who = _winner == null ? '' : (isDealer ? '親の' : '子の');
+        final who = _winner == null ? '' : (isDealer ? tr('親の', 'Dealer ') : tr('子の', 'Non-dealer '));
         final score = _tsumo
-            ? ScoreCalculator.formatScore(r, isDealer: isDealer, isTsumo: true)
-            : '${r.totalScore}点';
-        preview = '$who${_tsumo ? 'ツモ' : 'ロン'} $score'
-            '${r.limitName != null ? '（${r.limitName}）' : ''}'
-            '${_winner == null ? '（和了者を選ぶと親・子が決まります）' : ''}';
+            ? ScoreCalculator.formatScore(r, isDealer: isDealer, isTsumo: true).replaceAll('オール', tr('オール', ' all'))
+            : tr('${r.totalScore}点', '${r.totalScore} pts');
+        preview = tr(
+            '$who${_tsumo ? 'ツモ' : 'ロン'} $score'
+                '${r.limitName != null ? '（${r.limitName}）' : ''}'
+                '${_winner == null ? '（和了者を選ぶと親・子が決まります）' : ''}',
+            '$who${_tsumo ? 'tsumo' : 'ron'} $score'
+                '${r.limitName != null ? ' (${limitName(r.limitName!)})' : ''}'
+                '${_winner == null ? ' (select the winner to set dealer/non-dealer)' : ''}');
       }
     }
     return Material(
@@ -797,7 +835,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
             FilledButton(
               style: FilledButton.styleFrom(minimumSize: const Size(80, 40)),
               onPressed: () => _calculate(s),
-              child: const Text('計算'),
+              child: Text(tr('計算', 'Calculate')),
             ),
           ],
         ),
@@ -807,11 +845,11 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
 
 
   Widget _paletteArea(ThemeData theme, GameSession s) {
-    const labels = {
-      _Target.hand: '手牌',
-      _Target.win: '和了牌',
-      _Target.dora: 'ドラ表示',
-      _Target.ura: '裏ドラ',
+    final labels = {
+      _Target.hand: tr('手牌', 'Hand'),
+      _Target.win: tr('和了牌', 'Win tile'),
+      _Target.dora: tr('ドラ表示', 'Dora'),
+      _Target.ura: tr('裏ドラ', 'Ura dora'),
     };
     return Material(
       elevation: 8,
@@ -846,7 +884,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                 FilledButton(
                   style: FilledButton.styleFrom(minimumSize: const Size(80, 40)),
                   onPressed: () => _calculate(s),
-                  child: const Text('計算'),
+                  child: Text(tr('計算', 'Calculate')),
                 ),
               ],
             ),
@@ -900,10 +938,10 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
   }
 
   static String _meldLabel(MeldType t) => switch (t) {
-        MeldType.chi => 'チー',
-        MeldType.pon => 'ポン',
-        MeldType.minkan => '明槓',
-        MeldType.kakan => '加槓',
-        MeldType.ankan => '暗槓',
+        MeldType.chi => tr('チー', 'Chi'),
+        MeldType.pon => tr('ポン', 'Pon'),
+        MeldType.minkan => tr('明槓', 'Open kan'),
+        MeldType.kakan => tr('加槓', 'Added kan'),
+        MeldType.ankan => tr('暗槓', 'Closed kan'),
       };
 }

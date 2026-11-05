@@ -1,3 +1,4 @@
+import '../../core/l10n.dart';
 import '../session/domain/session_logic.dart' show HanFuEntry;
 
 /// 翻・符で入力するときのショートカット（最近の入力・よく出る点数）。UI に依存しない
@@ -48,7 +49,7 @@ class HanFuShortcuts {
 
   /// チップの表示（例: 3翻30符、満貫(5翻)、役満）
   static String label(HanFuEntry e) {
-    if (e.yakuman > 0) return e.yakuman == 1 ? '役満' : '${e.yakuman}倍役満';
+    if (e.yakuman > 0) return e.yakuman == 1 ? tr('役満', 'Yakuman') : tr('${e.yakuman}倍役満', '${e.yakuman}x yakuman');
     if (e.han >= 5) {
       final name = e.han >= 13
           ? '数え役満'
@@ -59,8 +60,8 @@ class HanFuShortcuts {
                   : e.han >= 6
                       ? '跳満'
                       : '満貫';
-      return '$name(${e.han}翻)';
+      return tr('$name(${e.han}翻)', '${limitName(name)} (${e.han} han)');
     }
-    return '${e.han}翻${e.fu}符';
+    return tr('${e.han}翻${e.fu}符', '${e.han} han ${e.fu} fu');
   }
 }

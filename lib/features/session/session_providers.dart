@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../core/l10n.dart';
 import 'data/session_repository.dart';
 import 'domain/models.dart';
 import 'domain/session_logic.dart';
@@ -134,9 +135,11 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
       }
     } catch (e, st) {
       debugPrint('対局データの保存に失敗しました: $e\n$st');
-      ref.read(saveErrorProvider.notifier).state =
+      ref.read(saveErrorProvider.notifier).state = tr(
           '対局データを保存できませんでした。端末（ブラウザ）の保存容量がいっぱいの可能性があります。'
-          '不要な対局を削除してください。';
+              '不要な対局を削除してください。',
+          'Could not save game data. The storage of this device (browser) may be full. '
+              'Please delete games you no longer need.');
     }
   }
 

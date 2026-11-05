@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
+import '../../core/l10n.dart';
 import 'tile_classifier.dart';
 import 'tile_detection.dart';
 import 'tile_recognizer.dart';
@@ -55,13 +56,18 @@ class TfliteTileRecognizer implements TileRecognizer {
     try {
       files = await _load();
     } catch (e) {
-      throw RecognitionException('認識モデルを読み込めませんでした（$e）。');
+      throw RecognitionException(tr('認識モデルを読み込めませんでした（$e）。', 'Could not load the recognition model ($e).'));
     }
     // 画像の処理とモデルの実行は時間がかかるので、画面が固まらないよう別の Isolate で行う
     final result = await Isolate.run(() => _run(files, imageBytes));
-    if (result.error != null) throw RecognitionException(result.error!);
+    if (result.error != null) {
+      // 別の Isolate では言語の設定が引き継がれないので、ここで今の言語にする
+      throw RecognitionException(
+          result.error == _photoLoadError ? tr(_photoLoadError, 'Could not load the photo.') : result.error!);
+    }
     if (result.tiles.isEmpty) {
-      throw const RecognitionException('麻雀牌を見つけられませんでした。牌が大きく、はっきり写るように撮り直してください。');
+      throw RecognitionException(tr('麻雀牌を見つけられませんでした。牌が大きく、はっきり写るように撮り直してください。',
+          'No mahjong tiles found. Retake the photo so the tiles are large and clear.'));
     }
     return result.tiles;
   }
@@ -77,6 +83,9 @@ class _ModelFiles {
   const _ModelFiles(this.model, this.anchors, this.labels, this.classifier, this.classifierLabels);
 }
 
+/// 写真を読み込めなかったときの文（別の Isolate から返す）
+const _photoLoadError = '写真を読み込めませんでした。';
+
 class _Result {
   final List<Tile> tiles;
   final String? error;
@@ -86,7 +95,7 @@ class _Result {
 
 _Result _run(_ModelFiles files, Uint8List bytes) {
   final decoded = img.decodeImage(bytes);
-  if (decoded == null) return const _Result([], '写真を読み込めませんでした。');
+  if (decoded == null) return const _Result([], _photoLoadError);
   // スマホの写真は向きの情報（EXIF）で回転していることがあるので、見たままの向きにする
   final photo = img.bakeOrientation(decoded);
 

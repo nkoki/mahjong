@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../core/l10n.dart';
 import '../../shared/widgets/tile_palette.dart';
 import '../../shared/widgets/tile_view.dart';
 
@@ -35,13 +36,13 @@ class _MeldDialogState extends State<MeldDialog> {
   Tile? _base;
   bool _red = false;
 
-  static const _labels = {
-    MeldType.chi: 'チー',
-    MeldType.pon: 'ポン',
-    MeldType.minkan: '明槓',
-    MeldType.kakan: '加槓',
-    MeldType.ankan: '暗槓',
-  };
+  static Map<MeldType, String> get _labels => {
+        MeldType.chi: tr('チー', 'Chi'),
+        MeldType.pon: tr('ポン', 'Pon'),
+        MeldType.minkan: tr('明槓', 'Open kan'),
+        MeldType.kakan: tr('加槓', 'Added kan'),
+        MeldType.ankan: tr('暗槓', 'Closed kan'),
+      };
 
   List<Tile> _tilesFor(Tile base) {
     final n = tileNumber(base);
@@ -84,7 +85,7 @@ class _MeldDialogState extends State<MeldDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('鳴きを追加'),
+      title: Text(tr('鳴きを追加', 'Add call')),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -109,7 +110,7 @@ class _MeldDialogState extends State<MeldDialog> {
                 ],
               ),
               const SizedBox(height: 12),
-              Text(_type == MeldType.chi ? '順子の一番小さい牌を選択' : '牌を選択',
+              Text(_type == MeldType.chi ? tr('順子の一番小さい牌を選択', 'Select the lowest tile of the run') : tr('牌を選択', 'Select a tile'),
                   style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 4),
               TilePalette(
@@ -129,7 +130,7 @@ class _MeldDialogState extends State<MeldDialog> {
               if (_base != null) ...[
                 Row(
                   children: [
-                    Text('${_labels[_type]}：'),
+                    Text(tr('${_labels[_type]}：', '${_labels[_type]}: ')),
                     for (final t in _result)
                       Padding(
                         padding: const EdgeInsets.only(right: 2),
@@ -140,7 +141,7 @@ class _MeldDialogState extends State<MeldDialog> {
                 if (_hasFive)
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('赤5を含む'),
+                    title: Text(tr('赤5を含む', 'Includes red five')),
                     value: _red,
                     onChanged: (v) => setState(() => _red = v ?? false),
                   ),
@@ -151,13 +152,13 @@ class _MeldDialogState extends State<MeldDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+            onPressed: () => Navigator.pop(context), child: Text(tr('キャンセル', 'Cancel'))),
         FilledButton(
           onPressed: _base == null
               ? null
               : () => Navigator.pop(
                   context, Meld(type: _type, tiles: _result, calledTile: null)),
-          child: const Text('追加'),
+          child: Text(tr('追加', 'Add')),
         ),
       ],
     );

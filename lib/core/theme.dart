@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'l10n.dart';
+
 /// 雀卓をイメージした緑基調のテーマ
 class AppTheme {
   AppTheme._();
@@ -75,7 +77,7 @@ String formatPoint(double v) {
 
 /// データサイズの表示（例: 523 → "523バイト", 51234 → "約51KB", 1234567 → "約1.2MB"）
 String formatBytes(int bytes) {
-  if (bytes < 1000) return '$bytesバイト';
-  if (bytes < 1000 * 1000) return '約${(bytes / 1000).round()}KB';
-  return '約${(bytes / 1000 / 1000).toStringAsFixed(1)}MB';
+  if (bytes < 1000) return tr('$bytesバイト', '$bytes bytes');
+  if (bytes < 1000 * 1000) return tr('約${(bytes / 1000).round()}KB', 'about ${(bytes / 1000).round()} KB');
+  return tr('約${(bytes / 1000 / 1000).toStringAsFixed(1)}MB', 'about ${(bytes / 1000 / 1000).toStringAsFixed(1)} MB');
 }

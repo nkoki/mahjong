@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../session/domain/models.dart';
 
@@ -17,12 +18,20 @@ class ScoreSeries {
 
   /// 対局の開始時の点数と、各局が終わったあとの点数
   factory ScoreSeries.of(GameSession s) {
-    final labels = ['開始', for (final r in s.records) shortRoundLabel(r.roundLabel)];
+    final labels = [tr('開始', 'Start'), for (final r in s.records) _displayShort(shortRoundLabel(r.roundLabel))];
     final scores = [
       for (var p = 0; p < s.playerCount; p++)
         [s.settings.startingPoints, for (final r in s.records) r.scoresAfter[p]]
     ];
     return ScoreSeries(labels, scores);
+  }
+
+  /// 短い局の名前を今の言語で表示する（英語: "東1" → "E1"）
+  static String _displayShort(String short) {
+    if (!L10n.isEnglish || short.isEmpty) return short;
+    const winds = {'東': 'E', '南': 'S', '西': 'W', '北': 'N'};
+    final w = winds[short[0]];
+    return w == null ? short : '$w${short.substring(1)}';
   }
 
   int get minScore => scores.expand((v) => v).reduce(math.min);
@@ -53,8 +62,11 @@ class ScoreChart extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Semantics(
-          label: '点数の推移のグラフ。'
-              '${[for (var p = 0; p < session.playerCount; p++) '${session.playerNames[p]} ${formatPoints(series.scores[p].last)}点'].join('、')}',
+          label: tr(
+              '点数の推移のグラフ。'
+                  '${[for (var p = 0; p < session.playerCount; p++) '${session.playerNames[p]} ${formatPoints(series.scores[p].last)}点'].join('、')}',
+              'Score chart. '
+                  '${[for (var p = 0; p < session.playerCount; p++) '${session.playerNames[p]} ${formatPoints(series.scores[p].last)} pts'].join(', ')}'),
           child: SizedBox(
             height: 200,
             width: double.infinity,

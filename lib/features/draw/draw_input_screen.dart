@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/l10n.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../session/domain/models.dart';
@@ -41,12 +42,12 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
     final canConfirm = _type != DrawType.nagashiMangan || _nagashi != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text('流局入力  ${s.roundLabel}')),
+      appBar: AppBar(title: Text(tr('流局入力  ${s.roundLabel}', 'Draw  ${displayRoundLabel(s.roundLabel)}'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('流局の種類', style: theme.textTheme.titleSmall),
+            Text(tr('流局の種類', 'Draw type'), style: theme.textTheme.titleSmall),
             for (final t in DrawType.availableFor(s.settings))
               ListTile(
                 dense: true,
@@ -55,12 +56,12 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
                   color: _type == t ? theme.colorScheme.primary : null,
                 ),
                 title: Text(t.label),
-                subtitle: t.isAbortive ? const Text('途中流局（親の連荘・本場+1）') : null,
+                subtitle: t.isAbortive ? Text(tr('途中流局（親の連荘・本場+1）', 'Abortive draw (dealer renchan, +1 honba)')) : null,
                 onTap: () => setState(() => _type = t),
               ),
             if (_type == DrawType.nagashiMangan) ...[
               const SizedBox(height: 8),
-              Text('流し満貫を達成した人', style: theme.textTheme.titleSmall),
+              Text(tr('流し満貫を達成した人', 'Who got nagashi mangan'), style: theme.textTheme.titleSmall),
               Wrap(
                 spacing: 6,
                 children: [
@@ -75,13 +76,13 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
             ],
             if (needsTenpai) ...[
               const SizedBox(height: 8),
-              Text('テンパイしていた人', style: theme.textTheme.titleSmall),
+              Text(tr('テンパイしていた人', 'Who was tenpai'), style: theme.textTheme.titleSmall),
               for (var p = 0; p < s.playerCount; p++)
                 CheckboxListTile(
                   dense: true,
                   title: Text(
-                      '${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}'
-                      '${s.riichi[p] ? "（立直）" : ""}'),
+                      '${windName(s.seatWindIndexOf(p))} ${s.playerNames[p]}'
+                      '${s.riichi[p] ? tr("（立直）", " (riichi)") : ""}'),
                   value: _tenpai[p],
                   onChanged: (v) => setState(() => _tenpai[p] = v ?? false),
                 ),
@@ -103,8 +104,11 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                '次局: ${renchan ? "親の連荘" : "親流れ"}・${s.honba + 1}本場'
-                '（供託${s.riichiSticks}本は持ち越し）',
+                tr(
+                    '次局: ${renchan ? "親の連荘" : "親流れ"}・${s.honba + 1}本場'
+                        '（供託${s.riichiSticks}本は持ち越し）',
+                    'Next: ${renchan ? "dealer renchan" : "dealer passes"}, ${s.honba + 1} honba'
+                        ' (${s.riichiSticks} riichi sticks carried over)'),
                 style: theme.textTheme.bodyMedium,
               ),
             ),
@@ -120,7 +124,7 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
                           );
                       popToDashboard(context);
                     },
-              child: const Text('確定'),
+              child: Text(tr('確定', 'Confirm')),
             ),
           ],
         ),

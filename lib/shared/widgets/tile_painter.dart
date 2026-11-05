@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../core/l10n.dart';
+
 /// 本物の牌に近い見た目で牌を描く（画像を使わず、図形と文字で描く）。
 ///
 /// - 牌の厚み: 白い面の下に、背の色の層を少し見せる
@@ -343,6 +345,15 @@ class TilePainter extends CustomPainter {
 String tileSpokenName(Tile tile) {
   final suit = tileSuit(tile);
   final n = tileNumber(tile);
+  if (L10n.isEnglish) {
+    final redEn = isRedDora(tile) ? 'Red ' : '';
+    return switch (suit) {
+      'm' => '$redEn$n Man',
+      'p' => '$redEn$n Pin',
+      's' => '$redEn$n Sou',
+      _ => const ['East', 'South', 'West', 'North', 'White', 'Green', 'Red'][n - 1],
+    };
+  }
   final red = isRedDora(tile) ? '赤' : '';
   return switch (suit) {
     'm' => '$red$n萬',

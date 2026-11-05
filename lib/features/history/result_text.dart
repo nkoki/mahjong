@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../session/domain/models.dart';
 
@@ -12,20 +13,27 @@ class ResultText {
     final d = s.createdAt;
     final rules = s.settings;
     final b = StringBuffer()
-      ..writeln('【麻雀 ${s.finished ? "対局結果" : "対局中（${s.roundLabel}）の順位"}】')
-      ..writeln('${d.year}/${d.month}/${d.day}  ${rules.isSanma ? "3人打ち " : ""}${rules.tonpuu ? "東風戦" : "半荘戦"}');
+      ..writeln(tr('【麻雀 ${s.finished ? "対局結果" : "対局中（${s.roundLabel}）の順位"}】',
+          '[Mahjong ${s.finished ? "result" : "standings (${displayRoundLabel(s.roundLabel)})"}]'))
+      ..writeln(tr('${d.year}/${d.month}/${d.day}  ${rules.isSanma ? "3人打ち " : ""}${rules.tonpuu ? "東風戦" : "半荘戦"}',
+          '${d.year}/${d.month}/${d.day}  ${rules.isSanma ? "3-player " : ""}${rules.tonpuu ? "East-only" : "Hanchan"}'));
     final chips = s.chipTotals;
     for (final r in s.finalResults) {
-      b.write('${r.rank}位 ${s.playerNames[r.player]}  ${formatPoints(r.score)}点');
+      b.write(tr('${r.rank}位 ${s.playerNames[r.player]}  ${formatPoints(r.score)}点',
+          '#${r.rank} ${s.playerNames[r.player]}  ${formatPoints(r.score)} pts'));
       if (s.finished) b.write('  ${formatPoint(r.point)}');
       final extra = [
-        if (rules.chips) '祝儀 ${chips[r.player] > 0 ? "+" : ""}${chips[r.player]}枚',
-        if (r.adjustment != 0) '焼き鳥・トビ賞 ${formatPoint(r.adjustment)}',
+        if (rules.chips)
+          tr('祝儀 ${chips[r.player] > 0 ? "+" : ""}${chips[r.player]}枚',
+              'Chips ${chips[r.player] > 0 ? "+" : ""}${chips[r.player]}'),
+        if (r.adjustment != 0)
+          tr('焼き鳥・トビ賞 ${formatPoint(r.adjustment)}', 'Yakitori/bust bonus ${formatPoint(r.adjustment)}'),
       ];
-      if (extra.isNotEmpty) b.write('（${extra.join("・")}）');
+      if (extra.isNotEmpty) b.write(tr('（${extra.join("・")}）', ' (${extra.join(", ")})'));
       b.writeln();
     }
-    b.write('ウマ ${rules.umaLabel}・返し ${formatPoints(rules.returnPoints)}点・${s.records.length}局');
+    b.write(tr('ウマ ${rules.umaLabel}・返し ${formatPoints(rules.returnPoints)}点・${s.records.length}局',
+        'Uma ${rules.umaLabel} · Return ${formatPoints(rules.returnPoints)} pts · ${s.records.length} rounds'));
     return b.toString();
   }
 
@@ -35,6 +43,7 @@ class ResultText {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('結果をコピーしました。LINE などに貼り付けて送れます')));
+      ..showSnackBar(SnackBar(
+          content: Text(tr('結果をコピーしました。LINE などに貼り付けて送れます', 'Result copied. Paste it into LINE or other chat apps'))));
   }
 }

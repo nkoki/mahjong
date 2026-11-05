@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/l10n.dart';
 import '../domain/models.dart';
 
 /// 保存容量の使用状況
@@ -224,7 +225,8 @@ class SharedPrefsSessionRepository implements SessionRepository {
       return (data['ids'] as List).map((e) => e as String).toList();
     } catch (e) {
       debugPrint('目次の読み込みに失敗しました（対局データから作り直します）: $e');
-      _warnings.add('対局の一覧（並び順）の保存データが壊れていたため、作り直しました。対局の並び順が変わっている場合があります。');
+      _warnings.add(tr('対局の一覧（並び順）の保存データが壊れていたため、作り直しました。対局の並び順が変わっている場合があります。',
+          'The saved list of games (their order) was corrupted and has been rebuilt. The order of games may have changed.'));
       _backup(indexKey, raw);
       return const [];
     }
@@ -241,8 +243,10 @@ class SharedPrefsSessionRepository implements SessionRepository {
     } catch (e) {
       debugPrint('対局データ($id)の読み込みに失敗しました: $e');
       _warnings.add(e is FormatException && e.message.startsWith('未対応')
-          ? '新しいバージョンのアプリで保存された対局が1件あり、このバージョンでは読み込めませんでした。アプリを最新版に更新してください。'
-          : '保存データが壊れていて読み込めない対局が1件ありました。この対局は表示されません。');
+          ? tr('新しいバージョンのアプリで保存された対局が1件あり、このバージョンでは読み込めませんでした。アプリを最新版に更新してください。',
+              'A game saved by a newer version of the app could not be loaded by this version. Please update the app.')
+          : tr('保存データが壊れていて読み込めない対局が1件ありました。この対局は表示されません。',
+              'One game could not be loaded because its saved data is corrupted. This game will not be shown.'));
       // 壊れた対局だけを退避し、他の対局はそのまま使う
       _backup(key, raw);
       prefs.remove(key);
@@ -274,7 +278,8 @@ class SharedPrefsSessionRepository implements SessionRepository {
           .map((e) => GameSession.fromJson(e as Map<String, dynamic>)));
     } catch (e) {
       debugPrint('以前の形式の対局データを読み込めませんでした: $e');
-      _warnings.add('以前のバージョンで保存した対局データが壊れていて、読み込めませんでした。');
+      _warnings.add(tr('以前のバージョンで保存した対局データが壊れていて、読み込めませんでした。',
+          'Game data saved by an older version was corrupted and could not be loaded.'));
       _backup(legacyKey, raw);
       prefs.remove(legacyKey);
       return const [];

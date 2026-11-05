@@ -1,5 +1,6 @@
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import '../../../core/l10n.dart';
 import 'models.dart';
 
 /// 対局進行のロジック（UIに依存しない純粋な関数群）
@@ -84,7 +85,7 @@ class SessionLogic {
       final p = (loser + k) % playerCount;
       if (winners.contains(p)) return p;
     }
-    throw ArgumentError('和了者がいません');
+    throw ArgumentError(tr('和了者がいません', 'No winner'));
   }
 
   /// 和了者ごとの点数を計算する。本場・供託は [honbaTaker] の人にだけ付ける。
@@ -217,15 +218,17 @@ class SessionLogic {
 
   /// 和了の入力内容のチェック（問題なければ null）
   static String? validateWins(List<int> winners, {int? loser, bool doubleRon = true}) {
-    if (winners.isEmpty) return '和了者を選択してください';
-    if (winners.toSet().length != winners.length) return '同じ人が2回和了しています';
-    if (loser == null && winners.length > 1) return 'ツモ和了は1人だけです';
-    if (loser != null && winners.contains(loser)) return '放銃者は和了できません';
+    if (winners.isEmpty) return tr('和了者を選択してください', 'Select the winner');
+    if (winners.toSet().length != winners.length) return tr('同じ人が2回和了しています', 'The same player is selected twice as a winner');
+    if (loser == null && winners.length > 1) return tr('ツモ和了は1人だけです', 'Only one player can win by tsumo');
+    if (loser != null && winners.contains(loser)) return tr('放銃者は和了できません', 'The player who dealt in cannot win');
     if (!doubleRon && winners.length > 1) {
-      return 'ダブロンなし（頭ハネ）のルールなので、和了できるのは1人だけです';
+      return tr('ダブロンなし（頭ハネ）のルールなので、和了できるのは1人だけです',
+          'Double ron is off (head bump), so only one player can win');
     }
     if (winners.length > maxRonWinners) {
-      return '同時にロンできるのは$maxRonWinners人までです（3人の場合は流局の「三家和」を使ってください）';
+      return tr('同時にロンできるのは$maxRonWinners人までです（3人の場合は流局の「三家和」を使ってください）',
+          'Up to $maxRonWinners players can ron at once (for 3 players, use the abortive draw "Sanchahou")');
     }
     return null;
   }
@@ -242,7 +245,7 @@ class SessionLogic {
     final error = validateWins([for (final w in wins) w.winner],
         loser: loser, doubleRon: s.settings.doubleRon);
     if (error != null) throw ArgumentError(error);
-    if (wins.any((w) => !w.result.isValid)) throw ArgumentError('計算できていない和了があります');
+    if (wins.any((w) => !w.result.isValid)) throw ArgumentError(tr('計算できていない和了があります', 'Some wins have not been calculated'));
     final deltas = winsDeltas(s, wins, loser: loser);
     final scores = [for (var i = 0; i < s.playerCount; i++) s.scores[i] + deltas[i]];
     final dealerWon = wins.any((w) => w.winner == s.dealer);
@@ -316,7 +319,9 @@ class SessionLogic {
         for (var i = 0; i < s.playerCount; i++)
           if (tenpai[i]) s.playerNames[i]
       ];
-      buf.write(names.isEmpty ? '（全員ノーテン）' : '（テンパイ: ${names.join("・")}）');
+      buf.write(names.isEmpty
+          ? tr('（全員ノーテン）', ' (all noten)')
+          : tr('（テンパイ: ${names.join("・")}）', ' (tenpai: ${names.join(", ")})'));
     }
     if (type == DrawType.nagashiMangan && nagashiPlayer != null) {
       buf.write(' ${s.playerNames[nagashiPlayer]}');
@@ -358,7 +363,7 @@ class SessionLogic {
       s.copyWith(riichiSticks: s.riichiSticks - riichiCount),
       scores: scores,
       kind: 'chombo',
-      description: 'チョンボ ${s.playerNames[player]}（満貫払い）',
+      description: tr('チョンボ ${s.playerNames[player]}（満貫払い）', 'Chombo ${s.playerNames[player]} (mangan payment)'),
       renchan: true,
       nextHonba: s.honba,
       clearSticks: false,
@@ -459,15 +464,16 @@ class SessionLogic {
   /// 局の修正内容のチェック（問題なければ null）。
   /// 合計を元と同じにするのは、供託リーチ棒の出入り（場に出した分・受け取った分）を変えないため。
   static String? validateRoundEdit(GameSession s, int index, List<int?> deltas) {
-    if (index < 0 || index >= s.records.length) return '修正する局が見つかりません';
+    if (index < 0 || index >= s.records.length) return tr('修正する局が見つかりません', 'The round to edit was not found');
     if (deltas.length != s.playerCount || deltas.any((d) => d == null)) {
-      return '${s.playerCount}人すべての増減を入力してください';
+      return tr('${s.playerCount}人すべての増減を入力してください', 'Enter the change for all ${s.playerCount} players');
     }
-    if (deltas.any((d) => d! % 100 != 0)) return '100点単位で入力してください';
+    if (deltas.any((d) => d! % 100 != 0)) return tr('100点単位で入力してください', 'Enter in units of 100 pts');
     final original = s.records[index].deltas.fold<int>(0, (a, d) => a + d);
     final sum = deltas.fold<int>(0, (a, d) => a + d!);
     if (sum != original) {
-      return '${s.playerCount}人の合計を${_signed(original)}にしてください（今の合計: ${_signed(sum)}）';
+      return tr('${s.playerCount}人の合計を${_signed(original)}にしてください（今の合計: ${_signed(sum)}）',
+          'The total for ${s.playerCount} players must be ${_signed(original)} (current total: ${_signed(sum)})');
     }
     return null;
   }
@@ -479,12 +485,12 @@ class SessionLogic {
 
   /// 和了者・放銃者の修正の確認（問題なければ null）。[loser] が null ならツモ
   static String? validateWinners(GameSession s, List<int> winners, int? loser) {
-    if (winners.isEmpty) return '和了した人を選んでください';
+    if (winners.isEmpty) return tr('和了した人を選んでください', 'Select the winner');
     if (winners.any((w) => w < 0 || w >= s.playerCount) || winners.toSet().length != winners.length) {
-      return '和了した人が正しくありません';
+      return tr('和了した人が正しくありません', 'Invalid winner');
     }
-    if (loser != null && winners.contains(loser)) return '和了した人と放銃した人が同じです';
-    if (winners.length > 1 && loser == null) return '2人以上の和了（ダブロン）は放銃した人を選んでください';
+    if (loser != null && winners.contains(loser)) return tr('和了した人と放銃した人が同じです', 'The winner and the player who dealt in are the same');
+    if (winners.length > 1 && loser == null) return tr('2人以上の和了（ダブロン）は放銃した人を選んでください', 'For a double ron, select the player who dealt in');
     return null;
   }
 
@@ -505,7 +511,7 @@ class SessionLogic {
     if (error != null) throw ArgumentError(error);
     final old = s.records[index];
     if (who != null) {
-      if (!canEditWinners(old)) throw ArgumentError('この局は和了者を修正できません');
+      if (!canEditWinners(old)) throw ArgumentError(tr('この局は和了者を修正できません', 'The winners of this round cannot be edited'));
       final e = validateWinners(s, who.winners, who.loser);
       if (e != null) throw ArgumentError(e);
     }
@@ -602,10 +608,13 @@ class SessionLogic {
 
   /// 局の削除のチェック（問題なければ null）
   static String? validateDeleteRound(GameSession s, int index) {
-    if (index < 0 || index >= s.records.length) return '削除する局が見つかりません';
+    if (index < 0 || index >= s.records.length) return tr('削除する局が見つかりません', 'The round to delete was not found');
     if (_deleteRound(s, index) == null) {
-      return 'この局で場に出た立直棒を、後の局で和了した人が受け取っているため削除できません。'
-          '先に後の局の点数を直してください';
+      return tr(
+          'この局で場に出た立直棒を、後の局で和了した人が受け取っているため削除できません。'
+              '先に後の局の点数を直してください',
+          'This round cannot be deleted because its riichi sticks were collected by a winner in a later round. '
+              'Fix the points of the later round first');
     }
     return null;
   }
@@ -632,14 +641,18 @@ class SessionLogic {
   /// 局の追加のチェック（問題なければ null）。[winners] が null なら流局
   static String? validateInsertRound(GameSession s, int index, List<int?> deltas,
       {List<int>? winners, int? loser}) {
-    if (index < 0 || index > s.records.length) return '追加する場所が正しくありません';
+    if (index < 0 || index > s.records.length) return tr('追加する場所が正しくありません', 'Invalid position to insert');
     if (deltas.length != s.playerCount || deltas.any((d) => d == null)) {
-      return '${s.playerCount}人すべての増減を入力してください（動かない人は0）';
+      return tr('${s.playerCount}人すべての増減を入力してください（動かない人は0）',
+          'Enter the change for all ${s.playerCount} players (0 if unchanged)');
     }
-    if (deltas.any((d) => d! % 100 != 0)) return '100点単位で入力してください';
+    if (deltas.any((d) => d! % 100 != 0)) return tr('100点単位で入力してください', 'Enter in units of 100 pts');
     final sum = deltas.fold<int>(0, (a, d) => a + d!);
-    if (sum != 0) return '${s.playerCount}人の合計を0にしてください（今の合計: ${_signed(sum)}）';
-    if (deltas.every((d) => d == 0)) return '点数の増減を入力してください';
+    if (sum != 0) {
+      return tr('${s.playerCount}人の合計を0にしてください（今の合計: ${_signed(sum)}）',
+          'The total for ${s.playerCount} players must be 0 (current total: ${_signed(sum)})');
+    }
+    if (deltas.every((d) => d == 0)) return tr('点数の増減を入力してください', 'Enter the point changes');
     if (winners != null) return validateWinners(s, winners, loser);
     return null;
   }
@@ -662,9 +675,9 @@ class SessionLogic {
     final n = s.playerCount;
     final before = index == 0 ? List.filled(n, s.settings.startingPoints) : s.records[index - 1].scoresAfter;
     final record = RoundRecord(
-      roundLabel: roundLabel.trim().isEmpty ? '追加した局' : roundLabel.trim(),
+      roundLabel: roundLabel.trim().isEmpty ? tr('追加した局', 'Added round') : roundLabel.trim(),
       kind: winners == null ? 'draw' : 'win',
-      description: description.trim().isEmpty ? '後から追加した局' : description.trim(),
+      description: description.trim().isEmpty ? tr('後から追加した局', 'Round added later') : description.trim(),
       deltas: List.unmodifiable(deltas),
       scoresAfter: List.unmodifiable([for (var i = 0; i < n; i++) before[i] + deltas[i]]),
       edited: true,
@@ -685,9 +698,9 @@ class SessionLogic {
 
   /// 今の局・本場・供託を直す（数え間違いなど）。点数は変えない。元に戻すで戻せる
   static GameSession adjustProgress(GameSession s, {required int roundIndex, required int honba, required int riichiSticks}) {
-    if (s.finished) throw ArgumentError('終局した対局は直せません');
-    if (roundIndex < 0 || roundIndex > maxRoundIndex(s.settings)) throw ArgumentError('局が正しくありません');
-    if (honba < 0 || honba > 99 || riichiSticks < 0 || riichiSticks > 99) throw ArgumentError('0〜99で入力してください');
+    if (s.finished) throw ArgumentError(tr('終局した対局は直せません', 'A finished game cannot be edited'));
+    if (roundIndex < 0 || roundIndex > maxRoundIndex(s.settings)) throw ArgumentError(tr('局が正しくありません', 'Invalid round'));
+    if (honba < 0 || honba > 99 || riichiSticks < 0 || riichiSticks > 99) throw ArgumentError(tr('0〜99で入力してください', 'Enter a value from 0 to 99'));
     return s.copyWith(roundIndex: roundIndex, honba: honba, riichiSticks: riichiSticks, previous: s);
   }
 
@@ -707,8 +720,9 @@ class SessionLogic {
   static const maxSavedSessions = 100;
 
   /// 名前を入れなかったときの名前（「プレイヤー1」など）。名前の候補には出さない
-  static String defaultPlayerName(int index) => 'プレイヤー${index + 1}';
-  static final _defaultNamePattern = RegExp(r'^プレイヤー\d+$');
+  static String defaultPlayerName(int index) => tr('プレイヤー${index + 1}', 'Player ${index + 1}');
+  // どちらの言語の形も「名前を入れなかったときの名前」として扱う
+  static final _defaultNamePattern = RegExp(r'^(プレイヤー\d+|Player \d+)$');
   static bool isDefaultPlayerName(String name) => _defaultNamePattern.hasMatch(name);
 
   /// 過去の対局で使った名前（最近使った順・重複なし。「プレイヤー1」などは除く）
@@ -742,7 +756,8 @@ class SessionLogic {
       for (var i = 0; i < names.length; i++) names[i].trim().isEmpty ? defaultPlayerName(i) : names[i].trim()
     ];
     if (filled.toSet().length != filled.length) {
-      return '同じ名前の人がいます。個人成績を正しく集計できるように、別の名前にしてください';
+      return tr('同じ名前の人がいます。個人成績を正しく集計できるように、別の名前にしてください',
+          'Two players have the same name. Use different names so that player stats are counted correctly');
     }
     return null;
   }
@@ -750,8 +765,8 @@ class SessionLogic {
   /// 名前の変更の確認（問題なければ null）
   static String? validateRename(String from, String to) {
     final t = to.trim();
-    if (t.isEmpty) return '名前を入力してください';
-    if (t == from) return '今と同じ名前です';
+    if (t.isEmpty) return tr('名前を入力してください', 'Enter a name');
+    if (t == from) return tr('今と同じ名前です', 'The name is unchanged');
     return null;
   }
 
@@ -798,11 +813,11 @@ class SessionLogic {
 
   /// 交代のチェック（問題なければ null）
   static String? validateSubstitute(GameSession s, int seat, String name) {
-    if (s.finished) return '終局した対局では交代できません';
-    if (seat < 0 || seat >= s.playerCount) return '席が正しくありません';
+    if (s.finished) return tr('終局した対局では交代できません', 'Players cannot be substituted in a finished game');
+    if (seat < 0 || seat >= s.playerCount) return tr('席が正しくありません', 'Invalid seat');
     final t = name.trim();
-    if (t.isEmpty) return '入る人の名前を入力してください';
-    if (s.playerNames.contains(t)) return '「$t」は今この対局で打っています。別の名前にしてください';
+    if (t.isEmpty) return tr('入る人の名前を入力してください', 'Enter the name of the incoming player');
+    if (s.playerNames.contains(t)) return tr('「$t」は今この対局で打っています。別の名前にしてください', '"$t" is already playing in this game. Use a different name');
     return null;
   }
 

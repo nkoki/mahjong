@@ -4,10 +4,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/l10n.dart';
+
 /// バックアップファイルの保存・選択（テストでは差し替える）
 abstract class BackupFileService {
-  /// ファイルに保存する。保存できたら true、利用者がキャンセルしたら false
-  Future<bool> save(String fileName, String content, {String dialogTitle = 'バックアップの保存先'});
+  /// ファイルに保存する。保存できたら true、利用者がキャンセルしたら false。
+  /// [dialogTitle] が空なら「バックアップの保存先」
+  Future<bool> save(String fileName, String content, {String dialogTitle = ''});
 
   /// ファイルを選んで中身を読み込む。キャンセルしたら null
   Future<String?> pick();
@@ -20,9 +23,9 @@ class FilePickerBackupFileService implements BackupFileService {
   const FilePickerBackupFileService();
 
   @override
-  Future<bool> save(String fileName, String content, {String dialogTitle = 'バックアップの保存先'}) async {
+  Future<bool> save(String fileName, String content, {String dialogTitle = ''}) async {
     final path = await FilePicker.saveFile(
-      dialogTitle: dialogTitle,
+      dialogTitle: dialogTitle.isEmpty ? tr('バックアップの保存先', 'Save backup to') : dialogTitle,
       fileName: fileName,
       bytes: Uint8List.fromList(utf8.encode(content)),
     );
@@ -33,7 +36,7 @@ class FilePickerBackupFileService implements BackupFileService {
   @override
   Future<String?> pick() async {
     final result = await FilePicker.pickFiles(
-      dialogTitle: 'バックアップファイルを選択',
+      dialogTitle: tr('バックアップファイルを選択', 'Select a backup file'),
       withData: true,
     );
     final bytes = result?.files.single.bytes;

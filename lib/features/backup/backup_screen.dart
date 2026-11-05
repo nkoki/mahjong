@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/l10n.dart';
 import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
 import 'backup_codec.dart';
@@ -59,9 +60,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                   now: now));
       if (!ok) return;
       await _recordBackup();
-      _snack('${sessions.length}件の対局をバックアップしました');
+      _snack(tr('${sessions.length}件の対局をバックアップしました', 'Backed up ${sessions.length} games'));
     } catch (e) {
-      _snack('ファイルに保存できませんでした: $e');
+      _snack(tr('ファイルに保存できませんでした: $e', 'Could not save the file: $e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -74,8 +75,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             defaultSettings: ref.read(defaultSettingsProvider),
             defaultSanmaSettings: ref.read(defaultSanmaSettingsProvider))));
     await _recordBackup();
-    _snack('${sessions.length}件の対局のバックアップをコピーしました。'
-        'メモアプリなどに貼り付けて保存してください');
+    _snack(tr(
+        '${sessions.length}件の対局のバックアップをコピーしました。'
+            'メモアプリなどに貼り付けて保存してください',
+        'Copied a backup of ${sessions.length} games. '
+            'Paste it into a notes app or similar to keep it'));
   }
 
   /// 戦績を CSV（表計算ソフト用）に書き出す。[kind] は 'games'（対局一覧）か 'rounds'（局ごとの記録）
@@ -86,10 +90,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     try {
       final ok = await ref.read(backupFileServiceProvider).save(
           CsvExport.fileName(kind, DateTime.now()), content,
-          dialogTitle: 'CSV の保存先');
-      if (ok) _snack(kind == 'games' ? '${sessions.length}件の対局を CSV に書き出しました' : '局ごとの記録を CSV に書き出しました');
+          dialogTitle: tr('CSV の保存先', 'Save CSV to'));
+      if (ok) {
+        _snack(kind == 'games'
+            ? tr('${sessions.length}件の対局を CSV に書き出しました', 'Exported ${sessions.length} games to CSV')
+            : tr('局ごとの記録を CSV に書き出しました', 'Exported round records to CSV'));
+      }
     } catch (e) {
-      _snack('ファイルに保存できませんでした: $e');
+      _snack(tr('ファイルに保存できませんでした: $e', 'Could not save the file: $e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -104,7 +112,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     try {
       text = await ref.read(backupFileServiceProvider).pick();
     } catch (e) {
-      _snack('ファイルを読み込めませんでした: $e');
+      _snack(tr('ファイルを読み込めませんでした: $e', 'Could not read the file: $e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -128,7 +136,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         await showDialog<void>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('読み込めませんでした'),
+            title: Text(tr('読み込めませんでした', 'Could not import')),
             content: Text(e.message),
             actions: [
               FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
@@ -140,7 +148,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     }
     if (!mounted) return;
     if (data.sessions.isEmpty && !data.hasSettings) {
-      _snack('バックアップに対局がありませんでした');
+      _snack(tr('バックアップに対局がありませんでした', 'The backup contained no games'));
       return;
     }
 
@@ -161,16 +169,20 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('今のデータを置き換えます'),
-          content: Text('今ある対局 ${current.length}件はすべて削除され、'
-              'バックアップの ${data.sessions.length}件に置き換わります。削除した対局は元に戻せません。'
-              '${choice.applySettings && data.hasSettings ? '\nルール設定もバックアップの内容に置き換わります。' : ''}'),
+          title: Text(tr('今のデータを置き換えます', 'Replace current data')),
+          content: Text(tr(
+              '今ある対局 ${current.length}件はすべて削除され、'
+                  'バックアップの ${data.sessions.length}件に置き換わります。削除した対局は元に戻せません。'
+                  '${choice.applySettings && data.hasSettings ? '\nルール設定もバックアップの内容に置き換わります。' : ''}',
+              'All ${current.length} current games will be deleted and '
+                  'replaced with the ${data.sessions.length} games in the backup. Deleted games cannot be restored.'
+                  '${choice.applySettings && data.hasSettings ? '\nRule settings will also be replaced with those in the backup.' : ''}')),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('キャンセル', 'Cancel'))),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('置き換える'),
+              child: Text(tr('置き換える', 'Replace')),
             ),
           ],
         ),
@@ -192,11 +204,17 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     }
     final total = ref.read(sessionsProvider).length;
     final over = total > SessionLogic.maxSavedSessions;
-    _snack('${mode == 'replace' ? 'バックアップの内容に置き換えました' : '$added件の対局を追加しました'}'
-        '${settingsApplied ? '。ルール設定も読み込みました' : ''}'
-        '（保存中: $total件）'
-        '${over ? '。${SessionLogic.maxSavedSessions}件を超えているので、次に新しい対局を始めるときに、'
-            'お気に入りでない古い対局から削除されます' : ''}');
+    _snack(tr(
+        '${mode == 'replace' ? 'バックアップの内容に置き換えました' : '$added件の対局を追加しました'}'
+            '${settingsApplied ? '。ルール設定も読み込みました' : ''}'
+            '（保存中: $total件）'
+            '${over ? '。${SessionLogic.maxSavedSessions}件を超えているので、次に新しい対局を始めるときに、'
+                'お気に入りでない古い対局から削除されます' : ''}',
+        '${mode == 'replace' ? 'Replaced with the backup' : 'Added $added games'}'
+            '${settingsApplied ? '. Rule settings were also imported' : ''}'
+            ' (saved: $total)'
+            '${over ? '. Since there are more than ${SessionLogic.maxSavedSessions}, the oldest non-favorite games '
+                'will be deleted when you start a new game' : ''}'));
   }
 
   @override
@@ -212,16 +230,20 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('バックアップ')),
+      appBar: AppBar(title: Text(tr('バックアップ', 'Backup'))),
       body: AbsorbPointer(
         absorbing: _busy,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             Text(
-              '対局データはこの端末の中だけに保存されています。'
-              '機種変更・アプリの削除・ブラウザのデータ削除で消えないように、'
-              'ときどきバックアップを書き出して、別の場所に保存しておいてください。',
+              tr(
+                  '対局データはこの端末の中だけに保存されています。'
+                      '機種変更・アプリの削除・ブラウザのデータ削除で消えないように、'
+                      'ときどきバックアップを書き出して、別の場所に保存しておいてください。',
+                  'Game data is stored only on this device. '
+                      'To avoid losing it when you change devices, uninstall the app, or clear browser data, '
+                      'export a backup from time to time and keep it somewhere else.'),
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),
@@ -230,75 +252,90 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               child: ListTile(
                 leading: Icon(recommend ? Icons.warning_amber_rounded : Icons.check_circle_outline,
                     color: recommend ? theme.colorScheme.onErrorContainer : theme.colorScheme.primary),
-                title: Text(last == null ? 'まだバックアップしていません' : '最後のバックアップ: ${formatDateTime(last)}'),
-                subtitle: Text('保存中の対局: ${sessions.length}件'),
+                title: Text(last == null
+                    ? tr('まだバックアップしていません', 'No backup yet')
+                    : tr('最後のバックアップ: ${formatDateTime(last)}', 'Last backup: ${formatDateTime(last)}')),
+                subtitle: Text(tr('保存中の対局: ${sessions.length}件', 'Saved games: ${sessions.length}')),
               ),
             ),
             if (_busy) const LinearProgressIndicator(),
-            section('バックアップを書き出す'),
+            section(tr('バックアップを書き出す', 'Export backup')),
             FilledButton.icon(
               icon: const Icon(Icons.save_alt),
-              label: const Text('ファイルに保存'),
+              label: Text(tr('ファイルに保存', 'Save to file')),
               onPressed: sessions.isEmpty ? null : _exportFile,
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
               icon: const Icon(Icons.copy),
-              label: const Text('テキストをコピー'),
+              label: Text(tr('テキストをコピー', 'Copy as text')),
               onPressed: sessions.isEmpty ? null : _exportText,
             ),
             const SizedBox(height: 6),
             Text(
-              '・ファイルに保存: スマホでは保存先（「ファイル」アプリ、Google ドライブなど）を選べます。'
-              'Web 版ではダウンロードされます。\n'
-              '・テキストをコピー: ファイルを扱いにくいときに。メモアプリや自分宛てのメッセージに貼り付けて保存します。\n'
-              '・すべての対局（お気に入り、ルール、局の記録、「元に戻す」の履歴10回分）と、ルール設定画面の内容が入ります。'
-              'プレイヤーの名前も入るので、他の人に渡すときは注意してください。',
+              tr(
+                  '・ファイルに保存: スマホでは保存先（「ファイル」アプリ、Google ドライブなど）を選べます。'
+                      'Web 版ではダウンロードされます。\n'
+                      '・テキストをコピー: ファイルを扱いにくいときに。メモアプリや自分宛てのメッセージに貼り付けて保存します。\n'
+                      '・すべての対局（お気に入り、ルール、局の記録、「元に戻す」の履歴10回分）と、ルール設定画面の内容が入ります。'
+                      'プレイヤーの名前も入るので、他の人に渡すときは注意してください。',
+                  '- Save to file: on phones you can choose where to save (Files app, Google Drive, etc.). '
+                      'On the web version it is downloaded.\n'
+                      '- Copy as text: for when files are inconvenient. Paste it into a notes app or a message to yourself.\n'
+                      '- Includes all games (favorites, rules, round records, the last 10 undo steps) and the rule settings. '
+                      'Player names are included too, so be careful when giving it to others.'),
               style: theme.textTheme.bodySmall,
             ),
-            section('表計算ソフト用に書き出す（CSV）'),
+            section(tr('表計算ソフト用に書き出す（CSV）', 'Export for spreadsheets (CSV)')),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 OutlinedButton.icon(
                   icon: const Icon(Icons.table_chart_outlined),
-                  label: const Text('対局一覧'),
+                  label: Text(tr('対局一覧', 'Game list')),
                   onPressed: sessions.isEmpty ? null : () => _exportCsv('games'),
                 ),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.table_rows_outlined),
-                  label: const Text('局ごとの記録'),
+                  label: Text(tr('局ごとの記録', 'Round records')),
                   onPressed: sessions.isEmpty ? null : () => _exportCsv('rounds'),
                 ),
               ],
             ),
             const SizedBox(height: 6),
             Text(
-              'Excel や Google スプレッドシートで開ける形式です。対局一覧は1行に1対局（名前・点数・順位・ポイント）、'
-              '局ごとの記録は1行に1局（内容・点数の増減）です。'
-              'CSV はバックアップの代わりにはなりません（このアプリに読み込むことはできません）。',
+              tr(
+                  'Excel や Google スプレッドシートで開ける形式です。対局一覧は1行に1対局（名前・点数・順位・ポイント）、'
+                      '局ごとの記録は1行に1局（内容・点数の増減）です。'
+                      'CSV はバックアップの代わりにはなりません（このアプリに読み込むことはできません）。',
+                  'A format you can open in Excel or Google Sheets. The game list has one game per row (names, points, ranks, scores); '
+                      'round records have one round per row (details, point changes). '
+                      'CSV is not a substitute for a backup (it cannot be imported into this app).'),
               style: theme.textTheme.bodySmall,
             ),
-            section('バックアップから読み込む'),
+            section(tr('バックアップから読み込む', 'Import from backup')),
             FilledButton.tonalIcon(
               style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
               icon: const Icon(Icons.file_open_outlined),
-              label: const Text('ファイルから読み込む'),
+              label: Text(tr('ファイルから読み込む', 'Import from file')),
               onPressed: _importFile,
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
               icon: const Icon(Icons.content_paste),
-              label: const Text('テキストを貼り付けて読み込む'),
+              label: Text(tr('テキストを貼り付けて読み込む', 'Paste text to import')),
               onPressed: _importPasted,
             ),
             const SizedBox(height: 6),
             Text(
-              '読み込むときに「今のデータに追加」か「すべて置き換え」を選べます。'
-              '追加の場合、すでにある対局は今のデータのまま残ります。',
+              tr(
+                  '読み込むときに「今のデータに追加」か「すべて置き換え」を選べます。'
+                      '追加の場合、すでにある対局は今のデータのまま残ります。',
+                  'When importing, you can choose "Add to current data" or "Replace all". '
+                      'When adding, games that already exist are kept as they are.'),
               style: theme.textTheme.bodySmall,
             ),
           ],
@@ -344,35 +381,48 @@ class _ImportDialogState extends State<_ImportDialog> {
     final theme = Theme.of(context);
     final small = theme.textTheme.bodySmall;
     return AlertDialog(
-      title: const Text('バックアップを読み込む'),
+      title: Text(tr('バックアップを読み込む', 'Import backup')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('バックアップの対局: ${data.sessions.length}件'
-                '${data.exportedAt != null ? '（${formatDateTime(data.exportedAt!)} に作成）' : ''}'),
-            Text('今の対局: $currentCount件'),
+            Text(tr(
+                'バックアップの対局: ${data.sessions.length}件'
+                    '${data.exportedAt != null ? '（${formatDateTime(data.exportedAt!)} に作成）' : ''}',
+                'Games in backup: ${data.sessions.length}'
+                    '${data.exportedAt != null ? ' (created ${formatDateTime(data.exportedAt!)})' : ''}')),
+            Text(tr('今の対局: $currentCount件', 'Current games: $currentCount')),
             if (data.skipped > 0)
-              Text('壊れていて読み込めない対局が${data.skipped}件ありました（読み込みません）。',
+              Text(
+                  tr('壊れていて読み込めない対局が${data.skipped}件ありました（読み込みません）。',
+                      '${data.skipped} games are corrupted and cannot be imported (they will be skipped).'),
                   style: small?.copyWith(color: theme.colorScheme.error)),
             const SizedBox(height: 12),
-            Text('今のデータに追加', style: theme.textTheme.titleSmall),
-            Text('新しく ${plan.added.length}件を追加します。'
-                '${plan.duplicates > 0 ? 'すでにある ${plan.duplicates}件は、今のデータのまま残します。' : ''}',
+            Text(tr('今のデータに追加', 'Add to current data'), style: theme.textTheme.titleSmall),
+            Text(
+                tr(
+                    '新しく ${plan.added.length}件を追加します。'
+                        '${plan.duplicates > 0 ? 'すでにある ${plan.duplicates}件は、今のデータのまま残します。' : ''}',
+                    'Adds ${plan.added.length} new games.'
+                        '${plan.duplicates > 0 ? ' ${plan.duplicates} games that already exist are kept as they are.' : ''}'),
                 style: small),
             const SizedBox(height: 8),
-            Text('すべて置き換え', style: theme.textTheme.titleSmall),
-            Text('今の対局をすべて削除して、バックアップの内容だけにします。', style: small),
+            Text(tr('すべて置き換え', 'Replace all'), style: theme.textTheme.titleSmall),
+            Text(tr('今の対局をすべて削除して、バックアップの内容だけにします。', 'Deletes all current games and keeps only the backup.'),
+                style: small),
             if (hasSettings) ...[
               const SizedBox(height: 8),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
-                title: const Text('ルール設定も読み込む'),
+                title: Text(tr('ルール設定も読み込む', 'Also import rule settings')),
                 subtitle: Text(
-                    'この端末のルール設定を、バックアップの内容'
-                    '（${[if (data.defaultSettings != null) '4人打ち', if (data.defaultSanmaSettings != null) '3人打ち'].join('・')}）に置き換えます',
+                    tr(
+                        'この端末のルール設定を、バックアップの内容'
+                            '（${[if (data.defaultSettings != null) '4人打ち', if (data.defaultSanmaSettings != null) '3人打ち'].join('・')}）に置き換えます',
+                        'Replaces the rule settings on this device with those in the backup '
+                            '(${[if (data.defaultSettings != null) '4-player', if (data.defaultSanmaSettings != null) '3-player'].join(', ')})'),
                     style: small),
                 value: _applySettings,
                 onChanged: (v) => setState(() => _applySettings = v ?? false),
@@ -380,25 +430,27 @@ class _ImportDialogState extends State<_ImportDialog> {
             ] else
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text('このバックアップにはルール設定が入っていないので、今のルール設定のまま読み込みます。',
+                child: Text(
+                    tr('このバックアップにはルール設定が入っていないので、今のルール設定のまま読み込みます。',
+                        'This backup has no rule settings, so the current rule settings are kept.'),
                     style: small),
               ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('キャンセル', 'Cancel'))),
         TextButton(
           style: TextButton.styleFrom(foregroundColor: theme.colorScheme.error),
           onPressed: () => Navigator.pop(context, _ImportChoice('replace', applySettings)),
-          child: const Text('すべて置き換え'),
+          child: Text(tr('すべて置き換え', 'Replace all')),
         ),
         FilledButton(
           // 追加する対局がなくても、ルール設定だけ読み込むことはできる
           onPressed: plan.added.isEmpty && !applySettings
               ? null
               : () => Navigator.pop(context, _ImportChoice('merge', applySettings)),
-          child: const Text('追加'),
+          child: Text(tr('追加', 'Add')),
         ),
       ],
     );
@@ -425,20 +477,20 @@ class _PasteDialogState extends State<_PasteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('テキストを貼り付けて読み込む'),
+      title: Text(tr('テキストを貼り付けて読み込む', 'Paste text to import')),
       content: TextField(
         controller: _controller,
         maxLines: 6,
-        decoration: const InputDecoration(
-          hintText: '「テキストをコピー」で書き出した内容を貼り付けてください',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          hintText: tr('「テキストをコピー」で書き出した内容を貼り付けてください', 'Paste the text exported with "Copy as text"'),
+          border: const OutlineInputBorder(),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('キャンセル', 'Cancel'))),
         FilledButton(
             onPressed: () => Navigator.pop(context, _controller.text),
-            child: const Text('読み込む')),
+            child: Text(tr('読み込む', 'Import'))),
       ],
     );
   }

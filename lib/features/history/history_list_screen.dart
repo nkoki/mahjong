@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../session/domain/models.dart';
 import '../session/domain/session_logic.dart';
@@ -89,16 +90,16 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('戦績'),
+        title: Text(tr('戦績', 'History')),
         actions: [
           IconButton(
-            tooltip: '個人成績',
+            tooltip: tr('個人成績', 'Player stats'),
             icon: const Icon(Icons.leaderboard_outlined),
             onPressed: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const StatsScreen())),
           ),
           IconButton(
-            tooltip: 'データの保存について',
+            tooltip: tr('データの保存について', 'About data storage'),
             icon: const Icon(Icons.info_outline),
             onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const StorageInfoScreen())),
@@ -115,20 +116,25 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('保存中: ${all.length} / $max件（★お気に入り $favCount件）',
+                  Text(tr('保存中: ${all.length} / $max件（★お気に入り $favCount件）', 'Saved: ${all.length} / $max (★ favorites: $favCount)'),
                       style: theme.textTheme.titleSmall),
                   const SizedBox(height: 4),
                   Text(
-                    '保存されるのは最新$max対局までです。それより多くなると、'
-                    '新しい対局を始めたときに、お気に入り（★）にしていない一番古い対局から'
-                    '自動で削除されます。対局中の対局は削除されません。',
+                    tr(
+                        '保存されるのは最新$max対局までです。それより多くなると、'
+                            '新しい対局を始めたときに、お気に入り（★）にしていない一番古い対局から'
+                            '自動で削除されます。対局中の対局は削除されません。',
+                        'Only the latest $max games are kept. Beyond that, starting a new game '
+                            'automatically deletes the oldest game that is not a favorite (★). '
+                            'Games in progress are never deleted.'),
                     style: theme.textTheme.bodySmall,
                   ),
                   if (all.length > max)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        'お気に入り・対局中の対局が多いため、$max件を超えて保存しています。',
+                        tr('お気に入り・対局中の対局が多いため、$max件を超えて保存しています。',
+                            'More than $max games are saved because of many favorites / games in progress.'),
                         style: theme.textTheme.bodySmall
                             ?.copyWith(color: theme.colorScheme.error),
                       ),
@@ -145,12 +151,12 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
               decoration: InputDecoration(
                 isDense: true,
                 prefixIcon: const Icon(Icons.search),
-                hintText: 'プレイヤーの名前で絞り込む',
+                hintText: tr('プレイヤーの名前で絞り込む', 'Filter by player name'),
                 border: const OutlineInputBorder(),
                 suffixIcon: f.name.isEmpty
                     ? null
                     : IconButton(
-                        tooltip: '名前の絞り込みを消す',
+                        tooltip: tr('名前の絞り込みを消す', 'Clear name filter'),
                         icon: const Icon(Icons.clear),
                         onPressed: () => setState(() {
                           _nameController.clear();
@@ -169,13 +175,13 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
               children: [
                 FilterChip(
                   avatar: f.favoritesOnly ? null : const Icon(Icons.star, size: 18),
-                  label: Text('お気に入り（$favCount）'),
+                  label: Text(tr('お気に入り（$favCount）', 'Favorites ($favCount)')),
                   selected: f.favoritesOnly,
                   onSelected: (v) => setState(() => _filter = f.copyWith(favoritesOnly: v)),
                 ),
                 for (final n in [4, 3])
                   FilterChip(
-                    label: Text('$n人打ち'),
+                    label: Text(tr('$n人打ち', '$n-player')),
                     selected: f.playerCount == n,
                     onSelected: (v) => setState(
                         () => _filter = v ? f.copyWith(playerCount: n) : f.copyWith(clearPlayerCount: true)),
@@ -195,14 +201,15 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text('${all.length}件中 ${sessions.length}件を表示', style: theme.textTheme.bodySmall),
+                    child: Text(tr('${all.length}件中 ${sessions.length}件を表示', 'Showing ${sessions.length} of ${all.length}'),
+                        style: theme.textTheme.bodySmall),
                   ),
                   TextButton(
                     onPressed: () => setState(() {
                       _nameController.clear();
                       _filter = const HistoryFilter();
                     }),
-                    child: const Text('絞り込みを解除'),
+                    child: Text(tr('絞り込みを解除', 'Clear filters')),
                   ),
                 ],
               ),
@@ -212,10 +219,11 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
               padding: const EdgeInsets.all(32),
               child: Text(
                 all.isEmpty
-                    ? 'まだ対局がありません'
+                    ? tr('まだ対局がありません', 'No games yet')
                     : f.favoritesOnly && favCount == 0
-                        ? 'お気に入りの対局はありません。\n★ を押すとお気に入りにできます。'
-                        : 'この条件に合う対局はありません',
+                        ? tr('お気に入りの対局はありません。\n★ を押すとお気に入りにできます。',
+                            'No favorite games.\nTap ★ to add a favorite.')
+                        : tr('この条件に合う対局はありません', 'No games match these filters'),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -265,19 +273,23 @@ class _SessionTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '$dateText  ${s.settings.isSanma ? "3人打ち " : ""}${s.settings.tonpuu ? "東風" : "半荘"}\n'
-              '${s.finished ? "終局" : "対局中 ${s.roundLabel}"}  '
-              'トップ: ${s.playerNames[top]} ${formatPoints(s.scores[top])}',
+              tr(
+                  '$dateText  ${s.settings.isSanma ? "3人打ち " : ""}${s.settings.tonpuu ? "東風" : "半荘"}\n'
+                      '${s.finished ? "終局" : "対局中 ${s.roundLabel}"}  '
+                      'トップ: ${s.playerNames[top]} ${formatPoints(s.scores[top])}',
+                  '$dateText  ${s.settings.isSanma ? "3-player " : ""}${s.settings.tonpuu ? "East-only" : "Hanchan"}\n'
+                      '${s.finished ? "Finished" : "In progress ${displayRoundLabel(s.roundLabel)}"}  '
+                      'Top: ${s.playerNames[top]} ${formatPoints(s.scores[top])}'),
             ),
             if (willBeRemoved)
-              Text('次に新しい対局を始めると削除されます',
+              Text(tr('次に新しい対局を始めると削除されます', 'Will be deleted when the next game starts'),
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.error)),
           ],
         ),
         isThreeLine: true,
         trailing: IconButton(
-          tooltip: s.favorite ? 'お気に入りを解除' : 'お気に入りにする',
+          tooltip: s.favorite ? tr('お気に入りを解除', 'Remove from favorites') : tr('お気に入りにする', 'Add to favorites'),
           icon: Icon(
             s.favorite ? Icons.star : Icons.star_border,
             color: s.favorite ? Colors.amber.shade700 : null,

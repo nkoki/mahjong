@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n.dart';
 import '../../../core/theme.dart';
 import '../domain/models.dart';
 import '../session_providers.dart';
@@ -53,12 +54,16 @@ class _TableViewScreenState extends ConsumerState<TableViewScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}',
+              Text('${windName(s.seatWindIndexOf(p))} ${s.playerNames[p]}',
                   style: theme.textTheme.titleMedium, overflow: TextOverflow.ellipsis),
               Text(formatPoints(s.scores[p]),
                   style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
               Text(
-                s.riichi[p] ? '立直' : (diff == 0 ? 'トップ' : 'トップとの差 ${formatPoints(-diff)}'),
+                s.riichi[p]
+                    ? tr('立直', 'Riichi')
+                    : (diff == 0
+                        ? tr('トップ', 'Leader')
+                        : tr('トップとの差 ${formatPoints(-diff)}', '${formatPoints(-diff)} behind leader')),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: s.riichi[p] ? theme.colorScheme.error : null,
                   fontWeight: s.riichi[p] ? FontWeight.bold : null,
@@ -96,8 +101,8 @@ class _TableViewScreenState extends ConsumerState<TableViewScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(s.finished ? '終局' : s.roundName, style: theme.textTheme.titleLarge),
-                    Text('${s.honba}本場  供託${s.riichiSticks}本', style: theme.textTheme.bodyMedium),
+                    Text(s.finished ? tr('終局', 'Game over') : displayRoundLabel(s.roundName), style: theme.textTheme.titleLarge),
+                    Text(tr('${s.honba}本場  供託${s.riichiSticks}本', '${s.honba} honba  Riichi sticks: ${s.riichiSticks}'), style: theme.textTheme.bodyMedium),
                   ],
                 ),
               ),
@@ -111,12 +116,12 @@ class _TableViewScreenState extends ConsumerState<TableViewScreen> {
                   children: [
                     TextButton.icon(
                       icon: const Icon(Icons.rotate_right),
-                      label: const Text('回す'),
+                      label: Text(tr('回す', 'Rotate')),
                       onPressed: () => setState(() => _bottom = (_bottom + 1) % s.playerCount),
                     ),
                     TextButton.icon(
                       icon: const Icon(Icons.close),
-                      label: const Text('閉じる'),
+                      label: Text(tr('閉じる', 'Close')),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],

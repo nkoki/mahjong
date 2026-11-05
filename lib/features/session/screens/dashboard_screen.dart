@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n.dart';
 import '../../../core/theme.dart';
 import '../../draw/draw_input_screen.dart';
 import '../../history/history_detail_screen.dart';
@@ -26,7 +27,7 @@ class DashboardScreen extends ConsumerWidget {
     if (s == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: const Center(child: Text('対局が見つかりません')),
+        body: Center(child: Text(tr('対局が見つかりません', 'Game not found'))),
       );
     }
     final notifier = ref.read(sessionsProvider.notifier);
@@ -37,15 +38,15 @@ class DashboardScreen extends ConsumerWidget {
       active: !s.finished,
       child: Scaffold(
       appBar: AppBar(
-        title: Text(s.finished ? '終局' : s.roundLabel),
+        title: Text(s.finished ? tr('終局', 'Game over') : displayRoundLabel(s.roundLabel)),
         actions: [
           IconButton(
-            tooltip: '1つ前に戻す',
+            tooltip: tr('1つ前に戻す', 'Undo'),
             icon: const Icon(Icons.undo),
             onPressed: s.previous == null
                 ? null
                 : () async {
-                    final ok = await _confirm(context, '直前の局の入力を取り消しますか？');
+                    final ok = await _confirm(context, tr('直前の局の入力を取り消しますか？', 'Undo the last round entry?'));
                     if (ok) notifier.undo(sessionId);
                   },
           ),
@@ -74,25 +75,25 @@ class DashboardScreen extends ConsumerWidget {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context)
                       ..hideCurrentSnackBar()
-                      ..showSnackBar(SnackBar(content: Text('「${r.$2}」に交代しました（元に戻すで取り消せます）')));
+                      ..showSnackBar(SnackBar(content: Text(tr('「${r.$2}」に交代しました（元に戻すで取り消せます）', 'Substituted "${r.$2}" (undo to revert)'))));
                   }
                 }
               } else if (v == 'awake') {
                 ref.read(preferenceProvider(PreferenceKeys.keepScreenOn).notifier).set(awake ? '0' : '1');
               } else if (v == 'finish') {
-                final ok = await _confirm(context, '対局を終了しますか？（供託はトップが獲得）');
+                final ok = await _confirm(context, tr('対局を終了しますか？（供託はトップが獲得）', 'End the game? (Riichi sticks go to the top player)'));
                 if (ok) notifier.finish(sessionId);
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'history', child: Text('局の履歴')),
-              const PopupMenuItem(value: 'table', child: Text('卓に置いて表示（全員の向きで点数を表示）')),
-              if (!s.finished) const PopupMenuItem(value: 'chombo', child: Text('チョンボ（錯和）を入力')),
-              if (!s.finished) const PopupMenuItem(value: 'progress', child: Text('局・本場・供託を直す')),
-              if (!s.finished) const PopupMenuItem(value: 'substitute', child: Text('プレイヤーを交代')),
-              CheckedPopupMenuItem(value: 'awake', checked: awake, child: const Text('対局中は画面を消さない')),
+              PopupMenuItem(value: 'history', child: Text(tr('局の履歴', 'Round history'))),
+              PopupMenuItem(value: 'table', child: Text(tr('卓に置いて表示（全員の向きで点数を表示）', 'Table view (scores facing each player)'))),
+              if (!s.finished) PopupMenuItem(value: 'chombo', child: Text(tr('チョンボ（錯和）を入力', 'Enter chombo'))),
+              if (!s.finished) PopupMenuItem(value: 'progress', child: Text(tr('局・本場・供託を直す', 'Fix round / honba / riichi sticks'))),
+              if (!s.finished) PopupMenuItem(value: 'substitute', child: Text(tr('プレイヤーを交代', 'Substitute player'))),
+              CheckedPopupMenuItem(value: 'awake', checked: awake, child: Text(tr('対局中は画面を消さない', 'Keep screen on during game'))),
               if (!s.finished)
-                const PopupMenuItem(value: 'finish', child: Text('対局を終了')),
+                PopupMenuItem(value: 'finish', child: Text(tr('対局を終了', 'End game'))),
             ],
           ),
         ],
@@ -118,7 +119,7 @@ class DashboardScreen extends ConsumerWidget {
                     Expanded(
                       child: FilledButton.icon(
                         icon: const Icon(Icons.emoji_events),
-                        label: const Text('和了'),
+                        label: Text(tr('和了', 'Win')),
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
                               builder: (_) =>
@@ -132,7 +133,7 @@ class DashboardScreen extends ConsumerWidget {
                         style: FilledButton.styleFrom(
                             minimumSize: const Size(0, 52)),
                         icon: const Icon(Icons.water_drop_outlined),
-                        label: const Text('流局'),
+                        label: Text(tr('流局', 'Draw')),
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
                               builder: (_) =>
@@ -160,15 +161,19 @@ Future<int?> _chooseChombo(BuildContext context, GameSession s) async {
       builder: (ctx, setState) {
         final theme = Theme.of(ctx);
         return AlertDialog(
-          title: const Text('チョンボ（錯和）'),
+          title: Text(tr('チョンボ（錯和）', 'Chombo')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('誤ロン・誤ツモ・ノーテン立直の流局などの罰符を入力します。満貫払いです'
-                    '（子は親に4,000点・子に2,000点ずつ、親は全員に4,000点ずつ）。'
-                    'この局は同じ本場でやり直し、この局で出した立直棒は本人に戻します。'),
+                Text(tr(
+                    '誤ロン・誤ツモ・ノーテン立直の流局などの罰符を入力します。満貫払いです'
+                        '（子は親に4,000点・子に2,000点ずつ、親は全員に4,000点ずつ）。'
+                        'この局は同じ本場でやり直し、この局で出した立直棒は本人に戻します。',
+                    'Penalty for a false ron/tsumo, riichi while noten at a draw, etc. Paid as mangan '
+                        '(non-dealer pays 4,000 to the dealer and 2,000 to each non-dealer; dealer pays 4,000 to everyone). '
+                        'The round is replayed with the same honba, and riichi sticks put out this round are returned.')),
                 const SizedBox(height: 12),
                 for (var p = 0; p < s.playerCount; p++)
                   // RadioListTile は Flutter の版によって書き方が違うので、選んだ印を付けた行にする
@@ -178,19 +183,20 @@ Future<int?> _chooseChombo(BuildContext context, GameSession s) async {
                     selected: selected == p,
                     leading: Icon(selected == p ? Icons.radio_button_checked : Icons.radio_button_unchecked),
                     onTap: () => setState(() => selected = p),
-                    title: Text('${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}'),
+                    title: Text('${windName(s.seatWindIndexOf(p))} ${s.playerNames[p]}'),
                     subtitle: Text(
-                        '${formatPoints(SessionLogic.chomboDeltas(s, p)[p].abs())}点を払う',
+                        tr('${formatPoints(SessionLogic.chomboDeltas(s, p)[p].abs())}点を払う',
+                            'Pays ${formatPoints(SessionLogic.chomboDeltas(s, p)[p].abs())} pts'),
                         style: theme.textTheme.bodySmall),
                   ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('キャンセル', 'Cancel'))),
             FilledButton(
               onPressed: selected == null ? null : () => Navigator.pop(ctx, selected),
-              child: const Text('罰符を払って局をやり直す'),
+              child: Text(tr('罰符を払って局をやり直す', 'Pay penalty and replay round')),
             ),
           ],
         );
@@ -223,30 +229,34 @@ class _SubstituteDialogState extends State<_SubstituteDialog> {
   Widget build(BuildContext context) {
     final s = widget.session;
     final theme = Theme.of(context);
-    final error = _seat == null ? '交代する人を選んでください' : SessionLogic.validateSubstitute(s, _seat!, _name.text);
+    final error = _seat == null ? tr('交代する人を選んでください', 'Choose who leaves') : SessionLogic.validateSubstitute(s, _seat!, _name.text);
     final suggestions = widget.suggestions.where((n) => !s.playerNames.contains(n)).take(8).toList();
     return AlertDialog(
-      title: const Text('プレイヤーを交代'),
+      title: Text(tr('プレイヤーを交代', 'Substitute player')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '抜ける人の点数と席（風）を、入る人がそのまま引き継ぎます。'
-              '個人成績では、交代する前の局は抜けた人、これからの局は入った人の成績として数え、'
-              '最終結果（順位・ポイント）は終局したときに打っている人の成績になります。',
+              tr(
+                  '抜ける人の点数と席（風）を、入る人がそのまま引き継ぎます。'
+                      '個人成績では、交代する前の局は抜けた人、これからの局は入った人の成績として数え、'
+                      '最終結果（順位・ポイント）は終局したときに打っている人の成績になります。',
+                  'The new player takes over the score and seat (wind) of the leaving player. '
+                      'In player stats, earlier rounds count for the leaving player and later rounds for the new one; '
+                      'the final result (rank, points) goes to whoever is playing at the end.'),
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
-            Text('抜ける人', style: theme.textTheme.titleSmall),
+            Text(tr('抜ける人', 'Leaving'), style: theme.textTheme.titleSmall),
             Wrap(
               spacing: 6,
               children: [
                 for (var p = 0; p < s.playerCount; p++)
                   ChoiceChip(
                     key: ValueKey('sub-seat-$p'),
-                    label: Text('${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}'),
+                    label: Text('${windName(s.seatWindIndexOf(p))} ${s.playerNames[p]}'),
                     selected: _seat == p,
                     onSelected: (_) => setState(() => _seat = p),
                   ),
@@ -256,7 +266,7 @@ class _SubstituteDialogState extends State<_SubstituteDialog> {
             TextField(
               key: const ValueKey('sub-name'),
               controller: _name,
-              decoration: const InputDecoration(labelText: '入る人の名前', border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: tr('入る人の名前', 'New player name'), border: const OutlineInputBorder()),
               onChanged: (_) => setState(() {}),
             ),
             if (suggestions.isNotEmpty) ...[
@@ -279,10 +289,10 @@ class _SubstituteDialogState extends State<_SubstituteDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('キャンセル', 'Cancel'))),
         FilledButton(
           onPressed: error == null ? () => Navigator.pop(context, (_seat!, _name.text.trim())) : null,
-          child: const Text('交代'),
+          child: Text(tr('交代', 'Substitute')),
         ),
       ],
     );
@@ -325,19 +335,23 @@ class _ProgressDialogState extends State<_ProgressDialog> {
     final s = widget.session;
     final max = SessionLogic.maxRoundIndex(s.settings);
     return AlertDialog(
-      title: const Text('局・本場・供託を直す'),
+      title: Text(tr('局・本場・供託を直す', 'Fix round / honba / sticks')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('数え間違いや、局の削除・追加でずれたときに直します。点数は変わりません。'
-                '供託を増やすと、その分の点数は場に出たまま（誰からも引かれない）になります。',
+            Text(
+                tr(
+                    '数え間違いや、局の削除・追加でずれたときに直します。点数は変わりません。'
+                        '供託を増やすと、その分の点数は場に出たまま（誰からも引かれない）になります。',
+                    'Fix miscounts or shifts caused by deleting/adding rounds. Scores do not change. '
+                        'Added riichi sticks stay on the table (not taken from anyone).'),
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
             Row(
               children: [
-                const Expanded(child: Text('局')),
+                Expanded(child: Text(tr('局', 'Round'))),
                 DropdownButton<int>(
                   key: const ValueKey('progress-round'),
                   value: _round,
@@ -345,26 +359,29 @@ class _ProgressDialogState extends State<_ProgressDialog> {
                     for (var i = 0; i <= max; i++)
                       DropdownMenuItem(
                         value: i,
-                        child: Text('${s.copyWith(roundIndex: i).roundName}'
-                            '（親: ${s.playerNames[i % s.playerCount]}）'),
+                        child: Text(tr(
+                            '${s.copyWith(roundIndex: i).roundName}'
+                                '（親: ${s.playerNames[i % s.playerCount]}）',
+                            '${displayRoundLabel(s.copyWith(roundIndex: i).roundName)}'
+                                ' (dealer: ${s.playerNames[i % s.playerCount]})')),
                       ),
                   ],
                   onChanged: (v) => setState(() => _round = v!),
                 ),
               ],
             ),
-            _counter('本場', _honba, (v) => setState(() => _honba = v), 'progress-honba'),
-            _counter('供託（立直棒）', _sticks, (v) => setState(() => _sticks = v), 'progress-sticks'),
+            _counter(tr('本場', 'Honba'), _honba, (v) => setState(() => _honba = v), 'progress-honba'),
+            _counter(tr('供託（立直棒）', 'Riichi sticks'), _sticks, (v) => setState(() => _sticks = v), 'progress-sticks'),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('キャンセル', 'Cancel'))),
         FilledButton(
           onPressed: _round == s.roundIndex && _honba == s.honba && _sticks == s.riichiSticks
               ? null
               : () => Navigator.pop(context, (_round, _honba, _sticks)),
-          child: const Text('直す'),
+          child: Text(tr('直す', 'Fix')),
         ),
       ],
     );
@@ -378,7 +395,7 @@ Future<bool> _confirm(BuildContext context, String message) async {
       content: Text(message),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
+            onPressed: () => Navigator.pop(ctx, false), child: Text(tr('キャンセル', 'Cancel'))),
         FilledButton(
             onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
       ],
@@ -403,16 +420,22 @@ class _InfoBar extends StatelessWidget {
         alignment: WrapAlignment.spaceBetween,
         spacing: 16,
         children: [
-          Text('${rules.isSanma ? "3人打ち " : ""}${rules.tonpuu ? "東風戦" : "半荘戦"}  '
-              '${session.records.length}局消化'),
-          Text('本場 ${session.honba}  /  供託 ${session.riichiSticks}本'),
+          Text(tr(
+              '${rules.isSanma ? "3人打ち " : ""}${rules.tonpuu ? "東風戦" : "半荘戦"}  '
+                  '${session.records.length}局消化',
+              '${rules.isSanma ? "3-player " : ""}${rules.tonpuu ? "East-only" : "Hanchan"}  '
+                  '${session.records.length} rounds played')),
+          Text(tr('本場 ${session.honba}  /  供託 ${session.riichiSticks}本',
+              'Honba ${session.honba}  /  Riichi sticks ${session.riichiSticks}')),
         ],
       ),
     );
     if (session.finished || !session.isExtraRound) return bar;
     // 西入（南入）の延長戦中は、終わる条件を表示する
-    final lastName = '${GameSession.windNames[(rules.totalRounds ~/ rules.playerCount) % 4]}'
-        '${rules.playerCount}局';
+    final lastName = tr(
+        '${GameSession.windNames[(rules.totalRounds ~/ rules.playerCount) % 4]}'
+            '${rules.playerCount}局',
+        '${windName(rules.totalRounds ~/ rules.playerCount)} ${rules.playerCount}');
     return Column(
       children: [
         bar,
@@ -421,8 +444,11 @@ class _InfoBar extends StatelessWidget {
           color: theme.colorScheme.tertiaryContainer,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
-            '${rules.extensionName}（延長戦）中: 返し点 ${formatPoints(rules.returnPoints)}点に'
-            '届いた人が出た局で終了します（最長 $lastName まで）',
+            tr(
+                '${rules.extensionName}（延長戦）中: 返し点 ${formatPoints(rules.returnPoints)}点に'
+                    '届いた人が出た局で終了します（最長 $lastName まで）',
+                '${rules.extensionName} (extension): the game ends when someone reaches '
+                    '${formatPoints(rules.returnPoints)} pts (until $lastName at most)'),
             style: TextStyle(color: theme.colorScheme.onTertiaryContainer, fontSize: 13),
           ),
         ),
@@ -451,7 +477,7 @@ class _PlayerGrid extends StatelessWidget {
           for (var p = 0; p < session.playerCount; p++)
             _PlayerCard(
               name: session.playerNames[p],
-              wind: GameSession.windNames[session.seatWindIndexOf(p)],
+              wind: windName(session.seatWindIndexOf(p)),
               isDealer: session.dealer == p,
               score: session.scores[p],
               rank: rank.indexOf(p) + 1,
@@ -522,7 +548,7 @@ class _PlayerCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleSmall),
                 ),
-                Text('$rank位', style: theme.textTheme.labelMedium),
+                Text(tr('$rank位', '#$rank'), style: theme.textTheme.labelMedium),
               ],
             ),
             const Spacer(),
@@ -531,7 +557,7 @@ class _PlayerCard extends StatelessWidget {
                   style: theme.textTheme.headlineMedium
                       ?.copyWith(fontWeight: FontWeight.bold)),
             ),
-            Text(diffFromTop == 0 ? 'トップ' : 'トップまで ${formatPoints(diffFromTop)}',
+            Text(diffFromTop == 0 ? tr('トップ', 'Top') : tr('トップまで ${formatPoints(diffFromTop)}', '${formatPoints(diffFromTop)} behind top'),
                 style: theme.textTheme.bodySmall),
             const Spacer(),
             SizedBox(
@@ -543,12 +569,12 @@ class _PlayerCard extends StatelessWidget {
                           backgroundColor: Theme.of(context).colorScheme.error,
                           foregroundColor: Theme.of(context).colorScheme.onError),
                       onPressed: onRiichi,
-                      child: const Text('立直中（取消）'),
+                      child: Text(tr('立直中（取消）', 'Riichi (cancel)')),
                     )
                   : OutlinedButton(
                       style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)),
                       onPressed: onRiichi,
-                      child: const Text('立直'),
+                      child: Text(tr('立直', 'Riichi')),
                     ),
             ),
           ],
@@ -568,15 +594,18 @@ class _FinishedView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('最終結果', style: theme.textTheme.titleLarge),
+        Text(tr('最終結果', 'Final result'), style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),
         for (final r in session.finalResults)
           Card(
             child: ListTile(
               leading: CircleAvatar(child: Text('${r.rank}')),
               title: Text(session.playerNames[r.player]),
-              subtitle: Text('${formatPoints(r.score)}点'
-                  '${r.adjustment != 0 ? '  焼き鳥・トビ賞 ${formatPoint(r.adjustment)}' : ''}'),
+              subtitle: Text(tr(
+                  '${formatPoints(r.score)}点'
+                      '${r.adjustment != 0 ? '  焼き鳥・トビ賞 ${formatPoint(r.adjustment)}' : ''}',
+                  '${formatPoints(r.score)} pts'
+                      '${r.adjustment != 0 ? '  Yakitori/bust bonus ${formatPoint(r.adjustment)}' : ''}')),
               trailing: Text(formatPoint(r.point),
                   style: theme.textTheme.titleLarge?.copyWith(
                       color: deltaColor(context, r.point) ?? deltaColor(context, 1))),
@@ -585,26 +614,26 @@ class _FinishedView extends StatelessWidget {
         const SizedBox(height: 16),
         FilledButton.icon(
           icon: const Icon(Icons.image_outlined),
-          label: const Text('結果を画像で共有'),
+          label: Text(tr('結果を画像で共有', 'Share result as image')),
           onPressed: () => showResultImage(context, session),
         ),
         const SizedBox(height: 8),
         FilledButton.tonalIcon(
           icon: const Icon(Icons.copy_all_outlined),
-          label: const Text('結果をコピー（LINE などに貼り付け）'),
+          label: Text(tr('結果をコピー（LINE などに貼り付け）', 'Copy result (paste into chat apps)')),
           onPressed: () => ResultText.copy(context, session),
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
           icon: const Icon(Icons.list_alt),
-          label: const Text('局の履歴を見る'),
+          label: Text(tr('局の履歴を見る', 'View round history')),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => HistoryDetailScreen(sessionId: session.id))),
         ),
         const SizedBox(height: 8),
         TextButton(
           onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-          child: const Text('ホームへ戻る'),
+          child: Text(tr('ホームへ戻る', 'Back to home')),
         ),
       ],
     );

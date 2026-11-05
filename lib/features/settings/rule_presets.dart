@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/l10n.dart';
 import '../session/domain/models.dart';
 import '../session/session_providers.dart';
 
@@ -54,8 +55,8 @@ class RulePresets {
   /// 名前のチェック（問題なければ null）
   static String? validateName(String name) {
     final t = name.trim();
-    if (t.isEmpty) return '名前を入力してください';
-    if (t.length > maxNameLength) return '$maxNameLength文字までにしてください';
+    if (t.isEmpty) return tr('名前を入力してください', 'Enter a name');
+    if (t.length > maxNameLength) return tr('$maxNameLength文字までにしてください', 'Up to $maxNameLength characters');
     return null;
   }
 
