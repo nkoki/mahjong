@@ -44,6 +44,9 @@ class PreferenceKeys {
 
   /// 文字の大きさの倍率（'1.0' | '1.15' | '1.3'。無ければ標準）
   static const textScale = 'text_scale';
+
+  /// 翻・符で入力した最近の手（例: "3,30,0;5,0,0"。新しい順）
+  static const recentHanFu = 'recent_hanfu';
 }
 
 /// 全対局の一覧（変更のたびに端末へ自動保存）

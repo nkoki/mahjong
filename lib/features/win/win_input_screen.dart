@@ -10,6 +10,7 @@ import '../camera/tile_recognizer.dart';
 import '../session/domain/models.dart';
 import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
+import 'hanfu_shortcuts.dart';
 import 'meld_dialog.dart';
 import 'win_result_screen.dart';
 
@@ -203,6 +204,11 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       return;
     }
     final entry = WinEntry.hanFu(session: s, winner: _winner!, isTsumo: _tsumo, hanFu: _hanFu);
+    // 次の入力のために覚えておく（最近の入力のチップに出す）
+    final recent = HanFuShortcuts.decode(ref.read(preferenceProvider(PreferenceKeys.recentHanFu)));
+    ref
+        .read(preferenceProvider(PreferenceKeys.recentHanFu).notifier)
+        .set(HanFuShortcuts.encode(HanFuShortcuts.remember(recent, _hanFu)));
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => WinResultScreen(
         sessionId: widget.sessionId,
@@ -659,7 +665,53 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       return true;
     }
 
+    final recent = HanFuShortcuts.decode(ref.watch(preferenceProvider(PreferenceKeys.recentHanFu)));
+    final shortcuts = [
+      ...recent,
+      ...HanFuShortcuts.common.where((c) => !recent.any((r) => HanFuShortcuts.same(r, c))),
+    ];
+    final isDealer = _winner != null && _winner == s.dealer;
+    String? scoreOf(HanFuEntry e) {
+      final r = ScoreCalculator.calculateFromHanFu(
+          han: e.han,
+          fu: e.fu,
+          yakuman: e.yakuman,
+          isTsumo: _tsumo,
+          playerWind: isDealer ? '1z' : '2z',
+          rules: rules);
+      if (!r.isValid) return null;
+      return _tsumo ? ScoreCalculator.formatScore(r, isDealer: isDealer, isTsumo: true) : '${r.totalScore}';
+    }
+
+    bool selected(HanFuEntry e) =>
+        e.yakuman > 0 ? _quickYakuman == e.yakuman : _quickYakuman == 0 && _quickHan == e.han && (e.han >= 5 || _quickFu == e.fu);
+
     return [
+      _section(theme, 'よく使う（${_winner == null ? "子" : isDealer ? "親" : "子"}の${_tsumo ? "ツモ" : "ロン"}）'),
+      Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          for (var i = 0; i < shortcuts.length; i++)
+            if (scoreOf(shortcuts[i]) case final score?)
+              ChoiceChip(
+                key: ValueKey('shortcut-${HanFuShortcuts.label(shortcuts[i])}'),
+                avatar: i < recent.length ? const Icon(Icons.history, size: 16) : null,
+                label: Text('${HanFuShortcuts.label(shortcuts[i])} $score'),
+                selected: selected(shortcuts[i]),
+                onSelected: (_) => setState(() {
+                  final e = shortcuts[i];
+                  _quickYakuman = e.yakuman;
+                  _quickHan = e.yakuman > 0 ? _quickHan : e.han;
+                  _quickFu = e.yakuman > 0 || e.han >= 5 ? _quickFu : e.fu;
+                }),
+              ),
+        ],
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text('時計の印が付いたものは最近入力した手です（新しい順）。下で翻数・符を選んでも入力できます。', style: theme.textTheme.bodySmall),
+      ),
       Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Text(
