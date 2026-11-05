@@ -12,6 +12,7 @@ class PrivacyPolicy {
   static const contactUrl = 'https://github.com/nkoki/mahjong/issues';
   static const githubPrivacyUrl =
       'https://docs.github.com/ja/site-policy/privacy-policies/github-general-privacy-statement';
+  static const googlePrivacyUrl = 'https://policies.google.com/privacy?hl=ja';
 
   static const intro = '「$appName」（以下「このアプリ」）は、利用者の個人情報やプライバシーに関わる情報を、'
       '開発者が集めることはありません。このアプリでの情報の扱いは次のとおりです。';
@@ -37,7 +38,9 @@ class PrivacyPolicy {
       '4. 通信',
       'スマホのアプリ版には、インターネットで通信する機能はありません（Android 版はインターネットの権限を持っていません）。'
           'Web 版は GitHub Pages から配信していて、ページを開くときに GitHub がアクセスの記録（IP アドレスなど）を'
-          '残すことがあります。その扱いは GitHub のプライバシーステートメントのとおりです。',
+          '残すことがあります。その扱いは GitHub のプライバシーステートメントのとおりです。'
+          'また Web 版は、日本語などの文字を表示するためのフォントを Google Fonts から読み込むので、'
+          'Google にもアクセスの記録が残ることがあります。その扱いは Google のプライバシーポリシーのとおりです。',
     ),
     (
       '5. バックアップと CSV',
@@ -89,6 +92,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ],
             const SizedBox(height: 16),
             Text('GitHub のプライバシーステートメント: ${PrivacyPolicy.githubPrivacyUrl}', style: theme.textTheme.bodySmall),
+            Text('Google のプライバシーポリシー: ${PrivacyPolicy.googlePrivacyUrl}', style: theme.textTheme.bodySmall),
             const SizedBox(height: 8),
             Text('制定日: ${PrivacyPolicy.enactedOn}', style: theme.textTheme.bodySmall),
           ],

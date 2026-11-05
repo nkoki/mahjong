@@ -1,0 +1,12 @@
+{
+  "name": "mahjong-e2e",
+  "private": true,
+  "description": "Web 版を実際のブラウザで動かして確かめるテスト（smoke.mjs）",
+  "type": "module",
+  "scripts": {
+    "test": "node smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

@@ -103,6 +103,7 @@ void main() {
       }
       expect(html, contains(PrivacyPolicy.contactUrl));
       expect(html, contains(PrivacyPolicy.githubPrivacyUrl));
+      expect(html, contains(PrivacyPolicy.googlePrivacyUrl));
       expect(html, contains('制定日: ${PrivacyPolicy.enactedOn}'));
       // GitHub Pages では /<リポジトリ名>/ の下で動くので、/ から始まるパスを使わない
       expect(RegExp(r'''(href|src)="/[^/]''').hasMatch(html), isFalse);

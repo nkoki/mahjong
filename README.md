@@ -34,6 +34,25 @@ flutter test --update-goldens test/golden
 - テストでは文字が四角で描かれます（Flutter のテスト用のフォント）。配置・色・大きさの変化を見るためのものです。
 - Flutter の版が変わると描き方がわずかに変わることがあるので、画素の1%までの違いは同じとみなします（`test/golden/flutter_test_config.dart`）。
 
+### Web 版をブラウザで動かして確かめるテスト（E2E）
+
+`e2e/smoke.mjs` は、ビルドした Web 版を実際のブラウザ（Chromium）で開き、新規対局 → 和了（翻・符で入力）→ 流局の画面 → 戦績・個人成績 → プライバシーポリシーのページ、と操作して確かめるテストです。
+GitHub Actions では Web 版のビルドのあとに動かし、失敗したら公開しません。想定していない外部のサイトへの接続があっても失敗にします
+（今は日本語のフォントを読み込む Google Fonts だけ）。
+
+```bash
+flutter build web --release --no-web-resources-cdn --base-href /mahjong/
+mkdir -p /tmp/site && cp -r build/web /tmp/site/mahjong
+(cd /tmp/site && python3 -m http.server 8765 &)
+cd e2e
+npm ci
+npx playwright install chromium
+node smoke.mjs http://localhost:8765/mahjong/
+```
+
+- Flutter の Web 版は画面を canvas に描くので、読み上げ用の情報（セマンティクス）を有効にしてから、ボタンなどを名前で探して操作します。
+- Web 版は描画エンジン（CanvasKit）も GitHub Pages から配信します（`--no-web-resources-cdn`）。日本語のフォントだけは Google Fonts から読み込みます（プライバシーポリシーにも記載）。
+
 ## ストアに公開する準備
 
 | 項目 | 内容 |

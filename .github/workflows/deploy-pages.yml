@@ -48,9 +48,26 @@ jobs:
         run: dart test
 
       # GitHub Pages の URL は https://<ユーザー名>.github.io/<リポジトリ名>/ なので、
-      # ページが読み込むファイルの場所（base href）をリポジトリ名に合わせる
+      # ページが読み込むファイルの場所（base href）をリポジトリ名に合わせる。
+      # 描画エンジン（CanvasKit）も Google の CDN からではなく GitHub Pages から配信する（--no-web-resources-cdn）
       - name: Web 版のビルド
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        run: flutter build web --release --no-web-resources-cdn --base-href "/${{ github.event.repository.name }}/"
+
+      # ビルドした Web 版を実際のブラウザで動かして、主な操作が通るかを確かめる（失敗したら公開しない）
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Web 版の動作確認（ブラウザ）
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          mkdir -p /tmp/site
+          cp -r ../build/web "/tmp/site/${{ github.event.repository.name }}"
+          (cd /tmp/site && python3 -m http.server 8765 &)
+          sleep 2
+          node smoke.mjs "http://localhost:8765/${{ github.event.repository.name }}/"
 
       - uses: actions/configure-pages@v5
 
