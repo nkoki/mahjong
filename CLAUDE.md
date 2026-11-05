@@ -18,6 +18,7 @@
   - `packages/mahjong_score_engine` で `dart test`（点数計算エンジンのテスト）
 - 機能を追加・変更したらテストも追加し、`README.md` の機能一覧・説明も更新する
 - 利用者が気を付けるべき点（データが消える条件、件数の上限など）は、画面上で分かるように表示する
+- `main` に push すると GitHub Actions（`.github/workflows/deploy-pages.yml`）がテストと Web 版のビルドを行い、GitHub Pages に公開する。Web 版は `/<リポジトリ名>/` の下で動くので、絶対パス（`/` から始まる URL）でファイルを参照しない
 
 ## 実装の方針
 

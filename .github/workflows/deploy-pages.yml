@@ -1,0 +1,68 @@
+# main に push するたびに、テストを実行してから Web 版をビルドし、GitHub Pages に公開する。
+# 初回だけ、GitHub のリポジトリの Settings → Pages → Build and deployment の Source を
+# 「GitHub Actions」にする必要がある。
+name: GitHub Pages に公開
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # Actions タブから手動でも実行できる
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 公開の処理が重ならないようにする（途中の公開は止めない）
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: テストと Web 版のビルド
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: パッケージの取得
+        run: flutter pub get
+
+      - name: 静的解析
+        run: flutter analyze
+
+      - name: アプリのテスト
+        run: flutter test
+
+      - name: 点数計算エンジンのテスト
+        working-directory: packages/mahjong_score_engine
+        run: |
+          dart pub get
+          dart test
+
+      # GitHub Pages の URL は https://<ユーザー名>.github.io/<リポジトリ名>/ なので、
+      # ページが読み込むファイルの場所（base href）をリポジトリ名に合わせる
+      - name: Web 版のビルド
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    name: GitHub Pages に公開
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

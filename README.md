@@ -21,6 +21,17 @@ cd packages/mahjong_score_engine
 dart test               # 点数計算エンジンのテスト
 ```
 
+## Web 版の公開（GitHub Pages）
+
+`main` に push すると、GitHub Actions（GitHub が自動で処理を実行する仕組み）が `.github/workflows/deploy-pages.yml` に沿って、
+テスト → Web 版のビルド → GitHub Pages への公開を行います。公開先は `https://nkoki.github.io/mahjong/` です。
+
+- 初回だけ、GitHub のリポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にしてください。
+- 非公開（Private）のリポジトリで GitHub Pages を使うには、有料プラン（GitHub Pro など）が必要です。
+- テストが失敗した場合は公開しません（前回公開したものがそのまま残ります）。
+- iPhone で使うときは、Safari で開いて共有ボタンから「ホーム画面に追加」すると、アプリのように起動できます。
+  ホーム画面から使わないと、7日間開かなかったときに Safari が保存データを消すことがあります。
+
 ## 機能
 
 | 機能 | 内容 |
