@@ -26,6 +26,10 @@ final loadWarningsProvider = StateProvider<List<String>>((ref) {
   return ref.read(sessionRepositoryProvider).loadWarnings;
 });
 
+/// 最後にバックアップを書き出した日時
+final lastBackupProvider = StateProvider<DateTime?>(
+    (ref) => ref.read(sessionRepositoryProvider).lastBackupAt);
+
 /// IDから対局を取得
 final sessionProvider = Provider.family<GameSession?, String>((ref, id) {
   final sessions = ref.watch(sessionsProvider);
@@ -147,6 +151,26 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
   bool canUndo(String id) => _get(id)?.previous != null;
 
   void undo(String id) => _update(id, SessionLogic.undo);
+
+  /// バックアップから読み込む。
+  /// [replace] が true なら今のデータを全部置き換え、false なら今のデータに追加する
+  /// （同じ対局がすでにある場合は今のデータを残す）。返り値は追加した件数。
+  int importSessions(List<GameSession> incoming, {required bool replace}) {
+    final List<GameSession> next;
+    int added;
+    if (replace) {
+      next = List.of(incoming);
+      added = incoming.length;
+    } else {
+      final existing = {for (final s in state) s.id};
+      final toAdd = [for (final s in incoming) if (!existing.contains(s.id)) s];
+      next = [...state, ...toAdd];
+      added = toAdd.length;
+    }
+    next.sort((a, b) => b.createdAt.compareTo(a.createdAt)); // 新しい順
+    state = List.unmodifiable(next);
+    return added;
+  }
 
   void delete(String id) => state = state.where((s) => s.id != id).toList();
 }

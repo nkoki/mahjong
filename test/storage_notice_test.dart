@@ -38,6 +38,8 @@ void main() {
     await tester.tap(find.text('データの保存について'));
     await tester.pumpAndSettle();
     expect(find.text('この端末だけに保存されます'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('削除した対局は元に戻せません'), 300,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('削除した対局は元に戻せません'), findsOneWidget);
     expect(find.textContaining('直近10回'), findsWidgets);
     expect(find.text('保存されるのは最新100対局まで'), findsOneWidget);

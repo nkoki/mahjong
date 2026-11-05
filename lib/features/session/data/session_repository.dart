@@ -35,6 +35,12 @@ abstract class SessionRepository {
 
   /// 保存容量の使用状況
   StorageUsage usage();
+
+  /// 最後にバックアップを書き出した日時（一度もなければ null）
+  DateTime? get lastBackupAt;
+
+  /// バックアップを書き出した日時を記録する
+  Future<void> setLastBackupAt(DateTime at);
 }
 
 /// ブラウザ（Web 版）の保存容量の上限の目安。多くのブラウザで 1サイトあたり約5MB
@@ -71,6 +77,19 @@ class SharedPrefsSessionRepository implements SessionRepository {
   static const formatVersion = 3;
 
   static String sessionKey(String id) => '$sessionKeyPrefix$id';
+
+  /// 最後にバックアップを書き出した日時のキー
+  static const lastBackupKey = 'mahjong_last_backup_at';
+
+  @override
+  DateTime? get lastBackupAt {
+    final v = prefs.getString(lastBackupKey);
+    return v == null ? null : DateTime.tryParse(v);
+  }
+
+  @override
+  Future<void> setLastBackupAt(DateTime at) =>
+      prefs.setString(lastBackupKey, at.toIso8601String());
 
   final List<String> _warnings = [];
 
@@ -282,4 +301,10 @@ class InMemorySessionRepository implements SessionRepository {
 
   @override
   StorageUsage usage() => const StorageUsage(bytes: 0);
+
+  @override
+  DateTime? lastBackupAt;
+
+  @override
+  Future<void> setLastBackupAt(DateTime at) async => lastBackupAt = at;
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../backup/backup_screen.dart';
 import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
 
@@ -122,6 +123,18 @@ class StorageInfoScreen extends ConsumerWidget {
                       '・端末の設定からアプリのデータ（ストレージ）を消去したとき\n'
                       '・機種変更したとき（データは引き継がれません）',
               warn: true),
+          ListTile(
+            leading: Icon(Icons.backup_outlined, color: theme.colorScheme.primary),
+            title: Text('バックアップできます', style: theme.textTheme.titleSmall),
+            subtitle: const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text('データが消えたときに備えて、ときどきバックアップを書き出して別の場所に保存してください。'
+                  '機種変更のときも、バックアップを新しい端末で読み込めば引き継げます。'),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const BackupScreen())),
+          ),
           if (kIsWeb)
             item(Icons.storage_outlined, '保存容量の上限があります（Web 版）',
                 'ブラウザに保存できる量は1サイトあたり約5MBまでです。'

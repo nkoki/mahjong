@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/routes.dart';
 import '../../../core/theme.dart';
 import '../../history/history_list_screen.dart';
+import '../../backup/backup_screen.dart';
 import '../../storage/storage_info_screen.dart';
 import '../session_providers.dart';
 import 'new_session_screen.dart';
@@ -119,6 +120,8 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 8),
                     const StorageUsageView(),
+                    const Divider(height: 20),
+                    _BackupRow(sessionCount: ref.watch(sessionsProvider).length),
                   ],
                 ),
               ),
@@ -165,6 +168,41 @@ class _NoticeCard extends StatelessWidget {
                 onPressed: onClose,
               ),
       ),
+    );
+  }
+}
+
+/// バックアップの状況とボタン
+class _BackupRow extends ConsumerWidget {
+  final int sessionCount;
+  const _BackupRow({required this.sessionCount});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final last = ref.watch(lastBackupProvider);
+    final recommend = shouldRecommendBackup(sessionCount, last);
+    return Row(
+      children: [
+        Icon(recommend ? Icons.warning_amber_rounded : Icons.backup_outlined,
+            size: 20, color: recommend ? theme.colorScheme.error : theme.colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            last == null
+                ? 'まだバックアップしていません'
+                : '最後のバックアップ: ${formatDateTime(last)}'
+                    '${recommend ? '（30日以上前）' : ''}',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: recommend ? theme.colorScheme.error : null),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const BackupScreen())),
+          child: const Text('バックアップ'),
+        ),
+      ],
     );
   }
 }
