@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/l10n.dart';
 import 'core/theme.dart';
 import 'features/about/data_sources.dart';
 import 'features/session/data/session_repository.dart';
@@ -47,9 +48,13 @@ class _MahjongAppState extends ConsumerState<MahjongApp> {
       }
     });
     final textScale = ref.watch(textScaleProvider);
+    // 言語を切り替えたら、アプリ全体を作り直す（文字は tr() でその場で選ぶため）
+    final lang = ref.watch(languageProvider);
+    L10n.isEnglish = lang == AppLanguage.en;
     return MaterialApp(
+      key: ValueKey(lang),
       scaffoldMessengerKey: _messengerKey,
-      title: '麻雀点数計算',
+      title: tr('麻雀点数計算', 'Mahjong Score'),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ref.watch(themeModeProvider),

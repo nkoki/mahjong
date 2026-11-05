@@ -50,6 +50,9 @@ class PreferenceKeys {
 
   /// 名前を付けて保存したルールのセット（JSON）
   static const rulePresets = 'rule_presets';
+
+  /// 表示の言語（'ja' | 'en'。無ければ日本語）
+  static const language = 'language';
 }
 
 /// 全対局の一覧（変更のたびに端末へ自動保存）

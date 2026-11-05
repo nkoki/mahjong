@@ -29,6 +29,6 @@ void main() {
   });
 
   test('アプリ内のタイトル', () {
-    expect(File('lib/main.dart').readAsStringSync(), contains("title: '$name'"));
+    expect(File('lib/main.dart').readAsStringSync(), contains("title: tr('$name', "));
   });
 }

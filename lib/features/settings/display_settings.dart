@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/l10n.dart';
 import '../session/session_providers.dart';
 
 /// 選べる文字の大きさ（表示名, 倍率）
@@ -18,6 +19,10 @@ double textScaleOf(String? v) {
   final d = double.tryParse(v ?? '');
   return textScaleChoices.any((c) => c.$2 == d) ? d! : 1.0;
 }
+
+/// 表示の言語
+final languageProvider =
+    Provider<AppLanguage>((ref) => AppLanguage.of(ref.watch(preferenceProvider(PreferenceKeys.language))));
 
 final themeModeProvider =
     Provider<ThemeMode>((ref) => themeModeOf(ref.watch(preferenceProvider(PreferenceKeys.themeMode))));
@@ -47,6 +52,23 @@ class DisplaySettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Text('言語 / Language', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SegmentedButton<AppLanguage>(
+            key: const ValueKey('language'),
+            segments: [for (final l in AppLanguage.values) ButtonSegment(value: l, label: Text(l.label))],
+            selected: {ref.watch(languageProvider)},
+            onSelectionChanged: (v) =>
+                ref.read(preferenceProvider(PreferenceKeys.language).notifier).set(v.first.code),
+          ),
+          const SizedBox(height: 6),
+          Text(
+              tr('英語にすると、画面の表示が英語になります（保存した対局のメモなど、入力した文字はそのままです）。'
+                      '切り替えるとホーム画面に戻ります。',
+                  'Switches the app to English. Text you entered and notes saved earlier stay as they are. '
+                  'Switching returns to the home screen.'),
+              style: theme.textTheme.bodySmall),
+          const SizedBox(height: 24),
           Text('画面の明るさ', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           SegmentedButton<ThemeMode>(
