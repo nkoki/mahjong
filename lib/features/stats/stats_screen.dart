@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../session/domain/session_logic.dart';
 import '../session/session_providers.dart';
+import 'player_detail_screen.dart';
 import 'player_stats.dart';
 
 /// 集計する期間
@@ -75,7 +76,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             '終局した対局（${summary.games}対局）を集計しています。対局中の対局は含みません。'
             '名前が同じなら同じ人として集計します。保存している対局（最新100対局まで）が対象なので、'
             '自動で削除された古い対局は含みません。'
-            '名前の横の ✎ から、名前の変更や、表記ゆれの名前をまとめることができます。',
+            '名前の横の ✎ から、名前の変更や、表記ゆれの名前をまとめることができます。'
+            'カードを押すと、合計ポイントの推移・対戦相手との成績・役の出現回数を見られます。',
             style: small,
           ),
           if (summary.roundsWithoutDetails > 0)
@@ -99,6 +101,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               stats: summary.players[i],
               showChips: summary.hasChips,
               onRename: () => _rename(summary.players[i].name),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => PlayerDetailScreen(
+                  name: summary.players[i].name,
+                  playerCount: _playerCount,
+                  since: _period.since(widget.now ?? DateTime.now()),
+                  periodLabel: _period.label,
+                ),
+              )),
             ),
         ],
       ),
@@ -208,8 +218,9 @@ class _PlayerCard extends StatelessWidget {
   final PlayerStats stats;
   final bool showChips;
   final VoidCallback? onRename;
+  final VoidCallback? onTap;
 
-  const _PlayerCard({required this.rank, required this.stats, this.showChips = false, this.onRename});
+  const _PlayerCard({required this.rank, required this.stats, this.showChips = false, this.onRename, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -217,7 +228,11 @@ class _PlayerCard extends StatelessWidget {
     final s = stats;
     final pointColor = deltaColor(context, s.totalPoints);
     return Card(
-      child: Padding(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: ValueKey('player-${s.name}'),
+        onTap: onTap,
+        child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,6 +282,7 @@ class _PlayerCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

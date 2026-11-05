@@ -258,6 +258,11 @@ class SessionLogic {
       loser: loser,
       winPoints: [for (final w in wins) w.result.totalScore],
       chips: s.settings.chips ? chipDeltas(s, chips, loser: loser) : null,
+      // 役（ドラは除く）。翻・符で入力した和了は役が分からないので空
+      yaku: [
+        for (final w in wins)
+          w.hanFu != null ? const <String>[] : [for (final y in w.result.yakuList) if (!y.name.contains('ドラ')) y.name]
+      ],
     );
   }
 
@@ -380,6 +385,7 @@ class SessionLogic {
     int? loser,
     List<int>? winPoints,
     List<int>? chips,
+    List<List<String>>? yaku,
     GameSession? undoTo,
   }) {
     final record = RoundRecord(
@@ -393,6 +399,7 @@ class SessionLogic {
       riichi: List.unmodifiable([for (var i = 0; i < s.playerCount; i++) if (s.riichi[i]) i]),
       winPoints: List.unmodifiable(winPoints ?? const <int>[]),
       chips: chips == null || chips.every((c) => c == 0) ? null : List.unmodifiable(chips),
+      yaku: yaku == null ? null : List.unmodifiable([for (final y in yaku) List<String>.unmodifiable(y)]),
     );
     final nextRound = renchan ? s.roundIndex : s.roundIndex + 1;
     var next = s.copyWith(
@@ -510,6 +517,7 @@ class SessionLogic {
             winners: List<int>.unmodifiable(who.winners),
             loser: who.loser,
             winPoints: old.winPoints != null && old.winPoints!.length == who.winners.length ? old.winPoints : null,
+            yaku: old.yaku != null && old.yaku!.length == who.winners.length ? old.yaku : null,
           );
 
     final n = s.playerCount;

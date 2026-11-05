@@ -95,7 +95,9 @@ class SharedPrefsSessionRepository implements SessionRepository {
   ///      version 5 以前のデータはそのまま読める（どちらもなしとして扱う）
   /// - 7: 対局の途中のプレイヤーの交代を追加（元に戻す用の前の状態には、交代する前の名前も保存）。
   ///      version 6 以前のデータはそのまま読める（交代なしとして扱う）
-  static const formatVersion = 7;
+  /// - 8: 局の記録に和了の役を追加（個人成績の役の出現回数用）。
+  ///      version 7 以前のデータはそのまま読める（その局は役の出現回数に含めない）
+  static const formatVersion = 8;
 
   static String sessionKey(String id) => '$sessionKeyPrefix$id';
 

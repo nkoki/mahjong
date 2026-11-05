@@ -433,6 +433,10 @@ class RoundRecord {
   /// この局の祝儀（チップ）の枚数の増減（祝儀なし・祝儀の動きが無い局は null）
   final List<int>? chips;
 
+  /// 和了者ごとの役の名前（ドラは除く。[winners] と同じ順）。
+  /// 翻・符で入力した和了は空。version 7 以前に記録した局・後から追加した局は null
+  final List<List<String>>? yaku;
+
   const RoundRecord({
     required this.roundLabel,
     required this.kind,
@@ -445,6 +449,7 @@ class RoundRecord {
     this.riichi,
     this.winPoints,
     this.chips,
+    this.yaku,
   });
 
   /// 和了者・放銃者・立直の記録がある局か（version 4 以降に記録した局）
@@ -455,7 +460,7 @@ class RoundRecord {
     List<int>? deltas,
     List<int>? scoresAfter,
     bool? edited,
-    ({List<int> winners, int? loser, List<int>? winPoints})? who,
+    ({List<int> winners, int? loser, List<int>? winPoints, List<List<String>>? yaku})? who,
   }) =>
       RoundRecord(
         roundLabel: roundLabel,
@@ -469,6 +474,7 @@ class RoundRecord {
         riichi: riichi,
         winPoints: who != null ? who.winPoints : winPoints,
         chips: chips,
+        yaku: who != null ? who.yaku : yaku,
       );
 
   Map<String, dynamic> toJson() => {
@@ -484,6 +490,7 @@ class RoundRecord {
         if (riichi != null) 'riichi': riichi,
         if (winPoints != null) 'winPoints': winPoints,
         if (chips != null) 'chips': chips,
+        if (yaku != null) 'yaku': yaku,
       };
 
   factory RoundRecord.fromJson(Map<String, dynamic> j) => RoundRecord(
@@ -499,6 +506,11 @@ class RoundRecord {
         riichi: j['riichi'] == null ? null : _intList(j['riichi']),
         winPoints: j['winPoints'] == null ? null : _intList(j['winPoints']),
         chips: j['chips'] == null ? null : _intList(j['chips']),
+        yaku: j['yaku'] == null
+            ? null
+            : List.unmodifiable([
+                for (final y in j['yaku'] as List) List<String>.unmodifiable((y as List).map((e) => e as String))
+              ]),
       );
 }
 
