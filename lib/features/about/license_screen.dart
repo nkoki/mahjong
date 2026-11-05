@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'data_sources.dart';
+import 'privacy_policy.dart';
 
 /// ライセンス・データの出典の画面
 class LicenseScreen extends StatelessWidget {
@@ -14,6 +15,17 @@ class LicenseScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('プライバシーポリシー'),
+              subtitle: const Text('情報は集めません。対局の記録は端末の中だけに保存し、写真も送りません'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
+            ),
+          ),
+          const SizedBox(height: 16),
           Text('カメラ認識（牌の認識モデル）', style: theme.textTheme.titleMedium),
           const SizedBox(height: 6),
           const Text('手牌の写真の読み取りは、アプリに入っている認識モデルで、この端末の中で行います。'

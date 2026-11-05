@@ -1,4 +1,4 @@
-package com.example.mahjong.mahjong_app
+package app.naashi.mahjong
 
 import io.flutter.embedding.android.FlutterActivity
 

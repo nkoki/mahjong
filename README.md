@@ -34,6 +34,51 @@ flutter test --update-goldens test/golden
 - テストでは文字が四角で描かれます（Flutter のテスト用のフォント）。配置・色・大きさの変化を見るためのものです。
 - Flutter の版が変わると描き方がわずかに変わることがあるので、画素の1%までの違いは同じとみなします（`test/golden/flutter_test_config.dart`）。
 
+## ストアに公開する準備
+
+| 項目 | 内容 |
+|---|---|
+| アプリの ID | `app.naashi.mahjong`（Android の applicationId・namespace、iOS の Bundle ID）。ストアに公開すると変えられない |
+| 権限 | 正式版の Android アプリはインターネットの権限を持たない（このアプリは通信しない）。開発用の debug / profile だけが持つ |
+| アイコン・起動画面 | `tools/app_icon/make_icons.py` で作ったオリジナルのアイコン（緑の卓に牌1枚）。Android（従来・アダプティブ）・iOS・Web・ストア用（`store/icon-512.png`）。起動画面はテーマの緑 |
+| プライバシーポリシー | アプリ内（「ライセンス・データの出典」画面のいちばん上）と、Web 版と一緒に公開するページ `https://nkoki.github.io/mahjong/privacy.html`（ストアに登録する URL）。内容は `lib/features/about/privacy_policy.dart` と `web/privacy.html` の両方にあり、テストでそろっているかを確かめる |
+| 署名（Android） | `android/key.properties` があれば、その鍵で正式版に署名する。無ければデバッグ用の鍵で署名する（自分の端末で試す用。ストアには出せない） |
+
+### Android の署名の鍵を作る
+
+鍵（`.jks`）と `key.properties` はリポジトリに入れません（`android/.gitignore` で除外済み）。**鍵とパスワードを失くすとアプリを更新できなくなる**ので、安全な場所に保管してください。
+
+```bash
+keytool -genkey -v -keystore ~/mahjong-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+`android/key.properties` を作り、次のように書きます。
+
+```properties
+storePassword=（鍵を作るときに決めたパスワード）
+keyPassword=（同上）
+keyAlias=upload
+storeFile=/home/あなた/mahjong-upload.jks
+```
+
+```bash
+flutter build appbundle   # Google Play に出すファイル（build/app/outputs/bundle/release/app-release.aab）
+```
+
+### アイコンを作り直す
+
+```bash
+pip install pillow
+python tools/app_icon/make_icons.py
+```
+
+### 公開の前に残っていること
+
+- Google Play: デベロッパーアカウントの登録、ストアの説明文・スクリーンショット、「データ セーフティ」の回答（このアプリは情報を集めない・送らない）、コンテンツのレーティング
+- App Store: Apple Developer Program への登録（Mac と Xcode が必要）、説明文・スクリーンショット、「App のプライバシー」の回答（データの収集なし）
+- バージョン番号は `pubspec.yaml` の `version`（今は 1.0.0+1）。ストアに出すたびに `+` のあとの数字を増やす
+- Android の正式版のビルドと署名の設定は、Android SDK の無い環境で作ったため、まだ実際にビルドして確かめていない
+
 ## Web 版の公開（GitHub Pages）
 
 `main` に push すると、GitHub Actions（GitHub が自動で処理を実行する仕組み）が `.github/workflows/deploy-pages.yml` に沿って、

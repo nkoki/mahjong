@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- カメラ認識（Qwen API）との通信に必要 -->
-    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- インターネットの権限は付けない（このアプリは通信しない。写真も端末の外に送らない）。
+         開発中の hot reload 用の権限は debug / profile の AndroidManifest.xml にある -->
     <application
         android:label="麻雀点数計算"
         android:name="${applicationName}"
