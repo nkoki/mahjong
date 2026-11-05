@@ -190,7 +190,7 @@ void main() {
       expect(find.byKey(const ValueKey('palette-9m')), findsOneWidget);
       expect(find.text('北 家'), findsNothing);
 
-      await tester.tap(find.text('南 B'));
+      await tester.tap(find.text('南 B').first);
       await tester.tap(find.text('ツモ'));
       await tester.pump();
       for (final t in pinfu) {

@@ -11,6 +11,32 @@ final sessionRepositoryProvider = Provider<SessionRepository>(
   (ref) => InMemorySessionRepository(),
 );
 
+/// 表示などの設定（1つの値）。端末に保存し、次に起動したときも同じにする
+class PreferenceNotifier extends FamilyNotifier<String?, String> {
+  @override
+  String? build(String key) => ref.read(sessionRepositoryProvider).loadPreference(key);
+
+  void set(String value) {
+    if (state == value) return;
+    state = value;
+    ref.read(sessionRepositoryProvider).savePreference(arg, value).catchError((Object e) {
+      debugPrint('設定（$arg）を保存できませんでした: $e');
+    });
+  }
+}
+
+/// 表示などの設定。キーは [PreferenceKeys] を使う
+final preferenceProvider =
+    NotifierProvider.family<PreferenceNotifier, String?, String>(PreferenceNotifier.new);
+
+/// 表示などの設定の名前
+class PreferenceKeys {
+  PreferenceKeys._();
+
+  /// 和了入力の入力方法（'hand' | 'hanfu'）
+  static const winInputMode = 'win_input_mode';
+}
+
 /// 全対局の一覧（変更のたびに端末へ自動保存）
 final sessionsProvider =
     NotifierProvider<SessionsNotifier, List<GameSession>>(SessionsNotifier.new);

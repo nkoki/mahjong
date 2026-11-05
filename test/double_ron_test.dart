@@ -102,9 +102,9 @@ void main() {
     }
 
     // 1人目: B（南家）が C からロン
-    await tester.tap(find.text('南 B'));
+    await tester.tap(find.text('南 B').first);
     await tester.pump();
-    await tester.tap(find.widgetWithText(ChoiceChip, 'C'));
+    await tester.tap(find.widgetWithText(ChoiceChip, '西 C').last);
     await tester.pump();
     for (final t in pinfuHand) {
       await tapTile(t);

@@ -48,6 +48,12 @@ abstract class SessionRepository {
 
   /// 新しい対局に使うルールを保存する（人数は [GameSettings.playerCount] で判断）
   Future<void> saveDefaultSettings(GameSettings settings);
+
+  /// 表示などの設定（入力方法・画面の明るさ・文字の大きさなど）。無ければ null
+  String? loadPreference(String key);
+
+  /// 表示などの設定を保存する
+  Future<void> savePreference(String key, String value);
 }
 
 /// ブラウザ（Web 版）の保存容量の上限の目安。多くのブラウザで 1サイトあたり約5MB
@@ -89,6 +95,16 @@ class SharedPrefsSessionRepository implements SessionRepository {
 
   /// 最後にバックアップを書き出した日時のキー
   static const lastBackupKey = 'mahjong_last_backup_at';
+
+  /// 表示などの設定のキーの先頭部分（後ろに設定の名前が付く）
+  static const preferenceKeyPrefix = 'mahjong_pref_';
+
+  @override
+  String? loadPreference(String key) => prefs.getString('$preferenceKeyPrefix$key');
+
+  @override
+  Future<void> savePreference(String key, String value) =>
+      prefs.setString('$preferenceKeyPrefix$key', value);
 
   @override
   DateTime? get lastBackupAt {
@@ -365,4 +381,13 @@ class InMemorySessionRepository implements SessionRepository {
       defaultSettings = settings;
     }
   }
+
+  /// 表示などの設定
+  final Map<String, String> preferences = {};
+
+  @override
+  String? loadPreference(String key) => preferences[key];
+
+  @override
+  Future<void> savePreference(String key, String value) async => preferences[key] = value;
 }

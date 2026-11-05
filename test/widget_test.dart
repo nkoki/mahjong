@@ -45,7 +45,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 和了者: 東 プレイヤー1（親）・ツモ
-    await tester.tap(find.text('東 プレイヤー1'));
+    await tester.tap(find.text('東 プレイヤー1').first);
     await tester.tap(find.text('ツモ'));
     await tester.pump();
 

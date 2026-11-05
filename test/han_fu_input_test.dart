@@ -96,8 +96,8 @@ void main() {
 
     testWidgets('翻・符を選んで計算し、確定できる', (tester) async {
       final c = await pump(tester, newGame().copyWith(honba: 1));
-      await tap(tester, find.text('南 B'));
-      await tap(tester, find.widgetWithText(ChoiceChip, 'C'));
+      await tap(tester, find.text('南 B').first);
+      await tap(tester, find.widgetWithText(ChoiceChip, '西 C').last);
       await tap(tester, find.text('翻・符で入力'));
       // 手牌の欄と牌パレットは出ない
       expect(find.textContaining('手牌（'), findsNothing);
@@ -121,6 +121,34 @@ void main() {
       expect(s.records.single.description, contains('翻・符で入力'));
     });
 
+    testWidgets('選んだ入力方法を覚えていて、次に開いたときも同じになる', (tester) async {
+      final repo = InMemorySessionRepository([newGame()]);
+      Future<void> open() async {
+        await tester.binding.setSurfaceSize(const Size(420, 2000));
+        await tester.pumpWidget(ProviderScope(
+          key: UniqueKey(),
+          overrides: [sessionRepositoryProvider.overrideWithValue(repo)],
+          child: const MaterialApp(home: WinInputScreen(sessionId: 'x')),
+        ));
+      }
+
+      await open();
+      expect(find.textContaining('手牌（'), findsOneWidget, reason: '最初は手牌で入力');
+      await tap(tester, find.text('翻・符で入力'));
+      expect(repo.preferences['win_input_mode'], 'hanfu');
+      // アプリを開き直しても翻・符で入力のまま
+      await open();
+      expect(find.textContaining('手牌（'), findsNothing);
+      expect(find.text('翻数と符を選んでください'), findsOneWidget);
+    });
+
+    testWidgets('放銃者のボタンにも風が付く', (tester) async {
+      await pump(tester, newGame());
+      await tap(tester, find.text('南 B').first);
+      expect(find.widgetWithText(ChoiceChip, '西 C'), findsNWidgets(2), reason: '和了者と放銃者の両方');
+      expect(find.widgetWithText(ChoiceChip, '南 B'), findsOneWidget, reason: '和了者は放銃者に出ない');
+    });
+
     testWidgets('ロンでは20符を選べず、5翻以上は符を選ばない', (tester) async {
       await pump(tester, newGame());
       await tap(tester, find.text('翻・符で入力'));
@@ -138,7 +166,7 @@ void main() {
 
     testWidgets('親のツモは「オール」で見込みを表示し、選び忘れを知らせる', (tester) async {
       await pump(tester, newGame());
-      await tap(tester, find.text('東 A'));
+      await tap(tester, find.text('東 A').first);
       await tap(tester, find.text('ツモ'));
       await tap(tester, find.text('翻・符で入力'));
       await tap(tester, find.widgetWithText(ChoiceChip, '3翻'));

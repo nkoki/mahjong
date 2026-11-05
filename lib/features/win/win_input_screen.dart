@@ -56,6 +56,8 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
   @override
   void initState() {
     super.initState();
+    // 前回選んだ入力方法（手牌／翻・符）にする
+    _quick = ref.read(preferenceProvider(PreferenceKeys.winInputMode)) == 'hanfu';
     if (widget.isAdditionalRon) {
       // 同じ捨て牌へのロンなので、放銃者・和了牌・ドラ表示牌は1人目と同じ
       // （1人目を翻・符で入力したときは和了牌・ドラ表示牌が無いので、放銃者だけ同じ）
@@ -489,7 +491,8 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                         for (var p = 0; p < s.playerCount; p++)
                           if (p != _winner)
                             ChoiceChip(
-                              label: Text(s.playerNames[p]),
+                              label: Text(
+                                  '${GameSession.windNames[s.seatWindIndexOf(p)]} ${s.playerNames[p]}'),
                               selected: _loser == p,
                               onSelected: (_) => setState(() => _loser = p),
                             ),
@@ -503,7 +506,12 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                       ButtonSegment(value: true, label: Text('翻・符で入力'), icon: Icon(Icons.calculate_outlined)),
                     ],
                     selected: {_quick},
-                    onSelectionChanged: (v) => setState(() => _quick = v.first),
+                    onSelectionChanged: (v) {
+                      setState(() => _quick = v.first);
+                      ref
+                          .read(preferenceProvider(PreferenceKeys.winInputMode).notifier)
+                          .set(v.first ? 'hanfu' : 'hand');
+                    },
                   ),
                   if (_quick) ..._quickSection(theme, s) else ...[
                   _section(theme, '手牌（${_hand.length}/$_needHand枚・タップで削除）'),
