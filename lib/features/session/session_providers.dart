@@ -163,6 +163,18 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
           (s) => SessionLogic.editRound(s, index,
               deltas: deltas, description: description, who: who));
 
+  void deleteRound(String id, int index) => _update(id, (s) => SessionLogic.deleteRound(s, index));
+
+  void insertRound(String id, int index,
+          {required String roundLabel, required List<int> deltas, List<int>? winners, int? loser, String description = ''}) =>
+      _update(
+          id,
+          (s) => SessionLogic.insertRound(s, index,
+              roundLabel: roundLabel, deltas: deltas, winners: winners, loser: loser, description: description));
+
+  void adjustProgress(String id, {required int roundIndex, required int honba, required int riichiSticks}) => _update(
+      id, (s) => SessionLogic.adjustProgress(s, roundIndex: roundIndex, honba: honba, riichiSticks: riichiSticks));
+
   void updateUma(String id, List<int> uma) =>
       _update(id, (s) => SessionLogic.updateUma(s, uma));
 

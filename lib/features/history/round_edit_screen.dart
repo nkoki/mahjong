@@ -241,6 +241,45 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
                   : null,
               child: const Text('修正を保存'),
             ),
+            const SizedBox(height: 32),
+            const Divider(),
+            Text('この局を削除', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              '二重に入れた局などを消します。この局の点数の増減を取り消し、後の局の点数と今の点数をずらします'
+              '（この局で場に出た立直棒は持ち主に戻ります）。今の局・本場は変わらないので、'
+              'ずれたときは対局画面のメニュー「局・本場・供託を直す」で直してください。',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const ValueKey('delete-round'),
+              style: OutlinedButton.styleFrom(foregroundColor: theme.colorScheme.error),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('この局を削除'),
+              onPressed: () async {
+                final why = SessionLogic.validateDeleteRound(s, widget.index);
+                if (why != null) {
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(SnackBar(content: Text(why)));
+                  return;
+                }
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    content: Text('${record.roundLabel}（${record.description}）を削除しますか？'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
+                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('削除')),
+                    ],
+                  ),
+                );
+                if (ok != true || !context.mounted) return;
+                ref.read(sessionsProvider.notifier).deleteRound(widget.sessionId, widget.index);
+                Navigator.pop(context, 'deleted');
+              },
+            ),
           ],
         ),
       ),

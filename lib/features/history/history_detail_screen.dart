@@ -7,6 +7,7 @@ import '../session/domain/models.dart';
 import '../session/session_providers.dart';
 import 'result_text.dart';
 import 'round_edit_screen.dart';
+import 'round_insert_screen.dart';
 import 'score_chart.dart';
 
 /// 戦績詳細（順位・ポイント・局ごとの記録）
@@ -140,7 +141,7 @@ class HistoryDetailScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Text(
-                '下の一覧の局をタップすると、その局の点数の増減を修正できます'
+                '下の一覧の局をタップすると、その局の点数の増減を修正・削除できます'
                 '${s.records.any((r) => r.edited) ? "（* は修正済みの局）" : ""}。',
                 style: theme.textTheme.bodySmall,
               ),
@@ -150,6 +151,19 @@ class HistoryDetailScreen extends ConsumerWidget {
               padding: EdgeInsets.all(16),
               child: Text('まだ記録がありません'),
             ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const ValueKey('insert-round'),
+              icon: const Icon(Icons.playlist_add),
+              label: const Text('入れ忘れた局を追加'),
+              onPressed: () async {
+                final r = await Navigator.of(context).push<Object>(
+                    MaterialPageRoute(builder: (_) => RoundInsertScreen(sessionId: sessionId)));
+                if (context.mounted) _showUndo(context, sessionId, r);
+              },
+            ),
+          ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
@@ -236,7 +250,7 @@ class _UmaDialogState extends State<_UmaDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final error = validateUma(_uma);
+    final error = validateUma(_uma, playerCount: widget.initial.length);
     return AlertDialog(
       title: const Text('ウマを変更'),
       content: SizedBox(
@@ -273,15 +287,26 @@ class _UmaDialogState extends State<_UmaDialog> {
 }
 
 Future<void> _openEdit(BuildContext context, String sessionId, int index) async {
-  final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(
+  final saved = await Navigator.of(context).push<Object>(MaterialPageRoute(
     builder: (_) => RoundEditScreen(sessionId: sessionId, index: index),
   ));
-  if (saved == true && context.mounted) {
+  if (context.mounted) _showUndo(context, sessionId, saved);
+}
+
+/// 局の修正・削除・追加のあとに「元に戻す」を出す（[result] が true: 修正、'deleted': 削除、'inserted': 追加）
+void _showUndo(BuildContext context, String sessionId, Object? result) {
+  final message = switch (result) {
+    true => '局を修正しました',
+    'deleted' => '局を削除しました',
+    'inserted' => '局を追加しました',
+    _ => null,
+  };
+  if (message != null) {
     final container = ProviderScope.containerOf(context, listen: false);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        content: const Text('局を修正しました'),
+        content: Text(message),
         duration: const Duration(seconds: 8),
         action: SnackBarAction(
           label: '元に戻す',

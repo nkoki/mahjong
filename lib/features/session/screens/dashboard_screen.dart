@@ -59,6 +59,11 @@ class DashboardScreen extends ConsumerWidget {
               } else if (v == 'chombo') {
                 final p = await _chooseChombo(context, s);
                 if (p != null) notifier.applyChombo(sessionId, p);
+              } else if (v == 'progress') {
+                final r = await showDialog<(int, int, int)>(context: context, builder: (_) => _ProgressDialog(session: s));
+                if (r != null) {
+                  notifier.adjustProgress(sessionId, roundIndex: r.$1, honba: r.$2, riichiSticks: r.$3);
+                }
               } else if (v == 'awake') {
                 ref.read(preferenceProvider(PreferenceKeys.keepScreenOn).notifier).set(awake ? '0' : '1');
               } else if (v == 'finish') {
@@ -70,6 +75,7 @@ class DashboardScreen extends ConsumerWidget {
               const PopupMenuItem(value: 'history', child: Text('局の履歴')),
               const PopupMenuItem(value: 'table', child: Text('卓に置いて表示（全員の向きで点数を表示）')),
               if (!s.finished) const PopupMenuItem(value: 'chombo', child: Text('チョンボ（錯和）を入力')),
+              if (!s.finished) const PopupMenuItem(value: 'progress', child: Text('局・本場・供託を直す')),
               CheckedPopupMenuItem(value: 'awake', checked: awake, child: const Text('対局中は画面を消さない')),
               if (!s.finished)
                 const PopupMenuItem(value: 'finish', child: Text('対局を終了')),
@@ -177,6 +183,88 @@ Future<int?> _chooseChombo(BuildContext context, GameSession s) async {
       },
     ),
   );
+}
+
+/// 今の局・本場・供託を直すダイアログ（局の通し番号・本場・供託を返す）
+class _ProgressDialog extends StatefulWidget {
+  final GameSession session;
+  const _ProgressDialog({required this.session});
+
+  @override
+  State<_ProgressDialog> createState() => _ProgressDialogState();
+}
+
+class _ProgressDialogState extends State<_ProgressDialog> {
+  late int _round = widget.session.roundIndex;
+  late int _honba = widget.session.honba;
+  late int _sticks = widget.session.riichiSticks;
+
+  Widget _counter(String label, int value, ValueChanged<int> onChanged, String key) => Row(
+        children: [
+          Expanded(child: Text(label)),
+          IconButton(
+            key: ValueKey('$key-minus'),
+            icon: const Icon(Icons.remove_circle_outline),
+            onPressed: value > 0 ? () => onChanged(value - 1) : null,
+          ),
+          SizedBox(width: 32, child: Text('$value', textAlign: TextAlign.center, key: ValueKey('$key-value'))),
+          IconButton(
+            key: ValueKey('$key-plus'),
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: value < 99 ? () => onChanged(value + 1) : null,
+          ),
+        ],
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.session;
+    final max = SessionLogic.maxRoundIndex(s.settings);
+    return AlertDialog(
+      title: const Text('局・本場・供託を直す'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('数え間違いや、局の削除・追加でずれたときに直します。点数は変わりません。'
+                '供託を増やすと、その分の点数は場に出たまま（誰からも引かれない）になります。',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Expanded(child: Text('局')),
+                DropdownButton<int>(
+                  key: const ValueKey('progress-round'),
+                  value: _round,
+                  items: [
+                    for (var i = 0; i <= max; i++)
+                      DropdownMenuItem(
+                        value: i,
+                        child: Text('${s.copyWith(roundIndex: i).roundName}'
+                            '（親: ${s.playerNames[i % s.playerCount]}）'),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _round = v!),
+                ),
+              ],
+            ),
+            _counter('本場', _honba, (v) => setState(() => _honba = v), 'progress-honba'),
+            _counter('供託（立直棒）', _sticks, (v) => setState(() => _sticks = v), 'progress-sticks'),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        FilledButton(
+          onPressed: _round == s.roundIndex && _honba == s.honba && _sticks == s.riichiSticks
+              ? null
+              : () => Navigator.pop(context, (_round, _honba, _sticks)),
+          child: const Text('直す'),
+        ),
+      ],
+    );
+  }
 }
 
 Future<bool> _confirm(BuildContext context, String message) async {

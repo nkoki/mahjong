@@ -548,6 +548,139 @@ class SessionLogic {
     );
   }
 
+  // ---- 局の削除・追加（局の進行は変えず、点数だけ動かす）----
+
+  /// 局の記録を差し替え、[from] 番目以降の局の点数と今の点数を [diff] だけずらす。
+  /// [stickChange] は供託の本数の増減（終局していれば、トップに渡した供託を付け替える）。
+  /// 供託がマイナスになるなら null
+  static GameSession? _shiftRecords(
+    GameSession s,
+    List<RoundRecord> records,
+    int from,
+    List<int> diff,
+    int stickChange,
+  ) {
+    final n = s.playerCount;
+    List<int> add(List<int> a) => List.unmodifiable([for (var i = 0; i < n; i++) a[i] + diff[i]]);
+    final shifted = [
+      for (var j = 0; j < records.length; j++)
+        j < from ? records[j] : records[j].copyWith(scoresAfter: add(records[j].scoresAfter)),
+    ];
+    if (s.finished) {
+      final pot = s.settledSticks + stickChange;
+      if (pot < 0) return null;
+      final base = List<int>.from(s.scores);
+      base[s.ranking.first] -= s.settledSticks * 1000;
+      final scores = add(base).toList();
+      scores[GameSession.rankingOf(scores).first] += pot * 1000;
+      return s.copyWith(
+        records: List.unmodifiable(shifted),
+        scores: List.unmodifiable(scores),
+        roundStartScores: add(s.roundStartScores),
+        settledSticks: pot,
+        previous: s,
+      );
+    }
+    final sticks = s.riichiSticks + stickChange;
+    if (sticks < 0) return null;
+    return s.copyWith(
+      records: List.unmodifiable(shifted),
+      scores: add(s.scores),
+      roundStartScores: add(s.roundStartScores),
+      riichiSticks: sticks,
+      previous: s,
+    );
+  }
+
+  /// 局の削除のチェック（問題なければ null）
+  static String? validateDeleteRound(GameSession s, int index) {
+    if (index < 0 || index >= s.records.length) return '削除する局が見つかりません';
+    if (_deleteRound(s, index) == null) {
+      return 'この局で場に出た立直棒を、後の局で和了した人が受け取っているため削除できません。'
+          '先に後の局の点数を直してください';
+    }
+    return null;
+  }
+
+  /// 局の記録を削除する（二重に入れた局など）。
+  ///
+  /// その局の点数の増減を取り消し、後の局の点数と今の点数をずらす。
+  /// その局で場に出た立直棒は持ち主に戻し（供託から減らし）、その局で受け取った供託は場に戻す。
+  /// 局の進行（今の局・本場）は変えないので、ずれたときは「局・本場・供託の修正」で直す。
+  static GameSession deleteRound(GameSession s, int index) {
+    final e = validateDeleteRound(s, index);
+    if (e != null) throw ArgumentError(e);
+    return _deleteRound(s, index)!;
+  }
+
+  static GameSession? _deleteRound(GameSession s, int index) {
+    final old = s.records[index];
+    final sum = old.deltas.fold<int>(0, (a, d) => a + d);
+    final records = [...s.records]..removeAt(index);
+    return _shiftRecords(s, records, index, [for (final d in old.deltas) -d], sum ~/ 1000);
+  }
+
+  /// 局の追加のチェック（問題なければ null）。[winners] が null なら流局
+  static String? validateInsertRound(GameSession s, int index, List<int?> deltas,
+      {List<int>? winners, int? loser}) {
+    if (index < 0 || index > s.records.length) return '追加する場所が正しくありません';
+    if (deltas.length != s.playerCount || deltas.any((d) => d == null)) {
+      return '${s.playerCount}人すべての増減を入力してください（動かない人は0）';
+    }
+    if (deltas.any((d) => d! % 100 != 0)) return '100点単位で入力してください';
+    final sum = deltas.fold<int>(0, (a, d) => a + d!);
+    if (sum != 0) return '${s.playerCount}人の合計を0にしてください（今の合計: ${_signed(sum)}）';
+    if (deltas.every((d) => d == 0)) return '点数の増減を入力してください';
+    if (winners != null) return validateWinners(s, winners, loser);
+    return null;
+  }
+
+  /// 入れ忘れた局を [index] 番目に追加する（[index] が局の数なら最後）。
+  ///
+  /// 点数の増減の合計は0（立直棒の出入りは含めない）。後の局の点数と今の点数をずらす。
+  /// 局の進行（今の局・本場）は変えないので、ずれたときは「局・本場・供託の修正」で直す。
+  static GameSession insertRound(
+    GameSession s,
+    int index, {
+    required String roundLabel,
+    required List<int> deltas,
+    List<int>? winners,
+    int? loser,
+    String description = '',
+  }) {
+    final e = validateInsertRound(s, index, deltas, winners: winners, loser: loser);
+    if (e != null) throw ArgumentError(e);
+    final n = s.playerCount;
+    final before = index == 0 ? List.filled(n, s.settings.startingPoints) : s.records[index - 1].scoresAfter;
+    final record = RoundRecord(
+      roundLabel: roundLabel.trim().isEmpty ? '追加した局' : roundLabel.trim(),
+      kind: winners == null ? 'draw' : 'win',
+      description: description.trim().isEmpty ? '後から追加した局' : description.trim(),
+      deltas: List.unmodifiable(deltas),
+      scoresAfter: List.unmodifiable([for (var i = 0; i < n; i++) before[i] + deltas[i]]),
+      edited: true,
+      winners: List.unmodifiable(winners ?? const <int>[]),
+      loser: winners == null ? null : loser,
+      riichi: const [],
+    );
+    final records = [...s.records]..insert(index, record);
+    return _shiftRecords(s, records, index + 1, deltas, 0)!;
+  }
+
+  // ---- 局・本場・供託の修正 ----
+
+  /// 局の通し番号として選べる最後の番号（西入ありなら延長の4局目まで）
+  static int maxRoundIndex(GameSettings rules) =>
+      (rules.westRound ? rules.totalRounds + rules.playerCount : rules.totalRounds) - 1;
+
+  /// 今の局・本場・供託を直す（数え間違いなど）。点数は変えない。元に戻すで戻せる
+  static GameSession adjustProgress(GameSession s, {required int roundIndex, required int honba, required int riichiSticks}) {
+    if (s.finished) throw ArgumentError('終局した対局は直せません');
+    if (roundIndex < 0 || roundIndex > maxRoundIndex(s.settings)) throw ArgumentError('局が正しくありません');
+    if (honba < 0 || honba > 99 || riichiSticks < 0 || riichiSticks > 99) throw ArgumentError('0〜99で入力してください');
+    return s.copyWith(roundIndex: roundIndex, honba: honba, riichiSticks: riichiSticks, previous: s);
+  }
+
   /// 元に戻す（お気に入り・ウマは対局の進行とは別に変えられるので、今の設定を残す）
   static GameSession undo(GameSession s) =>
       s.previous?.copyWith(favorite: s.favorite, settings: s.settings, playerNames: s.playerNames) ?? s;
