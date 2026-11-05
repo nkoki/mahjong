@@ -50,7 +50,10 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     try {
       final ok = await ref
           .read(backupFileServiceProvider)
-          .save(BackupCodec.fileName(now), BackupCodec.encode(sessions, now: now));
+          .save(
+              BackupCodec.fileName(now),
+              BackupCodec.encode(sessions,
+                  defaultSettings: ref.read(defaultSettingsProvider), now: now));
       if (!ok) return;
       await _recordBackup();
       _snack('${sessions.length}件の対局をバックアップしました');
@@ -63,7 +66,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   Future<void> _exportText() async {
     final sessions = ref.read(sessionsProvider);
-    await Clipboard.setData(ClipboardData(text: BackupCodec.encode(sessions)));
+    await Clipboard.setData(ClipboardData(
+        text: BackupCodec.encode(sessions, defaultSettings: ref.read(defaultSettingsProvider))));
     await _recordBackup();
     _snack('${sessions.length}件の対局のバックアップをコピーしました。'
         'メモアプリなどに貼り付けて保存してください');
@@ -113,14 +117,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       return;
     }
     if (!mounted) return;
-    if (data.sessions.isEmpty) {
+    if (data.sessions.isEmpty && data.defaultSettings == null) {
       _snack('バックアップに対局がありませんでした');
       return;
     }
 
     final current = ref.read(sessionsProvider);
     final plan = BackupCodec.planMerge(current, data.sessions);
-    final mode = await showDialog<String>(
+    final choice = await showDialog<_ImportChoice>(
       context: context,
       builder: (ctx) => _ImportDialog(
         data: data,
@@ -128,7 +132,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         plan: plan,
       ),
     );
-    if (mode == null || !mounted) return;
+    if (choice == null || !mounted) return;
+    final mode = choice.mode;
 
     if (mode == 'replace') {
       final ok = await showDialog<bool>(
@@ -136,7 +141,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         builder: (ctx) => AlertDialog(
           title: const Text('今のデータを置き換えます'),
           content: Text('今ある対局 ${current.length}件はすべて削除され、'
-              'バックアップの ${data.sessions.length}件に置き換わります。削除した対局は元に戻せません。'),
+              'バックアップの ${data.sessions.length}件に置き換わります。削除した対局は元に戻せません。'
+              '${choice.applySettings && data.defaultSettings != null ? '\nルール設定もバックアップの内容に置き換わります。' : ''}'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
             FilledButton(
@@ -153,9 +159,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final added = ref
         .read(sessionsProvider.notifier)
         .importSessions(data.sessions, replace: mode == 'replace');
+    final settingsApplied = choice.applySettings && data.defaultSettings != null;
+    if (settingsApplied) {
+      await ref.read(defaultSettingsProvider.notifier).save(data.defaultSettings!);
+    }
     final total = ref.read(sessionsProvider).length;
     final over = total > SessionLogic.maxSavedSessions;
     _snack('${mode == 'replace' ? 'バックアップの内容に置き換えました' : '$added件の対局を追加しました'}'
+        '${settingsApplied ? '。ルール設定も読み込みました' : ''}'
         '（保存中: $total件）'
         '${over ? '。${SessionLogic.maxSavedSessions}件を超えているので、次に新しい対局を始めるときに、'
             'お気に入りでない古い対局から削除されます' : ''}');
@@ -215,7 +226,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               '・ファイルに保存: スマホでは保存先（「ファイル」アプリ、Google ドライブなど）を選べます。'
               'Web 版ではダウンロードされます。\n'
               '・テキストをコピー: ファイルを扱いにくいときに。メモアプリや自分宛てのメッセージに貼り付けて保存します。\n'
-              '・すべての対局（お気に入り、ルール、局の記録、「元に戻す」の履歴10回分）が入ります。'
+              '・すべての対局（お気に入り、ルール、局の記録、「元に戻す」の履歴10回分）と、ルール設定画面の内容が入ります。'
               'プレイヤーの名前も入るので、他の人に渡すときは注意してください。',
               style: theme.textTheme.bodySmall,
             ),
@@ -246,8 +257,19 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   }
 }
 
+/// 読み込み方法の選択結果
+class _ImportChoice {
+  /// 'merge'（今のデータに追加） | 'replace'（すべて置き換え）
+  final String mode;
+
+  /// ルール設定も読み込むか
+  final bool applySettings;
+
+  const _ImportChoice(this.mode, this.applySettings);
+}
+
 /// 読み込み方法の選択
-class _ImportDialog extends StatelessWidget {
+class _ImportDialog extends StatefulWidget {
   final BackupData data;
   final int currentCount;
   final MergePlan plan;
@@ -255,7 +277,19 @@ class _ImportDialog extends StatelessWidget {
   const _ImportDialog({required this.data, required this.currentCount, required this.plan});
 
   @override
+  State<_ImportDialog> createState() => _ImportDialogState();
+}
+
+class _ImportDialogState extends State<_ImportDialog> {
+  bool _applySettings = true;
+
+  @override
   Widget build(BuildContext context) {
+    final data = widget.data;
+    final plan = widget.plan;
+    final currentCount = widget.currentCount;
+    final hasSettings = data.defaultSettings != null;
+    final applySettings = hasSettings && _applySettings;
     final theme = Theme.of(context);
     final small = theme.textTheme.bodySmall;
     return AlertDialog(
@@ -279,6 +313,24 @@ class _ImportDialog extends StatelessWidget {
             const SizedBox(height: 8),
             Text('すべて置き換え', style: theme.textTheme.titleSmall),
             Text('今の対局をすべて削除して、バックアップの内容だけにします。', style: small),
+            if (hasSettings) ...[
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('ルール設定も読み込む'),
+                subtitle: Text(
+                    'この端末のルール設定を、バックアップの内容（${data.defaultSettings!.ruleSummary.take(3).join('・')} など）に置き換えます',
+                    style: small),
+                value: _applySettings,
+                onChanged: (v) => setState(() => _applySettings = v ?? false),
+              ),
+            ] else
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text('このバックアップにはルール設定が入っていないので、今のルール設定のまま読み込みます。',
+                    style: small),
+              ),
           ],
         ),
       ),
@@ -286,11 +338,14 @@ class _ImportDialog extends StatelessWidget {
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
         TextButton(
           style: TextButton.styleFrom(foregroundColor: theme.colorScheme.error),
-          onPressed: () => Navigator.pop(context, 'replace'),
+          onPressed: () => Navigator.pop(context, _ImportChoice('replace', applySettings)),
           child: const Text('すべて置き換え'),
         ),
         FilledButton(
-          onPressed: plan.added.isEmpty ? null : () => Navigator.pop(context, 'merge'),
+          // 追加する対局がなくても、ルール設定だけ読み込むことはできる
+          onPressed: plan.added.isEmpty && !applySettings
+              ? null
+              : () => Navigator.pop(context, _ImportChoice('merge', applySettings)),
           child: const Text('追加'),
         ),
       ],

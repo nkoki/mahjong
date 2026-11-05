@@ -58,6 +58,23 @@ void main() {
       expect(s.previous, isNotNull); // 元に戻すの履歴も入っている
     });
 
+    test('ルール設定も書き出して読み込める。入っていない・壊れている場合は null', () {
+      const rules = GameSettings(kuitan: false, doubleRon: false, startingPoints: 30000);
+      final data = BackupCodec.decode(BackupCodec.encode([game('1')], defaultSettings: rules));
+      expect(data.defaultSettings!.kuitan, isFalse);
+      expect(data.defaultSettings!.doubleRon, isFalse);
+      expect(data.defaultSettings!.startingPoints, 30000);
+
+      expect(BackupCodec.decode(BackupCodec.encode([game('1')])).defaultSettings, isNull);
+
+      final broken = jsonDecode(BackupCodec.encode([game('1')], defaultSettings: rules))
+          as Map<String, dynamic>
+        ..['defaultSettings'] = {'startingPoints': '壊れた値'};
+      final b = BackupCodec.decode(jsonEncode(broken));
+      expect(b.defaultSettings, isNull);
+      expect(b.sessions, hasLength(1)); // 対局は読み込める
+    });
+
     test('このアプリのバックアップでないものは読み込まない', () {
       expect(() => BackupCodec.decode('こんにちは'), throwsA(isA<BackupFormatException>()));
       expect(() => BackupCodec.decode('{"app":"other","kind":"backup","version":3,"sessions":[]}'),
@@ -205,6 +222,56 @@ void main() {
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
       expect(c.read(sessionsProvider), hasLength(2));
+    });
+
+    testWidgets('書き出したファイルにルール設定も入る', (tester) async {
+      repo.defaultSettings = const GameSettings(kuitan: false);
+      await pump(tester);
+      await tester.tap(find.text('ファイルに保存'));
+      await tester.pumpAndSettle();
+      expect(BackupCodec.decode(files.saved!).defaultSettings!.kuitan, isFalse);
+    });
+
+    testWidgets('「ルール設定も読み込む」にチェックがあればルール設定も変わる', (tester) async {
+      files.toPick = BackupCodec.encode([game('1')], // すでにある対局だけ
+          defaultSettings: const GameSettings(kuitan: false, tonpuu: true));
+      final c = await pump(tester);
+      await tester.tap(find.text('ファイルから読み込む'));
+      await tester.pumpAndSettle();
+      expect(find.text('ルール設定も読み込む'), findsOneWidget);
+      // 追加する対局がなくても、ルール設定だけ読み込める
+      await tester.tap(find.widgetWithText(FilledButton, '追加'));
+      await tester.pumpAndSettle();
+      expect(c.read(defaultSettingsProvider).kuitan, isFalse);
+      expect(c.read(defaultSettingsProvider).tonpuu, isTrue);
+      expect(repo.defaultSettings!.kuitan, isFalse); // 端末にも保存される
+      expect(find.textContaining('ルール設定も読み込みました'), findsOneWidget);
+    });
+
+    testWidgets('チェックを外すと今のルール設定のまま', (tester) async {
+      files.toPick = BackupCodec.encode([game('3', day: 3)],
+          defaultSettings: const GameSettings(kuitan: false));
+      final c = await pump(tester);
+      await tester.tap(find.text('ファイルから読み込む'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ルール設定も読み込む'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, '追加'));
+      await tester.pumpAndSettle();
+      expect(c.read(sessionsProvider), hasLength(3));
+      expect(c.read(defaultSettingsProvider).kuitan, isTrue);
+    });
+
+    testWidgets('ルール設定の入っていない以前のバックアップは、そのことを表示して対局だけ読み込む', (tester) async {
+      files.toPick = BackupCodec.encode([game('3', day: 3)]);
+      final c = await pump(tester);
+      await tester.tap(find.text('ファイルから読み込む'));
+      await tester.pumpAndSettle();
+      expect(find.text('ルール設定も読み込む'), findsNothing);
+      expect(find.textContaining('ルール設定が入っていない'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, '追加'));
+      await tester.pumpAndSettle();
+      expect(c.read(sessionsProvider), hasLength(3));
     });
 
     testWidgets('テキストを貼り付けて読み込める', (tester) async {

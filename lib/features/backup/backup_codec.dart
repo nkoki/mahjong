@@ -21,7 +21,15 @@ class BackupData {
   /// 壊れていて読み込めなかった対局の数
   final int skipped;
 
-  const BackupData({required this.exportedAt, required this.sessions, this.skipped = 0});
+  /// ルール設定画面の内容（ルール設定を入れる前のバックアップ・壊れている場合は null）
+  final GameSettings? defaultSettings;
+
+  const BackupData({
+    required this.exportedAt,
+    required this.sessions,
+    this.skipped = 0,
+    this.defaultSettings,
+  });
 }
 
 /// 今のデータに「追加」で読み込んだときの見込み
@@ -43,12 +51,15 @@ class BackupCodec {
   static const appId = 'mahjong_score_app';
   static const kind = 'backup';
 
-  /// 全対局をバックアップ用の文字列にする
-  static String encode(List<GameSession> sessions, {DateTime? now}) => jsonEncode({
+  /// 全対局（とルール設定画面の内容）をバックアップ用の文字列にする
+  static String encode(List<GameSession> sessions,
+          {GameSettings? defaultSettings, DateTime? now}) =>
+      jsonEncode({
         'app': appId,
         'kind': kind,
         'version': SharedPrefsSessionRepository.formatVersion,
         'exportedAt': (now ?? DateTime.now()).toIso8601String(),
+        if (defaultSettings != null) 'defaultSettings': defaultSettings.toJson(),
         'sessions': [for (final s in sessions) s.toJson()],
       });
 
@@ -88,7 +99,21 @@ class BackupCodec {
       }
     }
     final exportedAt = DateTime.tryParse(data['exportedAt'] as String? ?? '');
-    return BackupData(exportedAt: exportedAt, sessions: sessions, skipped: skipped);
+    GameSettings? defaultSettings;
+    final ds = data['defaultSettings'];
+    if (ds is Map<String, dynamic>) {
+      try {
+        defaultSettings = GameSettings.fromJson(ds);
+      } catch (_) {
+        // ルール設定だけ壊れている場合は、対局だけ読み込む（今のルール設定は変えない）
+      }
+    }
+    return BackupData(
+      exportedAt: exportedAt,
+      sessions: sessions,
+      skipped: skipped,
+      defaultSettings: defaultSettings,
+    );
   }
 
   /// 今のデータに追加したときの見込み（同じ対局は今のデータを残す）
