@@ -21,6 +21,19 @@ cd packages/mahjong_score_engine
 dart test               # 点数計算エンジンのテスト
 ```
 
+### 画面の見た目のテスト（ゴールデンテスト）
+
+`test/golden/` は、主な画面（ホーム・対局画面（明るい／暗い）・和了入力・計算結果・戦績詳細・個人成績・卓に置く表示）の画像を
+`test/golden/goldens/` に保存しておき、`flutter test` のたびに今の画面と比べるテストです。画面を変えると失敗するので、
+意図した変更なら次のコマンドで画像を作り直し、作り直した画像を目で確かめてからコミットしてください。
+
+```bash
+flutter test --update-goldens test/golden
+```
+
+- テストでは文字が四角で描かれます（Flutter のテスト用のフォント）。配置・色・大きさの変化を見るためのものです。
+- Flutter の版が変わると描き方がわずかに変わることがあるので、画素の1%までの違いは同じとみなします（`test/golden/flutter_test_config.dart`）。
+
 ## Web 版の公開（GitHub Pages）
 
 `main` に push すると、GitHub Actions（GitHub が自動で処理を実行する仕組み）が `.github/workflows/deploy-pages.yml` に沿って、
