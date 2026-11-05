@@ -6,6 +6,7 @@ import '../../../core/theme.dart';
 import '../../../shared/widgets/rule_inputs.dart';
 import '../domain/models.dart';
 import '../domain/session_logic.dart';
+import '../../settings/rule_presets.dart';
 import '../../settings/rule_settings_screen.dart';
 import '../session_providers.dart';
 
@@ -42,12 +43,27 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
 
   /// 人数に合ったルール設定を読み込み、持ち点などを初期値に戻す
   void _loadDefaults() {
+    _preset = null;
     _defaults = ref.read(defaultSettingsProviderFor(_playerCount));
     _tonpuu = _defaults.tonpuu;
     _tobi = _defaults.tobi;
     _starting = _defaults.startingPoints;
     _return = _defaults.returnPoints;
     _uma = List.of(_defaults.uma);
+    _formKey++;
+  }
+
+  /// 選んだルールのセットの名前（選んでいなければ null）
+  String? _preset;
+
+  void _applyPreset(RulePreset p) {
+    _defaults = p.settings;
+    _tonpuu = p.settings.tonpuu;
+    _tobi = p.settings.tobi;
+    _starting = p.settings.startingPoints;
+    _return = p.settings.returnPoints;
+    _uma = List.of(p.settings.uma);
+    _preset = p.name;
     _formKey++;
   }
 
@@ -269,6 +285,28 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           const SizedBox(height: 16),
           Text('ルール', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
+          if (ref.watch(rulePresetsProvider).where((p) => p.playerCount == _playerCount).toList()
+              case final presets when presets.isNotEmpty) ...[
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final p in presets)
+                  ChoiceChip(
+                    key: ValueKey('new-preset-${p.name}'),
+                    avatar: const Icon(Icons.bookmark_outline, size: 18),
+                    label: Text(p.name),
+                    selected: _preset == p.name,
+                    onSelected: (_) => setState(() => _applyPreset(p)),
+                  ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Text('保存したルールのセットを選ぶと、下の持ち点・ウマなどと詳細ルールが切り替わります。',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
+          ],
           SegmentedButton<bool>(
             segments: const [
               ButtonSegment(value: false, label: Text('半荘戦')),

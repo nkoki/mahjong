@@ -47,6 +47,9 @@ class PreferenceKeys {
 
   /// 翻・符で入力した最近の手（例: "3,30,0;5,0,0"。新しい順）
   static const recentHanFu = 'recent_hanfu';
+
+  /// 名前を付けて保存したルールのセット（JSON）
+  static const rulePresets = 'rule_presets';
 }
 
 /// 全対局の一覧（変更のたびに端末へ自動保存）

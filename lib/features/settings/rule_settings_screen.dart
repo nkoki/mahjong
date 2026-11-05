@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../shared/widgets/rule_inputs.dart';
 import '../session/domain/models.dart';
 import '../session/session_providers.dart';
+import 'rule_presets.dart';
 
 /// ルール設定画面（これから始める対局に使うルール）
 ///
@@ -93,6 +94,33 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
     Navigator.of(context).pop();
   }
 
+  Future<void> _savePreset() async {
+    final name = await showDialog<String>(context: context, builder: (_) => const _PresetNameDialog());
+    if (name == null || !mounted) return;
+    final list = RulePresets.save(ref.read(rulePresetsProvider), name, _edited);
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    if (list == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('ルールのセットは${RulePresets.max}個までです。使わないセットを削除してください')));
+      return;
+    }
+    saveRulePresets(ref, list);
+    messenger.showSnackBar(SnackBar(content: Text('「${name.trim()}」として保存しました')));
+  }
+
+  Future<void> _deletePreset(RulePreset p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text('ルールのセット「${p.name}」を削除しますか？（始めた対局のルールは変わりません）'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('削除')),
+        ],
+      ),
+    );
+    if (ok == true) saveRulePresets(ref, RulePresets.remove(ref.read(rulePresetsProvider), p));
+  }
+
   void _reset() {
     setState(() {
       _load(_playerCount == 3 ? const GameSettings.sanma() : const GameSettings());
@@ -147,6 +175,39 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
             ],
             selected: {_playerCount},
             onSelectionChanged: (v) => _switchPlayerCount(v.first),
+          ),
+          section('ルールのセット'),
+          Text(
+            'よく使うルールに名前を付けて保存しておくと、ここや新規対局の画面で選ぶだけで切り替えられます'
+            '（${_playerCount == 3 ? "3人打ち" : "4人打ち"}のセット。全部で${RulePresets.max}個まで）。',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final p in ref.watch(rulePresetsProvider).where((p) => p.playerCount == _playerCount))
+                InputChip(
+                  key: ValueKey('preset-${p.name}'),
+                  label: Text(p.name),
+                  onPressed: () => setState(() {
+                    _load(p.settings);
+                    _formKey++;
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(SnackBar(content: Text('「${p.name}」のルールを読み込みました。保存すると、これから始める対局に使われます')));
+                  }),
+                  onDeleted: () => _deletePreset(p),
+                  deleteButtonTooltipMessage: '「${p.name}」を削除',
+                ),
+              ActionChip(
+                key: const ValueKey('preset-save'),
+                avatar: const Icon(Icons.bookmark_add_outlined, size: 18),
+                label: const Text('今のルールをセットとして保存'),
+                onPressed: _isValid ? _savePreset : null,
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Card(
@@ -338,6 +399,51 @@ class _PointChoice extends StatelessWidget {
             selected: value == c,
             onSelected: (_) => onChanged(c),
           ),
+      ],
+    );
+  }
+}
+
+/// ルールのセットの名前を入れるダイアログ
+class _PresetNameDialog extends StatefulWidget {
+  const _PresetNameDialog();
+
+  @override
+  State<_PresetNameDialog> createState() => _PresetNameDialogState();
+}
+
+class _PresetNameDialogState extends State<_PresetNameDialog> {
+  final _c = TextEditingController();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final error = RulePresets.validateName(_c.text);
+    return AlertDialog(
+      title: const Text('ルールのセットの名前'),
+      content: TextField(
+        key: const ValueKey('preset-name'),
+        controller: _c,
+        autofocus: true,
+        decoration: InputDecoration(
+          hintText: '例: いつもの面子、雀荘ルール',
+          helperText: '同じ名前のセットがあれば上書きします',
+          errorText: _c.text.isEmpty ? null : error,
+          border: const OutlineInputBorder(),
+        ),
+        onChanged: (_) => setState(() {}),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+        FilledButton(
+          onPressed: error == null ? () => Navigator.pop(context, _c.text.trim()) : null,
+          child: const Text('保存'),
+        ),
       ],
     );
   }
