@@ -23,15 +23,19 @@ jobs:
     name: テストと Web 版のビルド
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
+      # 静的解析はリポジトリ全体（点数計算エンジンのテストも含む）を調べるので、
+      # 先にアプリとエンジンの両方のパッケージを取得しておく
       - name: パッケージの取得
-        run: flutter pub get
+        run: |
+          flutter pub get
+          (cd packages/mahjong_score_engine && dart pub get)
 
       - name: 静的解析
         run: flutter analyze
@@ -41,9 +45,7 @@ jobs:
 
       - name: 点数計算エンジンのテスト
         working-directory: packages/mahjong_score_engine
-        run: |
-          dart pub get
-          dart test
+        run: dart test
 
       # GitHub Pages の URL は https://<ユーザー名>.github.io/<リポジトリ名>/ なので、
       # ページが読み込むファイルの場所（base href）をリポジトリ名に合わせる
