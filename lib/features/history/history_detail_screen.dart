@@ -6,6 +6,7 @@ import '../../shared/widgets/rule_inputs.dart';
 import '../session/domain/models.dart';
 import '../session/session_providers.dart';
 import 'round_edit_screen.dart';
+import 'score_chart.dart';
 
 /// 戦績詳細（順位・ポイント・局ごとの記録）
 class HistoryDetailScreen extends ConsumerWidget {
@@ -85,6 +86,16 @@ class HistoryDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
+          if (s.records.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('点数の推移', style: theme.textTheme.titleMedium),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 12, 12, 8),
+                child: ScoreChart(session: s),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Text('ルール', style: theme.textTheme.titleMedium),
           Card(
