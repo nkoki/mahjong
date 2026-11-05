@@ -12,13 +12,17 @@ class MeldDialog extends StatefulWidget {
   /// 赤ドラありのルールか（なしなら「赤5を含む」を表示しない）
   final bool redDora;
 
-  const MeldDialog({super.key, required this.remaining, this.redDora = true});
+  /// 3人打ち（チーなし・二萬〜八萬なし）
+  final bool sanma;
 
-  static Future<Meld?> show(
-      BuildContext context, int Function(Tile tile) remaining, {bool redDora = true}) {
+  const MeldDialog(
+      {super.key, required this.remaining, this.redDora = true, this.sanma = false});
+
+  static Future<Meld?> show(BuildContext context, int Function(Tile tile) remaining,
+      {bool redDora = true, bool sanma = false}) {
     return showDialog<Meld>(
       context: context,
-      builder: (_) => MeldDialog(remaining: remaining, redDora: redDora),
+      builder: (_) => MeldDialog(remaining: remaining, redDora: redDora, sanma: sanma),
     );
   }
 
@@ -92,6 +96,7 @@ class _MeldDialogState extends State<MeldDialog> {
                 spacing: 6,
                 children: [
                   for (final t in _labels.keys)
+                    if (!(widget.sanma && t == MeldType.chi))
                     ChoiceChip(
                       label: Text(_labels[t]!),
                       selected: _type == t,
@@ -109,6 +114,7 @@ class _MeldDialogState extends State<MeldDialog> {
               const SizedBox(height: 4),
               TilePalette(
                 showRed: false,
+                sanma: widget.sanma,
                 remaining: (t) => _canUse(t) ? 1 : 0,
                 onSelected: (t) {
                   if (_canUse(t)) {

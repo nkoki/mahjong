@@ -150,7 +150,7 @@ class _SessionTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '$dateText  ${s.settings.tonpuu ? "東風" : "半荘"}\n'
+              '$dateText  ${s.settings.isSanma ? "3人打ち " : ""}${s.settings.tonpuu ? "東風" : "半荘"}\n'
               '${s.finished ? "終局" : "対局中 ${s.roundLabel}"}  '
               'トップ: ${s.playerNames[top]} ${formatPoints(s.scores[top])}',
             ),

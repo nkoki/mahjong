@@ -54,7 +54,8 @@ class _WinResultScreenState extends ConsumerState<WinResultScreen> {
     ];
     final deltas = SessionLogic.winsDeltas(s, wins, loser: loser);
     final isDouble = wins.length > 1;
-    final taker = SessionLogic.honbaTaker([for (final w in wins) w.winner], loser: loser);
+    final taker = SessionLogic.honbaTaker([for (final w in wins) w.winner],
+        loser: loser, playerCount: s.playerCount);
     final canAddRon = loser != null &&
         s.settings.doubleRon &&
         wins.length < SessionLogic.maxRonWinners;
@@ -93,7 +94,7 @@ class _WinResultScreenState extends ConsumerState<WinResultScreen> {
             Card(
               child: Column(
                 children: [
-                  for (var p = 0; p < 4; p++)
+                  for (var p = 0; p < s.playerCount; p++)
                     ListTile(
                       dense: true,
                       title: Text(s.playerNames[p]),
@@ -316,7 +317,7 @@ class _WinCard extends StatelessWidget {
                   selected: win.pao == null,
                   onSelected: (_) => onPaoChanged!(null),
                 ),
-                for (var p = 0; p < 4; p++)
+                for (var p = 0; p < session.playerCount; p++)
                   if (p != win.winner)
                     ChoiceChip(
                       label: Text(names[p]),

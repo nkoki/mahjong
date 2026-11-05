@@ -26,14 +26,28 @@ final loadWarningsProvider = StateProvider<List<String>>((ref) {
   return ref.read(sessionRepositoryProvider).loadWarnings;
 });
 
-/// 新しい対局に使うルール（ルール設定画面で変更・保存する）
-final defaultSettingsProvider =
-    NotifierProvider<DefaultSettingsNotifier, GameSettings>(DefaultSettingsNotifier.new);
+/// 新しい対局に使うルール（4人打ち。ルール設定画面で変更・保存する）
+final defaultSettingsProvider = NotifierProvider<DefaultSettingsNotifier, GameSettings>(
+    () => DefaultSettingsNotifier(4));
+
+/// 新しい対局に使うルール（3人打ち）
+final defaultSanmaSettingsProvider = NotifierProvider<DefaultSettingsNotifier, GameSettings>(
+    () => DefaultSettingsNotifier(3));
+
+/// 人数に合ったルール設定の provider
+NotifierProvider<DefaultSettingsNotifier, GameSettings> defaultSettingsProviderFor(
+        int playerCount) =>
+    playerCount == 3 ? defaultSanmaSettingsProvider : defaultSettingsProvider;
 
 class DefaultSettingsNotifier extends Notifier<GameSettings> {
+  DefaultSettingsNotifier(this.playerCount);
+
+  final int playerCount;
+
   @override
   GameSettings build() =>
-      ref.read(sessionRepositoryProvider).loadDefaultSettings() ?? const GameSettings();
+      ref.read(sessionRepositoryProvider).loadDefaultSettings(playerCount: playerCount) ??
+      (playerCount == 3 ? const GameSettings.sanma() : const GameSettings());
 
   /// 保存する
   Future<void> save(GameSettings settings) async {

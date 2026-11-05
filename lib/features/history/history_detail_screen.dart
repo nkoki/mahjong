@@ -92,7 +92,7 @@ class HistoryDetailScreen extends ConsumerWidget {
               children: [
                 ListTile(
                   dense: true,
-                  title: Text('${s.settings.tonpuu ? "東風戦" : "半荘戦"}  '
+                  title: Text('${s.settings.isSanma ? "3人打ち " : ""}${s.settings.tonpuu ? "東風戦" : "半荘戦"}  '
                       '持ち点 ${formatPoints(s.settings.startingPoints)} / '
                       '返し ${formatPoints(s.settings.returnPoints)}'),
                   subtitle: Text('オカ ${formatPoint(s.settings.oka)}（トップが受け取る）'

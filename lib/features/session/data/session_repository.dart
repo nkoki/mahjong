@@ -42,10 +42,11 @@ abstract class SessionRepository {
   /// バックアップを書き出した日時を記録する
   Future<void> setLastBackupAt(DateTime at);
 
-  /// ルール設定画面で決めた、新しい対局に使うルール（未設定なら null）
-  GameSettings? loadDefaultSettings();
+  /// ルール設定画面で決めた、新しい対局に使うルール（未設定なら null）。
+  /// 4人打ちと3人打ちで別々に保存する
+  GameSettings? loadDefaultSettings({int playerCount = 4});
 
-  /// 新しい対局に使うルールを保存する
+  /// 新しい対局に使うルールを保存する（人数は [GameSettings.playerCount] で判断）
   Future<void> saveDefaultSettings(GameSettings settings);
 }
 
@@ -97,12 +98,18 @@ class SharedPrefsSessionRepository implements SessionRepository {
   Future<void> setLastBackupAt(DateTime at) =>
       prefs.setString(lastBackupKey, at.toIso8601String());
 
-  /// 新しい対局に使うルールのキー
+  /// 新しい対局に使うルールのキー（4人打ち）
   static const defaultSettingsKey = 'mahjong_default_settings';
 
+  /// 新しい対局に使うルールのキー（3人打ち）
+  static const defaultSanmaSettingsKey = 'mahjong_default_settings_3';
+
+  static String _defaultKey(int playerCount) =>
+      playerCount == 3 ? defaultSanmaSettingsKey : defaultSettingsKey;
+
   @override
-  GameSettings? loadDefaultSettings() {
-    final raw = prefs.getString(defaultSettingsKey);
+  GameSettings? loadDefaultSettings({int playerCount = 4}) {
+    final raw = prefs.getString(_defaultKey(playerCount));
     if (raw == null) return null;
     try {
       return GameSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -114,7 +121,7 @@ class SharedPrefsSessionRepository implements SessionRepository {
 
   @override
   Future<void> saveDefaultSettings(GameSettings settings) =>
-      prefs.setString(defaultSettingsKey, jsonEncode(settings.toJson()));
+      prefs.setString(_defaultKey(settings.playerCount), jsonEncode(settings.toJson()));
 
   final List<String> _warnings = [];
 
@@ -333,12 +340,22 @@ class InMemorySessionRepository implements SessionRepository {
   @override
   Future<void> setLastBackupAt(DateTime at) async => lastBackupAt = at;
 
+  /// 4人打ちのルール設定
   GameSettings? defaultSettings;
 
-  @override
-  GameSettings? loadDefaultSettings() => defaultSettings;
+  /// 3人打ちのルール設定
+  GameSettings? defaultSanmaSettings;
 
   @override
-  Future<void> saveDefaultSettings(GameSettings settings) async =>
+  GameSettings? loadDefaultSettings({int playerCount = 4}) =>
+      playerCount == 3 ? defaultSanmaSettings : defaultSettings;
+
+  @override
+  Future<void> saveDefaultSettings(GameSettings settings) async {
+    if (settings.isSanma) {
+      defaultSanmaSettings = settings;
+    } else {
       defaultSettings = settings;
+    }
+  }
 }

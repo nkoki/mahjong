@@ -21,15 +21,22 @@ class BackupData {
   /// 壊れていて読み込めなかった対局の数
   final int skipped;
 
-  /// ルール設定画面の内容（ルール設定を入れる前のバックアップ・壊れている場合は null）
+  /// ルール設定画面の内容（4人打ち。ルール設定を入れる前のバックアップ・壊れている場合は null）
   final GameSettings? defaultSettings;
+
+  /// ルール設定画面の内容（3人打ち。3人打ちを入れる前のバックアップ・壊れている場合は null）
+  final GameSettings? defaultSanmaSettings;
 
   const BackupData({
     required this.exportedAt,
     required this.sessions,
     this.skipped = 0,
     this.defaultSettings,
+    this.defaultSanmaSettings,
   });
+
+  /// ルール設定が入っているか
+  bool get hasSettings => defaultSettings != null || defaultSanmaSettings != null;
 }
 
 /// 今のデータに「追加」で読み込んだときの見込み
@@ -53,13 +60,14 @@ class BackupCodec {
 
   /// 全対局（とルール設定画面の内容）をバックアップ用の文字列にする
   static String encode(List<GameSession> sessions,
-          {GameSettings? defaultSettings, DateTime? now}) =>
+          {GameSettings? defaultSettings, GameSettings? defaultSanmaSettings, DateTime? now}) =>
       jsonEncode({
         'app': appId,
         'kind': kind,
         'version': SharedPrefsSessionRepository.formatVersion,
         'exportedAt': (now ?? DateTime.now()).toIso8601String(),
         if (defaultSettings != null) 'defaultSettings': defaultSettings.toJson(),
+        if (defaultSanmaSettings != null) 'defaultSanmaSettings': defaultSanmaSettings.toJson(),
         'sessions': [for (final s in sessions) s.toJson()],
       });
 
@@ -99,20 +107,25 @@ class BackupCodec {
       }
     }
     final exportedAt = DateTime.tryParse(data['exportedAt'] as String? ?? '');
-    GameSettings? defaultSettings;
-    final ds = data['defaultSettings'];
-    if (ds is Map<String, dynamic>) {
+    // ルール設定だけ壊れている場合は、対局だけ読み込む（今のルール設定は変えない）
+    GameSettings? readSettings(Object? v, int playerCount) {
+      if (v is! Map<String, dynamic>) return null;
       try {
-        defaultSettings = GameSettings.fromJson(ds);
+        final g = GameSettings.fromJson(v);
+        return g.playerCount == playerCount ? g : null;
       } catch (_) {
-        // ルール設定だけ壊れている場合は、対局だけ読み込む（今のルール設定は変えない）
+        return null;
       }
     }
+
+    final defaultSettings = readSettings(data['defaultSettings'], 4);
+    final defaultSanmaSettings = readSettings(data['defaultSanmaSettings'], 3);
     return BackupData(
       exportedAt: exportedAt,
       sessions: sessions,
       skipped: skipped,
       defaultSettings: defaultSettings,
+      defaultSanmaSettings: defaultSanmaSettings,
     );
   }
 

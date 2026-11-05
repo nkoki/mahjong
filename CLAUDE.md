@@ -4,7 +4,7 @@
 
 ## プロジェクト概要
 
-- 4人打ちリーチ麻雀の点数計算・対局管理アプリ（Flutter / Dart、状態管理は Riverpod）
+- 4人打ち・3人打ちのリーチ麻雀の点数計算・対局管理アプリ（Flutter / Dart、状態管理は Riverpod）
 - 対応: Android / iOS / Web
 - 点数計算エンジンは `packages/mahjong_score_engine/`（Flutter 非依存の Dart パッケージ）
 - アプリ本体は `lib/`。構成と仕様の詳細は `README.md` を参照
@@ -24,6 +24,7 @@
 
 - 対局データ（`GameSession`）は変更不可（immutable）。変更は `copyWith` で新しいオブジェクトを作る。保存処理は「同じオブジェクトかどうか」で変更を判定しているので、この方針を崩さない
 - 対局進行のロジックは `lib/features/session/domain/session_logic.dart` に UI と分けて書く
+- 人数は `GameSession.playerCount` / `GameSettings.playerCount`（4 か 3）で扱い、`4` を直接書かない（ループ・`%`・配列の長さなど）
 - 保存データの形式を変えるときは `SharedPrefsSessionRepository.formatVersion` を上げ、古い形式のデータも読み込めるようにする（テストも追加する）
 - Flutter 3.22 以上で動くようにする
 

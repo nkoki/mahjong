@@ -92,7 +92,7 @@ class HomeScreen extends ConsumerWidget {
                   title: Text(s.playerNames.join(' / ')),
                   subtitle: Text(
                       '${s.roundLabel}  供託${s.riichiSticks}本\n'
-                      '${[for (var i = 0; i < 4; i++) formatPoints(s.scores[i])].join(' / ')}'),
+                      '${[for (final v in s.scores) formatPoints(v)].join(' / ')}'),
                   isThreeLine: true,
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(dashboardRoute(s.id)),

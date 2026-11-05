@@ -53,13 +53,24 @@ class ScoreRules {
   /// 連風牌（場風かつ自風）の雀頭の符。4 か 2
   final int renpuuPairFu;
 
+  /// 人数（4人打ち: 4 / 3人打ち: 3）
+  final int playerCount;
+
+  /// 3人打ちのツモの支払い。false: ツモ損（北家の分はもらえない） / true: 折半（北家の分を2人で分ける）
+  final bool sanmaTsumoSplit;
+
   const ScoreRules({
     this.kuitan = true,
     this.kiriageMangan = false,
     this.kazoeYakuman = true,
     this.doubleYakuman = true,
     this.renpuuPairFu = 4,
+    this.playerCount = 4,
+    this.sanmaTsumoSplit = false,
   });
+
+  /// 3人打ちか
+  bool get isSanma => playerCount == 3;
 }
 
 /// 和了入力
@@ -96,6 +107,9 @@ class WinInput {
   final bool isTenho; // 天和
   final bool isChiho; // 地和
 
+  /// 3人打ちで抜いた北の枚数（抜きドラ。1枚につきドラ1）
+  final int nukiDora;
+
   const WinInput({
     required this.handTiles,
     required this.winningTile,
@@ -114,6 +128,7 @@ class WinInput {
     this.isHoutei = false,
     this.isTenho = false,
     this.isChiho = false,
+    this.nukiDora = 0,
   });
 
   bool get isTsumo => winType == 'tsumo';

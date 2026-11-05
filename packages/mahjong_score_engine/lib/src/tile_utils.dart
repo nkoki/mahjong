@@ -133,10 +133,13 @@ SeparatedTiles separateRedDora(List<Tile> tiles) {
 
 /// ドラ表示牌から実際のドラを取得
 /// 数牌: 9の次は1 / 風牌: 東→南→西→北→東 / 三元牌: 白→發→中→白
-Tile getNextDora(Tile indicator) {
+///
+/// [sanma] が true（3人打ち）のときは、萬子の 2〜8 がないので 1萬 → 9萬 → 1萬 となる
+Tile getNextDora(Tile indicator, {bool sanma = false}) {
   final t = normalizeTile(indicator);
   final n = tileNumber(t);
   final suit = tileSuit(t);
+  if (sanma && suit == 'm') return n == 1 ? '9m' : '1m';
   if (suit == 'z') {
     if (n <= 4) return '${n % 4 + 1}z';
     return '${(n - 5 + 1) % 3 + 5}z';
@@ -145,11 +148,11 @@ Tile getNextDora(Tile indicator) {
 }
 
 /// ドラ数を計算（tiles は和了形の全牌）
-int countDora(List<Tile> tiles, List<Tile> doraIndicators) {
+int countDora(List<Tile> tiles, List<Tile> doraIndicators, {bool sanma = false}) {
   var count = 0;
   final tileCounts = countTiles(tiles);
   for (final indicator in doraIndicators) {
-    count += tileCounts[getNextDora(indicator)] ?? 0;
+    count += tileCounts[getNextDora(indicator, sanma: sanma)] ?? 0;
   }
   return count;
 }

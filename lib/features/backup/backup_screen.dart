@@ -53,7 +53,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           .save(
               BackupCodec.fileName(now),
               BackupCodec.encode(sessions,
-                  defaultSettings: ref.read(defaultSettingsProvider), now: now));
+                  defaultSettings: ref.read(defaultSettingsProvider),
+                  defaultSanmaSettings: ref.read(defaultSanmaSettingsProvider),
+                  now: now));
       if (!ok) return;
       await _recordBackup();
       _snack('${sessions.length}件の対局をバックアップしました');
@@ -67,7 +69,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   Future<void> _exportText() async {
     final sessions = ref.read(sessionsProvider);
     await Clipboard.setData(ClipboardData(
-        text: BackupCodec.encode(sessions, defaultSettings: ref.read(defaultSettingsProvider))));
+        text: BackupCodec.encode(sessions,
+            defaultSettings: ref.read(defaultSettingsProvider),
+            defaultSanmaSettings: ref.read(defaultSanmaSettingsProvider))));
     await _recordBackup();
     _snack('${sessions.length}件の対局のバックアップをコピーしました。'
         'メモアプリなどに貼り付けて保存してください');
@@ -117,7 +121,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       return;
     }
     if (!mounted) return;
-    if (data.sessions.isEmpty && data.defaultSettings == null) {
+    if (data.sessions.isEmpty && !data.hasSettings) {
       _snack('バックアップに対局がありませんでした');
       return;
     }
@@ -142,7 +146,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           title: const Text('今のデータを置き換えます'),
           content: Text('今ある対局 ${current.length}件はすべて削除され、'
               'バックアップの ${data.sessions.length}件に置き換わります。削除した対局は元に戻せません。'
-              '${choice.applySettings && data.defaultSettings != null ? '\nルール設定もバックアップの内容に置き換わります。' : ''}'),
+              '${choice.applySettings && data.hasSettings ? '\nルール設定もバックアップの内容に置き換わります。' : ''}'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
             FilledButton(
@@ -159,9 +163,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final added = ref
         .read(sessionsProvider.notifier)
         .importSessions(data.sessions, replace: mode == 'replace');
-    final settingsApplied = choice.applySettings && data.defaultSettings != null;
+    final settingsApplied = choice.applySettings && data.hasSettings;
     if (settingsApplied) {
-      await ref.read(defaultSettingsProvider.notifier).save(data.defaultSettings!);
+      if (data.defaultSettings != null) {
+        await ref.read(defaultSettingsProvider.notifier).save(data.defaultSettings!);
+      }
+      if (data.defaultSanmaSettings != null) {
+        await ref.read(defaultSanmaSettingsProvider.notifier).save(data.defaultSanmaSettings!);
+      }
     }
     final total = ref.read(sessionsProvider).length;
     final over = total > SessionLogic.maxSavedSessions;
@@ -288,7 +297,7 @@ class _ImportDialogState extends State<_ImportDialog> {
     final data = widget.data;
     final plan = widget.plan;
     final currentCount = widget.currentCount;
-    final hasSettings = data.defaultSettings != null;
+    final hasSettings = data.hasSettings;
     final applySettings = hasSettings && _applySettings;
     final theme = Theme.of(context);
     final small = theme.textTheme.bodySmall;
@@ -320,7 +329,8 @@ class _ImportDialogState extends State<_ImportDialog> {
                 controlAffinity: ListTileControlAffinity.leading,
                 title: const Text('ルール設定も読み込む'),
                 subtitle: Text(
-                    'この端末のルール設定を、バックアップの内容（${data.defaultSettings!.ruleSummary.take(3).join('・')} など）に置き換えます',
+                    'この端末のルール設定を、バックアップの内容'
+                    '（${[if (data.defaultSettings != null) '4人打ち', if (data.defaultSanmaSettings != null) '3人打ち'].join('・')}）に置き換えます',
                     style: small),
                 value: _applySettings,
                 onChanged: (v) => setState(() => _applySettings = v ?? false),

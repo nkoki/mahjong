@@ -58,6 +58,17 @@ class GameSettings {
   /// 赤ドラあり（和了入力の牌に赤5を表示する）
   final bool redDora;
 
+  // ---- 人数・3人打ちのルール ----
+
+  /// 人数（4人打ち: 4 / 3人打ち: 3）
+  final int playerCount;
+
+  /// 3人打ちの北抜き（抜きドラ）あり。なしの場合、北は普通の字牌
+  final bool nukiDora;
+
+  /// 3人打ちのツモの支払い。false: ツモ損 / true: 折半（北家の分を2人で分ける）
+  final bool sanmaTsumoSplit;
+
   const GameSettings({
     this.startingPoints = 25000,
     this.returnPoints = 30000,
@@ -76,16 +87,45 @@ class GameSettings {
     this.nagashiMangan = true,
     this.abortiveDraws = true,
     this.redDora = true,
+    this.playerCount = 4,
+    this.nukiDora = true,
+    this.sanmaTsumoSplit = false,
   });
 
-  /// 総局数（東風4 / 半荘8）。西入の延長は含まない
-  int get totalRounds => tonpuu ? 4 : 8;
+  /// 3人打ちの初期値（35,000点持ち・40,000点返し・ウマ +15/0/-15・赤ドラは筒子と索子のみ）
+  const GameSettings.sanma({
+    this.startingPoints = 35000,
+    this.returnPoints = 40000,
+    this.uma = const [15, 0, -15],
+    this.tonpuu = false,
+    this.tobi = true,
+    this.kuitan = true,
+    this.kiriageMangan = false,
+    this.kazoeYakuman = true,
+    this.doubleYakuman = true,
+    this.renpuuPairFu = 4,
+    this.doubleRon = true,
+    this.agariYame = true,
+    this.westRound = false,
+    this.pao = true,
+    this.nagashiMangan = true,
+    this.abortiveDraws = true,
+    this.redDora = true,
+    this.nukiDora = true,
+    this.sanmaTsumoSplit = false,
+  }) : playerCount = 3;
+
+  /// 3人打ちか
+  bool get isSanma => playerCount == 3;
+
+  /// 総局数（4人打ち: 東風4 / 半荘8、3人打ち: 東風3 / 半荘6）。西入の延長は含まない
+  int get totalRounds => tonpuu ? playerCount : playerCount * 2;
 
   /// 延長の呼び方（半荘戦は西入、東風戦は南入）
   String get extensionName => tonpuu ? '南入' : '西入';
 
   /// オカ（トップ取り、千点単位）
-  double get oka => (returnPoints - startingPoints) * 4 / 1000;
+  double get oka => (returnPoints - startingPoints) * playerCount / 1000;
 
   /// ウマの表記（例: [20, 10, -10, -20] → "10-20"、全部0 → "なし"）
   String get umaLabel => formatUma(uma);
@@ -97,10 +137,16 @@ class GameSettings {
         kazoeYakuman: kazoeYakuman,
         doubleYakuman: doubleYakuman,
         renpuuPairFu: renpuuPairFu,
+        playerCount: playerCount,
+        sanmaTsumoSplit: sanmaTsumoSplit,
       );
 
   /// ルールの要約（画面表示用）
   List<String> get ruleSummary => [
+        if (isSanma) ...[
+          '北抜き${nukiDora ? "あり" : "なし"}',
+          sanmaTsumoSplit ? 'ツモ折半' : 'ツモ損',
+        ],
         '喰いタン${kuitan ? "あり" : "なし"}',
         '切り上げ満貫${kiriageMangan ? "あり" : "なし"}',
         '数え役満${kazoeYakuman ? "あり" : "なし"}',
@@ -133,6 +179,8 @@ class GameSettings {
     bool? nagashiMangan,
     bool? abortiveDraws,
     bool? redDora,
+    bool? nukiDora,
+    bool? sanmaTsumoSplit,
   }) =>
       GameSettings(
         startingPoints: startingPoints ?? this.startingPoints,
@@ -152,6 +200,9 @@ class GameSettings {
         nagashiMangan: nagashiMangan ?? this.nagashiMangan,
         abortiveDraws: abortiveDraws ?? this.abortiveDraws,
         redDora: redDora ?? this.redDora,
+        playerCount: playerCount,
+        nukiDora: nukiDora ?? this.nukiDora,
+        sanmaTsumoSplit: sanmaTsumoSplit ?? this.sanmaTsumoSplit,
       );
 
   Map<String, dynamic> toJson() => {
@@ -160,6 +211,7 @@ class GameSettings {
         'uma': uma,
         'tonpuu': tonpuu,
         'tobi': tobi,
+        if (isSanma) 'playerCount': playerCount,
         'rules': {
           'kuitan': kuitan,
           'kiriageMangan': kiriageMangan,
@@ -173,6 +225,8 @@ class GameSettings {
           'nagashiMangan': nagashiMangan,
           'abortiveDraws': abortiveDraws,
           'redDora': redDora,
+          if (isSanma) 'nukiDora': nukiDora,
+          if (isSanma) 'sanmaTsumoSplit': sanmaTsumoSplit,
         },
       };
 
@@ -199,6 +253,10 @@ class GameSettings {
       nagashiMangan: r['nagashiMangan'] as bool? ?? d.nagashiMangan,
       abortiveDraws: r['abortiveDraws'] as bool? ?? d.abortiveDraws,
       redDora: r['redDora'] as bool? ?? d.redDora,
+      // 3人打ちを入れる前のデータは4人打ち
+      playerCount: j['playerCount'] as int? ?? 4,
+      nukiDora: r['nukiDora'] as bool? ?? d.nukiDora,
+      sanmaTsumoSplit: r['sanmaTsumoSplit'] as bool? ?? d.sanmaTsumoSplit,
     );
   }
 }
@@ -212,13 +270,32 @@ const umaPresets = <(String, List<int>)>[
   ('20-30', [30, 20, -20, -30]),
 ];
 
-/// ウマの表記。「1位+大 / 2位+小 / 3位-小 / 4位-大」の形なら "小-大"、
-/// それ以外は "+30 / +10 / -10 / -30" のように4つ並べる
+/// 3人打ちでよく使われるウマ（1位〜3位、千点単位）
+const umaPresetsSanma = <(String, List<int>)>[
+  ('なし', [0, 0, 0]),
+  ('±10', [10, 0, -10]),
+  ('±15', [15, 0, -15]),
+  ('±20', [20, 0, -20]),
+  ('±30', [30, 0, -30]),
+];
+
+/// 人数に合ったウマの候補
+List<(String, List<int>)> umaPresetsFor(int playerCount) =>
+    playerCount == 3 ? umaPresetsSanma : umaPresets;
+
+/// ウマの表記。4人打ちで「1位+大 / 2位+小 / 3位-小 / 4位-大」の形なら "小-大"、
+/// 3人打ちで「1位+a / 2位0 / 3位-a」の形なら "±a"、
+/// それ以外は "+30 / +10 / -10 / -30" のように並べる
 String formatUma(List<int> uma) {
   if (uma.every((v) => v == 0)) return 'なし';
-  final big = uma[0], small = uma[1];
-  if (uma[2] == -small && uma[3] == -big && big >= small && small >= 0) {
-    return '$small-$big';
+  if (uma.length == 4) {
+    final big = uma[0], small = uma[1];
+    if (uma[2] == -small && uma[3] == -big && big >= small && small >= 0) {
+      return '$small-$big';
+    }
+  }
+  if (uma.length == 3 && uma[1] == 0 && uma[2] == -uma[0] && uma[0] > 0) {
+    return '±${uma[0]}';
   }
   return uma.map((v) => v > 0 ? '+$v' : '$v').join(' / ');
 }
@@ -240,8 +317,10 @@ String? validateReturnPoints(int? ret, int? starting) {
 }
 
 /// ウマの入力チェック（問題なければ null）
-String? validateUma(List<int?> uma) {
-  if (uma.length != 4 || uma.any((v) => v == null)) return '1位〜4位のすべてに数字を入力してください';
+String? validateUma(List<int?> uma, {int playerCount = 4}) {
+  if (uma.length != playerCount || uma.any((v) => v == null)) {
+    return '1位〜$playerCount位のすべてに数字を入力してください';
+  }
   if (uma.any((v) => v!.abs() > 1000)) return '-1000〜1000の範囲で入力してください';
   final sum = uma.fold<int>(0, (a, v) => a + v!);
   if (sum != 0) return '合計が0になるようにしてください（今の合計: ${sum > 0 ? "+" : ""}$sum）';
@@ -270,6 +349,18 @@ enum DrawType {
   /// 途中流局（親が連荘・テンパイ料なし）
   bool get isAbortive =>
       this != DrawType.exhaustive && this != DrawType.nagashiMangan;
+
+  /// ルールで使える流局の種類。
+  /// 3人打ちでは四風連打・四家立直・三家和は起こらないので、途中流局は九種九牌と四開槓だけ
+  static List<DrawType> availableFor(GameSettings settings) => [
+        for (final t in DrawType.values)
+          if (t == DrawType.exhaustive ||
+              (t == DrawType.nagashiMangan && settings.nagashiMangan) ||
+              (t.isAbortive &&
+                  settings.abortiveDraws &&
+                  (!settings.isSanma || t == DrawType.kyuushu || t == DrawType.suukan)))
+            t,
+      ];
 }
 
 /// 1局の記録
@@ -413,7 +504,8 @@ class GameSession {
     required GameSettings settings,
     DateTime? now,
   }) {
-    final scores = List<int>.filled(4, settings.startingPoints);
+    assert(playerNames.length == settings.playerCount);
+    final scores = List<int>.filled(settings.playerCount, settings.startingPoints);
     return GameSession(
       id: id,
       createdAt: now ?? DateTime.now(),
@@ -423,7 +515,7 @@ class GameSession {
       roundIndex: 0,
       honba: 0,
       riichiSticks: 0,
-      riichi: const [false, false, false, false],
+      riichi: List.filled(settings.playerCount, false),
       roundStartScores: scores,
       records: const [],
       finished: false,
@@ -581,28 +673,31 @@ class GameSession {
   }
 
   /// 親（東家）のプレイヤー番号
-  int get dealer => roundIndex % 4;
+  int get dealer => roundIndex % playerCount;
+
+  /// 人数（4人打ち: 4 / 3人打ち: 3）
+  int get playerCount => playerNames.length;
 
   /// 場風インデックス（0=東, 1=南, 2=西, 3=北）
-  int get roundWindIndex => (roundIndex ~/ 4) % 4;
+  int get roundWindIndex => (roundIndex ~/ playerCount) % 4;
 
   /// 場風の牌（"1z" など）
   String get roundWindTile => '${roundWindIndex + 1}z';
 
   /// プレイヤーの自風インデックス（0=東 ... 3=北）
-  int seatWindIndexOf(int player) => (player - dealer + 4) % 4;
+  int seatWindIndexOf(int player) => (player - dealer + playerCount) % playerCount;
 
   /// プレイヤーの自風の牌
   String seatWindTileOf(int player) => '${seatWindIndexOf(player) + 1}z';
 
   /// 自風インデックス → プレイヤー番号
-  int playerOfSeat(int seat) => (dealer + seat) % 4;
+  int playerOfSeat(int seat) => (dealer + seat) % playerCount;
 
   static const windNames = ['東', '南', '西', '北'];
 
   /// "東1局"
   String get roundName =>
-      '${windNames[roundWindIndex]}${roundIndex % 4 + 1}局';
+      '${windNames[roundWindIndex]}${roundIndex % playerCount + 1}局';
 
   /// "東1局 0本場"
   String get roundLabel => '$roundName $honba本場';
@@ -618,7 +713,7 @@ class GameSession {
 
   /// 点数から順位を求める（同点は起家に近い方が上位）
   static List<int> rankingOf(List<int> scores) {
-    final order = [0, 1, 2, 3];
+    final order = [for (var i = 0; i < scores.length; i++) i];
     order.sort((a, b) {
       final c = scores[b].compareTo(scores[a]);
       return c != 0 ? c : a.compareTo(b);
@@ -630,7 +725,7 @@ class GameSession {
   List<FinalResult> get finalResults {
     final order = ranking;
     final results = <FinalResult>[];
-    for (var r = 0; r < 4; r++) {
+    for (var r = 0; r < playerCount; r++) {
       final p = order[r];
       var point = (scores[p] - settings.returnPoints) / 1000 + settings.uma[r];
       if (r == 0) point += settings.oka;

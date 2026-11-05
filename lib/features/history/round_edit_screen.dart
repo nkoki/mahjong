@@ -86,7 +86,7 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
             const SizedBox(height: 16),
             Text('点数の増減', style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
-            for (var p = 0; p < 4; p++)
+            for (var p = 0; p < s.playerCount; p++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
@@ -115,7 +115,7 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
               ),
             Text(
               error ??
-                  '4人の合計: ${formatDelta(originalSum)}'
+                  '${s.playerCount}人の合計: ${formatDelta(originalSum)}'
                       '${originalSum != 0 ? "（供託リーチ棒の出入りの分。修正前と同じにしてください）" : "（修正前と同じ0にしてください）"}',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: error != null ? theme.colorScheme.error : null),
@@ -137,7 +137,7 @@ class _RoundEditScreenState extends ConsumerState<RoundEditScreen> {
               Card(
                 child: Column(
                   children: [
-                    for (var p = 0; p < 4; p++)
+                    for (var p = 0; p < s.playerCount; p++)
                       ListTile(
                         dense: true,
                         title: Text(s.playerNames[p]),

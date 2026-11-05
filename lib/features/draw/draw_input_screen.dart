@@ -18,7 +18,7 @@ class DrawInputScreen extends ConsumerStatefulWidget {
 
 class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
   DrawType _type = DrawType.exhaustive;
-  final List<bool> _tenpai = [false, false, false, false];
+  late final List<bool> _tenpai;
   int? _nagashi;
 
   @override
@@ -26,11 +26,7 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
     super.initState();
     // 立直者はテンパイとして初期選択
     final s = ref.read(sessionProvider(widget.sessionId));
-    if (s != null) {
-      for (var i = 0; i < 4; i++) {
-        _tenpai[i] = s.riichi[i];
-      }
-    }
+    _tenpai = s == null ? List.filled(4, false) : List.of(s.riichi);
   }
 
   @override
@@ -51,9 +47,7 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             Text('流局の種類', style: theme.textTheme.titleSmall),
-            for (final t in DrawType.values)
-              if ((t != DrawType.nagashiMangan || s.settings.nagashiMangan) &&
-                  (!t.isAbortive || s.settings.abortiveDraws))
+            for (final t in DrawType.availableFor(s.settings))
               ListTile(
                 dense: true,
                 leading: Icon(
@@ -70,7 +64,7 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
               Wrap(
                 spacing: 6,
                 children: [
-                  for (var p = 0; p < 4; p++)
+                  for (var p = 0; p < s.playerCount; p++)
                     ChoiceChip(
                       label: Text(s.playerNames[p]),
                       selected: _nagashi == p,
@@ -82,7 +76,7 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
             if (needsTenpai) ...[
               const SizedBox(height: 8),
               Text('テンパイしていた人', style: theme.textTheme.titleSmall),
-              for (var p = 0; p < 4; p++)
+              for (var p = 0; p < s.playerCount; p++)
                 CheckboxListTile(
                   dense: true,
                   title: Text(
@@ -96,7 +90,7 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
             Card(
               child: Column(
                 children: [
-                  for (var p = 0; p < 4; p++)
+                  for (var p = 0; p < s.playerCount; p++)
                     ListTile(
                       dense: true,
                       title: Text(s.playerNames[p]),

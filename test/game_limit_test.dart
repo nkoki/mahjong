@@ -141,6 +141,8 @@ void main() {
       await pump(tester, finishedGames(100), const NewSessionScreen());
       await tester.scrollUntilVisible(find.text('対局開始'), 200,
           scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('対局開始'));
+    await tester.pumpAndSettle();
       await tester.tap(find.text('対局開始'));
       await tester.pumpAndSettle();
       expect(find.text('古い対局が削除されます'), findsOneWidget);

@@ -140,7 +140,7 @@ class _InfoBar extends StatelessWidget {
         alignment: WrapAlignment.spaceBetween,
         spacing: 16,
         children: [
-          Text('${rules.tonpuu ? "東風戦" : "半荘戦"}  '
+          Text('${rules.isSanma ? "3人打ち " : ""}${rules.tonpuu ? "東風戦" : "半荘戦"}  '
               '${session.records.length}局消化'),
           Text('本場 ${session.honba}  /  供託 ${session.riichiSticks}本'),
         ],
@@ -148,7 +148,8 @@ class _InfoBar extends StatelessWidget {
     );
     if (session.finished || !session.isExtraRound) return bar;
     // 西入（南入）の延長戦中は、終わる条件を表示する
-    final lastName = '${GameSession.windNames[(rules.totalRounds ~/ 4) % 4]}4局';
+    final lastName = '${GameSession.windNames[(rules.totalRounds ~/ rules.playerCount) % 4]}'
+        '${rules.playerCount}局';
     return Column(
       children: [
         bar,
@@ -184,7 +185,7 @@ class _PlayerGrid extends StatelessWidget {
         crossAxisSpacing: 12,
         childAspectRatio: wide ? 2.2 : 1.05,
         children: [
-          for (var p = 0; p < 4; p++)
+          for (var p = 0; p < session.playerCount; p++)
             _PlayerCard(
               name: session.playerNames[p],
               wind: GameSession.windNames[session.seatWindIndexOf(p)],

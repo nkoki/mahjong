@@ -32,7 +32,7 @@ class SessionLogic {
     int? loser,
     required ScoreResult result,
   }) {
-    final deltas = List<int>.filled(4, 0);
+    final deltas = List<int>.filled(s.playerCount, 0);
     final p = result.paymentDetails;
     if (p.loserPayment != null) {
       deltas[loser!] -= p.loserPayment!;
@@ -57,7 +57,7 @@ class SessionLogic {
     required String description,
   }) {
     final deltas = winDeltas(s, winner: winner, loser: loser, result: result);
-    final scores = [for (var i = 0; i < 4; i++) s.scores[i] + deltas[i]];
+    final scores = [for (var i = 0; i < s.playerCount; i++) s.scores[i] + deltas[i]];
     final dealerWon = winner == s.dealer;
     return _finishRound(
       s,
@@ -75,10 +75,10 @@ class SessionLogic {
 
   /// 本場・供託を受け取る和了者。
   /// ロンが2人のときは、放銃者から見て打つ順番が近い方（上家取り）。
-  static int honbaTaker(List<int> winners, {int? loser}) {
+  static int honbaTaker(List<int> winners, {int? loser, int playerCount = 4}) {
     if (loser == null) return winners.single;
-    for (var k = 1; k < 4; k++) {
-      final p = (loser + k) % 4;
+    for (var k = 1; k < playerCount; k++) {
+      final p = (loser + k) % playerCount;
       if (winners.contains(p)) return p;
     }
     throw ArgumentError('和了者がいません');
@@ -86,7 +86,8 @@ class SessionLogic {
 
   /// 和了者ごとの点数を計算する。本場・供託は [honbaTaker] の人にだけ付ける。
   static List<ScoredWin> scoreWins(GameSession s, List<WinEntry> entries, {int? loser}) {
-    final taker = honbaTaker([for (final e in entries) e.winner], loser: loser);
+    final taker = honbaTaker([for (final e in entries) e.winner],
+        loser: loser, playerCount: s.playerCount);
     return [
       for (final e in entries)
         ScoredWin(
@@ -104,10 +105,10 @@ class SessionLogic {
 
   /// 複数人の和了の点数移動（和了者ごとの点数移動の合計）
   static List<int> winsDeltas(GameSession s, List<ScoredWin> wins, {int? loser}) {
-    final total = List<int>.filled(4, 0);
+    final total = List<int>.filled(s.playerCount, 0);
     for (final w in wins) {
       final d = paoDeltas(s, w, loser: loser);
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < s.playerCount; i++) {
         total[i] += d[i];
       }
     }
@@ -149,9 +150,14 @@ class SessionLogic {
       return d;
     }
     // ツモ: 包の分の各自の支払いと本場を、包の人にまとめる
-    for (var p = 0; p < 4; p++) {
+    // （3人打ちで折半のときは、いない北家の分を2人で分けた額も含める）
+    final missing = s.settings.isSanma && s.settings.sanmaTsumoSplit
+        ? paoBase * (isDealer ? 2 : 1)
+        : 0;
+    for (var p = 0; p < s.playerCount; p++) {
       if (p == w.winner) continue;
-      final share = paoBase * ((isDealer || p == s.dealer) ? 2 : 1) + s.honba * 100;
+      final share =
+          paoBase * ((isDealer || p == s.dealer) ? 2 : 1) + missing ~/ 2 + s.honba * 100;
       d[p] += share;
       d[pao] -= share;
     }
@@ -186,7 +192,7 @@ class SessionLogic {
     if (error != null) throw ArgumentError(error);
     if (wins.any((w) => !w.result.isValid)) throw ArgumentError('計算できていない和了があります');
     final deltas = winsDeltas(s, wins, loser: loser);
-    final scores = [for (var i = 0; i < 4; i++) s.scores[i] + deltas[i]];
+    final scores = [for (var i = 0; i < s.playerCount; i++) s.scores[i] + deltas[i]];
     final dealerWon = wins.any((w) => w.winner == s.dealer);
     return _finishRound(
       s,
@@ -206,20 +212,25 @@ class SessionLogic {
     required List<bool> tenpai,
     int? nagashiPlayer,
   }) {
-    final deltas = List<int>.filled(4, 0);
+    final deltas = List<int>.filled(s.playerCount, 0);
     if (type == DrawType.exhaustive) {
+      // ノーテン罰符は場に3,000点（3人打ちも同じ）
+      final n = s.playerCount;
       final k = tenpai.where((t) => t).length;
-      if (k > 0 && k < 4) {
-        for (var i = 0; i < 4; i++) {
-          deltas[i] = tenpai[i] ? 3000 ~/ k : -(3000 ~/ (4 - k));
+      if (k > 0 && k < n) {
+        for (var i = 0; i < n; i++) {
+          deltas[i] = tenpai[i] ? 3000 ~/ k : -(3000 ~/ (n - k));
         }
       }
     } else if (type == DrawType.nagashiMangan && nagashiPlayer != null) {
-      // 満貫ツモ相当（本場は付かない）
+      // 満貫ツモ相当（本場は付かない。3人打ちはツモ損／折半のルールに従う）
       final isDealer = nagashiPlayer == s.dealer;
-      for (var i = 0; i < 4; i++) {
+      final missing = s.settings.isSanma && s.settings.sanmaTsumoSplit
+          ? (isDealer ? 4000 : 2000)
+          : 0;
+      for (var i = 0; i < s.playerCount; i++) {
         if (i == nagashiPlayer) continue;
-        final pay = (isDealer || i == s.dealer) ? 4000 : 2000;
+        final pay = ((isDealer || i == s.dealer) ? 4000 : 2000) + missing ~/ 2;
         deltas[i] -= pay;
         deltas[nagashiPlayer] += pay;
       }
@@ -236,12 +247,12 @@ class SessionLogic {
   }) {
     final deltas = drawDeltas(s,
         type: type, tenpai: tenpai, nagashiPlayer: nagashiPlayer);
-    final scores = [for (var i = 0; i < 4; i++) s.scores[i] + deltas[i]];
+    final scores = [for (var i = 0; i < s.playerCount; i++) s.scores[i] + deltas[i]];
     final renchan = type.isAbortive || tenpai[s.dealer];
     final buf = StringBuffer(type.label);
     if (!type.isAbortive) {
       final names = [
-        for (var i = 0; i < 4; i++)
+        for (var i = 0; i < s.playerCount; i++)
           if (tenpai[i]) s.playerNames[i]
       ];
       buf.write(names.isEmpty ? '（全員ノーテン）' : '（テンパイ: ${names.join("・")}）');
@@ -279,7 +290,7 @@ class SessionLogic {
       roundLabel: s.roundLabel,
       kind: kind,
       description: description,
-      deltas: [for (var i = 0; i < 4; i++) scores[i] - s.roundStartScores[i]],
+      deltas: [for (var i = 0; i < s.playerCount; i++) scores[i] - s.roundStartScores[i]],
       scoresAfter: scores,
     );
     final nextRound = renchan ? s.roundIndex : s.roundIndex + 1;
@@ -288,7 +299,7 @@ class SessionLogic {
       roundIndex: nextRound,
       honba: nextHonba,
       riichiSticks: clearSticks ? 0 : s.riichiSticks,
-      riichi: const [false, false, false, false],
+      riichi: List.filled(s.playerCount, false),
       roundStartScores: scores,
       records: [...s.records, record],
       previous: s,
@@ -341,14 +352,14 @@ class SessionLogic {
   /// 合計を元と同じにするのは、供託リーチ棒の出入り（場に出した分・受け取った分）を変えないため。
   static String? validateRoundEdit(GameSession s, int index, List<int?> deltas) {
     if (index < 0 || index >= s.records.length) return '修正する局が見つかりません';
-    if (deltas.length != 4 || deltas.any((d) => d == null)) {
-      return '4人すべての増減を入力してください';
+    if (deltas.length != s.playerCount || deltas.any((d) => d == null)) {
+      return '${s.playerCount}人すべての増減を入力してください';
     }
     if (deltas.any((d) => d! % 100 != 0)) return '100点単位で入力してください';
     final original = s.records[index].deltas.fold<int>(0, (a, d) => a + d);
     final sum = deltas.fold<int>(0, (a, d) => a + d!);
     if (sum != original) {
-      return '4人の合計を${_signed(original)}にしてください（今の合計: ${_signed(sum)}）';
+      return '${s.playerCount}人の合計を${_signed(original)}にしてください（今の合計: ${_signed(sum)}）';
     }
     return null;
   }
@@ -371,8 +382,9 @@ class SessionLogic {
     if (error != null) throw ArgumentError(error);
 
     final old = s.records[index];
-    final diff = [for (var i = 0; i < 4; i++) deltas[i] - old.deltas[i]];
-    List<int> add(List<int> a) => [for (var i = 0; i < 4; i++) a[i] + diff[i]];
+    final n = s.playerCount;
+    final diff = [for (var i = 0; i < n; i++) deltas[i] - old.deltas[i]];
+    List<int> add(List<int> a) => [for (var i = 0; i < n; i++) a[i] + diff[i]];
 
     final records = <RoundRecord>[
       for (var j = 0; j < s.records.length; j++)

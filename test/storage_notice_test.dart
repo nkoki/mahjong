@@ -51,6 +51,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('対局開始'), 200,
         scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('対局開始'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('対局開始'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1)); // 画面の切り替えが終わるまで

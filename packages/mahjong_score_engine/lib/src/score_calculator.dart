@@ -20,7 +20,7 @@ class ScoreCalculator {
     int riichiSticks = 0,
     ScoreRules rules = const ScoreRules(),
   }) {
-    final error = _validate(input);
+    final error = _validate(input, rules);
     if (error != null) return ScoreResult.error(error);
 
     final contexts = _buildContexts(input, rules);
@@ -47,7 +47,7 @@ class ScoreCalculator {
   // ---------------------------------------------------------------------
   // 入力チェック
   // ---------------------------------------------------------------------
-  static String? _validate(WinInput input) {
+  static String? _validate(WinInput input, ScoreRules rules) {
     if (input.winType != 'ron' && input.winType != 'tsumo') {
       return '和了方法は ron か tsumo を指定してください';
     }
@@ -68,6 +68,23 @@ class ScoreCalculator {
       if (i < 27 || i > 30) return '風は 1z〜4z で指定してください: $w';
     }
     if (input.melds.length > 4) return '鳴きは4つまでです';
+    if (rules.isSanma) {
+      if (tileToIndex(input.playerWind) > 29) return '3人打ちの自風は東・南・西のどれかです';
+      final all = [
+        ...input.handTiles,
+        input.winningTile,
+        for (final m in input.melds) ...m.tiles,
+        ...input.doraTiles,
+        ...input.uraDoraTiles,
+      ];
+      if (all.any((t) => tileSuit(t) == 'm' && tileNumber(t) >= 2 && tileNumber(t) <= 8)) {
+        return '3人打ちでは二萬〜八萬は使いません';
+      }
+      if (input.melds.any((m) => m.type == MeldType.chi)) return '3人打ちではチーはできません';
+      if (input.nukiDora < 0 || input.nukiDora > 4) return '抜きドラ（北）は0〜4枚です';
+    } else if (input.nukiDora != 0) {
+      return '抜きドラ（北）は3人打ちだけです';
+    }
     final need = 13 - 3 * input.melds.length;
     if (input.handTiles.length != need) {
       return '手牌の枚数が正しくありません（$need枚必要、現在${input.handTiles.length}枚）';
@@ -80,6 +97,7 @@ class ScoreCalculator {
       ...input.handTiles,
       input.winningTile,
       for (final m in input.melds) ...m.tiles,
+      for (var i = 0; i < input.nukiDora; i++) '4z',
     ]);
     for (var i = 0; i < 34; i++) {
       if (counts[i] > 4) return '${tileName(indexToTile(i))}が5枚以上あります';
@@ -270,16 +288,22 @@ class ScoreCalculator {
       limitName = yakumanCount == 1 ? '役満' : '${_kanjiNum(yakumanCount)}倍役満';
     } else {
       // ドラ
+      // 抜いた北もドラの数え方では「北」として数える（表示牌が西なら抜いた北もドラ）
       final allTiles = [
         ...input.handTiles,
         input.winningTile,
         for (final m in input.melds) ...m.tiles,
+        for (var i = 0; i < input.nukiDora; i++) '4z',
       ];
-      final dora = countDora(allTiles, input.doraTiles);
+      final sanma = rules.isSanma;
+      final dora = countDora(allTiles, input.doraTiles, sanma: sanma);
       final aka = allTiles.where(isRedDora).length;
       final ura = (input.isRiichi || input.isDoubleRiichi)
-          ? countDora(allTiles, input.uraDoraTiles)
+          ? countDora(allTiles, input.uraDoraTiles, sanma: sanma)
           : 0;
+      if (input.nukiDora > 0) {
+        allYaku.add(Yaku(name: '抜きドラ', han: input.nukiDora, isYakuman: false));
+      }
       if (dora > 0) allYaku.add(Yaku(name: 'ドラ', han: dora, isYakuman: false));
       if (aka > 0) allYaku.add(Yaku(name: '赤ドラ', han: aka, isYakuman: false));
       if (ura > 0) allYaku.add(Yaku(name: '裏ドラ', han: ura, isYakuman: false));
@@ -317,6 +341,8 @@ class ScoreCalculator {
       winnerSeat: tileToIndex(input.playerWind) - 27,
       honba: honba,
       riichiSticks: riichiSticks,
+      playerCount: rules.playerCount,
+      tsumoSplit: rules.sanmaTsumoSplit,
     );
 
     return ScoreResult(
@@ -344,10 +370,12 @@ class ScoreCalculator {
     required int winnerSeat,
     required int honba,
     required int riichiSticks,
+    int playerCount = 4,
+    bool tsumoSplit = false,
   }) {
     final stickGain = riichiSticks * 1000;
-    final honbaGain = honba * 300;
     if (!isTsumo) {
+      final honbaGain = honba * 300;
       final score = _ceil100(base * (isDealer ? 6 : 4));
       final loser = score + honbaGain;
       return (
@@ -360,14 +388,17 @@ class ScoreCalculator {
         ),
       );
     }
+    // 3人打ちで折半のときは、いない北家の分（子の支払い分、親の和了なら親の支払い分）を2人で分ける
+    final missing = playerCount == 3 && tsumoSplit ? base * (isDealer ? 2 : 1) : 0;
     final payments = <PlayerPayment>[];
     var score = 0;
-    for (var seat = 0; seat < 4; seat++) {
+    for (var seat = 0; seat < playerCount; seat++) {
       if (seat == winnerSeat) continue;
-      final p = _ceil100(base * ((isDealer || seat == 0) ? 2 : 1));
+      final p = _ceil100(base * ((isDealer || seat == 0) ? 2 : 1) + missing ~/ 2);
       score += p;
       payments.add(PlayerPayment(playerId: seat, amount: p + honba * 100));
     }
+    final honbaGain = honba * 100 * payments.length;
     final gain = payments.fold<int>(0, (a, p) => a + p.amount);
     return (
       score,
@@ -387,7 +418,7 @@ class ScoreCalculator {
   static String formatScore(ScoreResult r, {required bool isDealer, required bool isTsumo}) {
     if (!isTsumo) return '${r.totalScore}';
     final pays = r.paymentDetails.playerPayments ?? const [];
-    final honbaEach = r.paymentDetails.honbaGain ~/ 3;
+    final honbaEach = pays.isEmpty ? 0 : r.paymentDetails.honbaGain ~/ pays.length;
     if (isDealer) {
       final each = pays.isEmpty ? 0 : pays.first.amount - honbaEach;
       return '$eachオール';

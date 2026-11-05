@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,14 +9,25 @@ import '../session/domain/models.dart';
 import '../session/session_providers.dart';
 
 /// ルール設定画面（これから始める対局に使うルール）
+///
+/// 4人打ちと3人打ちのルールを別々に保存する。画面の上で、どちらを編集するか切り替える。
 class RuleSettingsScreen extends ConsumerStatefulWidget {
-  const RuleSettingsScreen({super.key});
+  /// 最初に表示する人数（4 か 3）
+  final int initialPlayerCount;
+
+  const RuleSettingsScreen({super.key, this.initialPlayerCount = 4});
 
   @override
   ConsumerState<RuleSettingsScreen> createState() => _RuleSettingsScreenState();
 }
 
 class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
+  /// 編集中の人数
+  late int _playerCount = widget.initialPlayerCount;
+
+  /// もう一方の人数で編集した内容（切り替えても消えないように取っておき、保存時にまとめて保存する）
+  final Map<int, GameSettings> _stash = {};
+
   late GameSettings _settings;
   int? _starting;
   int? _return;
@@ -26,7 +39,24 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _load(ref.read(defaultSettingsProvider));
+    _load(ref.read(defaultSettingsProviderFor(_playerCount)));
+  }
+
+  /// 編集する人数を切り替える
+  void _switchPlayerCount(int count) {
+    if (count == _playerCount) return;
+    if (!_isValid) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('入力内容を直してから切り替えてください')));
+      return;
+    }
+    setState(() {
+      _stash[_playerCount] = _edited;
+      _playerCount = count;
+      _load(_stash[count] ?? ref.read(defaultSettingsProviderFor(count)));
+      _formKey++;
+    });
   }
 
   void _load(GameSettings s) {
@@ -38,7 +68,7 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
 
   String? get _startingError => validatePoints(_starting);
   String? get _returnError => validateReturnPoints(_return, _starting);
-  String? get _umaError => validateUma(_uma);
+  String? get _umaError => validateUma(_uma, playerCount: _playerCount);
   bool get _isValid => _startingError == null && _returnError == null && _umaError == null;
 
   GameSettings get _edited => _settings.copyWith(
@@ -49,7 +79,13 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
 
   Future<void> _save() async {
     if (!_isValid) return;
-    await ref.read(defaultSettingsProvider.notifier).save(_edited);
+    _stash[_playerCount] = _edited;
+    for (final e in _stash.entries) {
+      final provider = defaultSettingsProviderFor(e.key);
+      // 変えていない人数のルールは保存しない
+      if (jsonEncode(ref.read(provider).toJson()) == jsonEncode(e.value.toJson())) continue;
+      await ref.read(provider.notifier).save(e.value);
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -59,7 +95,7 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
 
   void _reset() {
     setState(() {
-      _load(const GameSettings());
+      _load(_playerCount == 3 ? const GameSettings.sanma() : const GameSettings());
       _formKey++;
     });
   }
@@ -104,6 +140,15 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
         key: ValueKey(_formKey),
         padding: const EdgeInsets.all(16),
         children: [
+          SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 4, label: Text('4人打ちのルール')),
+              ButtonSegment(value: 3, label: Text('3人打ちのルール')),
+            ],
+            selected: {_playerCount},
+            onSelectionChanged: (v) => _switchPlayerCount(v.first),
+          ),
+          const SizedBox(height: 12),
           Card(
             color: theme.colorScheme.tertiaryContainer,
             child: Padding(
@@ -111,7 +156,8 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
               child: Text(
                 'ここで決めたルールは、これから始める対局に使われます。'
                 '対局中・終わった対局のルールは変わりません。\n'
-                '持ち点・返し・ウマ・トビ・半荘／東風は、新規対局の画面でその対局だけ変えることもできます。',
+                '持ち点・返し・ウマ・トビ・半荘／東風は、新規対局の画面でその対局だけ変えることもできます。\n'
+                '4人打ちと3人打ちのルールは別々に保存されます。',
                 style: TextStyle(color: theme.colorScheme.onTertiaryContainer, fontSize: 13),
               ),
             ),
@@ -129,7 +175,7 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
           PointsInput(
             label: '持ち点',
             initialValue: s.startingPoints,
-            presets: const [25000, 30000],
+            presets: _playerCount == 3 ? const [35000, 40000] : const [25000, 30000],
             errorText: _startingError,
             onChanged: (v) => setState(() => _starting = v),
           ),
@@ -137,7 +183,7 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
           PointsInput(
             label: '返し',
             initialValue: s.returnPoints,
-            presets: const [25000, 30000],
+            presets: _playerCount == 3 ? const [35000, 40000] : const [25000, 30000],
             errorText: _returnError,
             onChanged: (v) => setState(() => _return = v),
           ),
@@ -187,10 +233,41 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
           section('流局'),
           sw('流し満貫', '流局の種類に「流し満貫」を表示します', s.nagashiMangan,
               (v) => update((c) => c.copyWith(nagashiMangan: v))),
-          sw('途中流局', '流局の種類に九種九牌・四風連打・四家立直・四開槓・三家和を表示します', s.abortiveDraws,
+          sw(
+              '途中流局',
+              _playerCount == 3
+                  ? '流局の種類に九種九牌・四開槓を表示します（3人打ちに四風連打・四家立直・三家和はありません）'
+                  : '流局の種類に九種九牌・四風連打・四家立直・四開槓・三家和を表示します',
+              s.abortiveDraws,
               (v) => update((c) => c.copyWith(abortiveDraws: v))),
+          if (_playerCount == 3) ...[
+            section('3人打ち'),
+            sw('北抜き（抜きドラ）', '北を抜いてドラにします（1枚につきドラ1）。なしの場合、北は普通の字牌です',
+                s.nukiDora, (v) => update((c) => c.copyWith(nukiDora: v))),
+            label('ツモの支払い'),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('ツモ損')),
+                ButtonSegment(value: true, label: Text('折半')),
+              ],
+              selected: {s.sanmaTsumoSplit},
+              onSelectionChanged: (v) => update((c) => c.copyWith(sanmaTsumoSplit: v.first)),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'ツモ損: いない北家の分はもらえません（子の満貫ツモは 親4000・子2000 の6000点）。\n'
+                '折半: 北家の分を2人で分けて払います（子の満貫ツモは 親5000・子3000 の8000点）。',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+          ],
           section('牌'),
-          sw('赤ドラ', '和了入力で赤5（5萬・5筒・5索）を選べるようにします', s.redDora,
+          sw('赤ドラ',
+              _playerCount == 3
+                  ? '和了入力で赤5（5筒・5索）を選べるようにします（3人打ちに5萬はありません）'
+                  : '和了入力で赤5（5萬・5筒・5索）を選べるようにします',
+              s.redDora,
               (v) => update((c) => c.copyWith(redDora: v))),
           const SizedBox(height: 24),
           FilledButton(onPressed: _isValid ? _save : null, child: const Text('保存')),
@@ -202,7 +279,7 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
             ),
           const SizedBox(height: 8),
           Text('オカ（トップが受け取る分）: '
-              '${_startingError == null && _returnError == null ? formatPoint((_return! - _starting!) * 4 / 1000) : "-"}',
+              '${_startingError == null && _returnError == null ? formatPoint((_return! - _starting!) * _playerCount / 1000) : "-"}',
               textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
         ],
       ),

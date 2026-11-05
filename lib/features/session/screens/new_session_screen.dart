@@ -20,6 +20,12 @@ class NewSessionScreen extends ConsumerStatefulWidget {
 class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   final _controllers = List.generate(
       4, (i) => TextEditingController(text: 'プレイヤー${i + 1}'));
+  /// 人数（4人打ち: 4 / 3人打ち: 3）
+  int _playerCount = 4;
+
+  /// 人数を切り替えたときに、持ち点などの入力欄を作り直すためのキー
+  int _formKey = 0;
+
   /// ルール設定画面で決めたルール（詳細ルールはこれをそのまま使う）
   late GameSettings _defaults;
   late bool _tonpuu;
@@ -31,24 +37,36 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   @override
   void initState() {
     super.initState();
-    _defaults = ref.read(defaultSettingsProvider);
+    _loadDefaults();
+  }
+
+  /// 人数に合ったルール設定を読み込み、持ち点などを初期値に戻す
+  void _loadDefaults() {
+    _defaults = ref.read(defaultSettingsProviderFor(_playerCount));
     _tonpuu = _defaults.tonpuu;
     _tobi = _defaults.tobi;
     _starting = _defaults.startingPoints;
     _return = _defaults.returnPoints;
     _uma = List.of(_defaults.uma);
+    _formKey++;
   }
 
   Future<void> _openRuleSettings() async {
-    await Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const RuleSettingsScreen()));
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => RuleSettingsScreen(initialPlayerCount: _playerCount)));
     // 詳細ルールだけ反映する（持ち点などはこの画面で入力した値をそのまま使う）
-    if (mounted) setState(() => _defaults = ref.read(defaultSettingsProvider));
+    if (mounted) {
+      setState(() => _defaults = ref.read(defaultSettingsProviderFor(_playerCount)));
+    }
   }
+
+  /// 持ち点・返しのよく使う値
+  List<int> get _pointPresets =>
+      _playerCount == 3 ? const [35000, 40000] : const [25000, 30000];
 
   String? get _startingError => validatePoints(_starting);
   String? get _returnError => validateReturnPoints(_return, _starting);
-  String? get _umaError => validateUma(_uma);
+  String? get _umaError => validateUma(_uma, playerCount: _playerCount);
   bool get _isValid =>
       _startingError == null && _returnError == null && _umaError == null;
 
@@ -62,7 +80,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
 
   Future<void> _start() async {
     final names = [
-      for (var i = 0; i < 4; i++)
+      for (var i = 0; i < _playerCount; i++)
         _controllers[i].text.trim().isEmpty
             ? 'プレイヤー${i + 1}'
             : _controllers[i].text.trim()
@@ -135,9 +153,31 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 4, label: Text('4人打ち')),
+              ButtonSegment(value: 3, label: Text('3人打ち')),
+            ],
+            selected: {_playerCount},
+            onSelectionChanged: (v) => setState(() {
+              _playerCount = v.first;
+              _loadDefaults();
+            }),
+          ),
+          if (_playerCount == 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '3人打ち: 二萬〜八萬を使わない・チーなし・'
+                '${_defaults.nukiDora ? "北抜きあり" : "北抜きなし"}・'
+                '${_defaults.sanmaTsumoSplit ? "ツモ折半" : "ツモ損"}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          const SizedBox(height: 16),
           Text('プレイヤー', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          for (var i = 0; i < 4; i++)
+          for (var i = 0; i < _playerCount; i++)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: TextField(
@@ -163,16 +203,18 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           _label(context, '持ち点（配給原点）'),
           PointsInput(
             label: '持ち点',
+            key: ValueKey('starting-$_formKey'),
             initialValue: _defaults.startingPoints,
-            presets: const [25000, 30000],
+            presets: _pointPresets,
             errorText: _startingError,
             onChanged: (v) => setState(() => _starting = v),
           ),
           _label(context, '返し（オカの基準）'),
           PointsInput(
             label: '返し',
+            key: ValueKey('return-$_formKey'),
             initialValue: _defaults.returnPoints,
-            presets: const [25000, 30000],
+            presets: _pointPresets,
             errorText: _returnError,
             onChanged: (v) => setState(() => _return = v),
           ),
@@ -181,12 +223,13 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
               padding: const EdgeInsets.only(top: 6, left: 4),
               child: Text(
                 'オカ（トップが受け取る分）: '
-                '${formatPoint((_return! - _starting!) * 4 / 1000)}',
+                '${formatPoint((_return! - _starting!) * _playerCount / 1000)}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
           _label(context, 'ウマ'),
           UmaInput(
+            key: ValueKey('uma-input-$_formKey'),
             initialValue: _defaults.uma,
             errorText: _umaError,
             onChanged: (v) => setState(() => _uma = v),

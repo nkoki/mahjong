@@ -13,20 +13,32 @@ class TilePalette extends StatelessWidget {
   /// 赤5を表示するか
   final bool showRed;
 
+  /// 3人打ち（萬子は1萬と9萬だけを表示）
+  final bool sanma;
+
   const TilePalette({
     super.key,
     required this.onSelected,
     this.remaining,
     this.showRed = true,
+    this.sanma = false,
   });
 
-  static List<List<Tile>> rows({bool showRed = true}) => [
-        for (final s in ['m', 'p', 's'])
+  static List<List<Tile>> rows({bool showRed = true, bool sanma = false}) => [
+        if (sanma)
+          // 3人打ちは二萬〜八萬を使わないので、萬子は字牌と同じ行に並べる
+          ['1m', '9m', for (var n = 1; n <= 7; n++) '${n}z']
+        else
+          [
+            for (var n = 1; n <= 9; n++) '${n}m',
+            if (showRed) '5mr',
+          ],
+        for (final s in ['p', 's'])
           [
             for (var n = 1; n <= 9; n++) '$n$s',
             if (showRed) '5${s}r',
           ],
-        [for (var n = 1; n <= 7; n++) '${n}z'],
+        if (!sanma) [for (var n = 1; n <= 7; n++) '${n}z'],
       ];
 
   @override
@@ -37,7 +49,7 @@ class TilePalette extends StatelessWidget {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final row in rows(showRed: showRed))
+          for (final row in rows(showRed: showRed, sanma: sanma))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(

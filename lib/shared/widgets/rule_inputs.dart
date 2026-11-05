@@ -82,9 +82,10 @@ class _PointsInputState extends State<PointsInput> {
   }
 }
 
-/// ウマの入力欄（よく使うウマのボタン＋1位〜4位のテキストボックス）
+/// ウマの入力欄（よく使うウマのボタン＋1位〜4位（3人打ちは3位まで）のテキストボックス）
 ///
-/// [onChanged] には4人分の値を渡す（数字になっていない欄は null）。
+/// [onChanged] には人数分の値を渡す（数字になっていない欄は null）。
+/// 人数は [initialValue] の長さで決まる。
 class UmaInput extends StatefulWidget {
   final List<int> initialValue;
   final String? errorText;
@@ -96,6 +97,8 @@ class UmaInput extends StatefulWidget {
     required this.onChanged,
     this.errorText,
   });
+
+  int get playerCount => initialValue.length;
 
   @override
   State<UmaInput> createState() => _UmaInputState();
@@ -118,7 +121,7 @@ class _UmaInputState extends State<UmaInput> {
 
   void _setPreset(List<int> uma) {
     setState(() {
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < widget.playerCount; i++) {
         _controllers[i].text = '${uma[i]}';
       }
     });
@@ -127,7 +130,7 @@ class _UmaInputState extends State<UmaInput> {
 
   bool _matches(List<int> uma) {
     final v = _values;
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < widget.playerCount; i++) {
       if (v[i] != uma[i]) return false;
     }
     return true;
@@ -143,7 +146,7 @@ class _UmaInputState extends State<UmaInput> {
           spacing: 8,
           runSpacing: 4,
           children: [
-            for (final p in umaPresets)
+            for (final p in umaPresetsFor(widget.playerCount))
               ChoiceChip(
                 label: Text(p.$1),
                 selected: _matches(p.$2),
@@ -155,7 +158,7 @@ class _UmaInputState extends State<UmaInput> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (var i = 0; i < 4; i++) ...[
+            for (var i = 0; i < widget.playerCount; i++) ...[
               if (i > 0) const SizedBox(width: 6),
               Expanded(
                 child: TextField(
@@ -184,7 +187,10 @@ class _UmaInputState extends State<UmaInput> {
         Padding(
           padding: const EdgeInsets.only(top: 6, left: 4),
           child: Text(
-            widget.errorText ?? '千点単位で入力します（例: 10-20 なら 1位+20・2位+10・3位-10・4位-20）。合計は0にしてください。',
+            widget.errorText ??
+                (widget.playerCount == 3
+                    ? '千点単位で入力します（例: ±15 なら 1位+15・2位0・3位-15）。合計は0にしてください。'
+                    : '千点単位で入力します（例: 10-20 なら 1位+20・2位+10・3位-10・4位-20）。合計は0にしてください。'),
             style: theme.textTheme.bodySmall?.copyWith(
                 color: widget.errorText != null ? theme.colorScheme.error : null),
           ),

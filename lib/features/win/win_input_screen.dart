@@ -76,6 +76,9 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
   bool get _menzen => _melds.every((m) => !m.isOpen);
 
   /// 牌の残り枚数（赤5は1枚まで）
+  /// 3人打ちで抜いた北の枚数
+  int _nuki = 0;
+
   int _remaining(Tile tile) {
     final all = [
       ..._hand,
@@ -83,6 +86,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       for (final m in _melds) ...m.tiles,
       ..._dora,
       ..._ura,
+      for (var i = 0; i < _nuki; i++) '4z',
     ];
     final norm = normalizeTile(tile);
     final used = all.where((t) => normalizeTile(t) == norm).length;
@@ -135,7 +139,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     if (_melds.length >= 4) return;
     final s = ref.read(sessionProvider(widget.sessionId));
     final m = await MeldDialog.show(context, _remaining,
-        redDora: s?.settings.redDora ?? true);
+        redDora: s?.settings.redDora ?? true, sanma: s?.settings.isSanma ?? false);
     if (m == null) return;
     setState(() {
       _melds.add(m);
@@ -186,6 +190,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       isHoutei: !_tsumo && _houtei,
       isTenho: _tsumo && _tenho && s.dealer == winner,
       isChiho: _tsumo && _tenho && s.dealer != winner,
+      nukiDora: s.settings.isSanma && s.settings.nukiDora ? _nuki : 0,
     );
     // ここでは手が和了形になっているか・役があるかだけを確かめる。
     // 本場・供託をだれが受け取るかはダブロンかどうかで変わるので、結果画面で計算する。
@@ -251,7 +256,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                   Wrap(
                     spacing: 6,
                     children: [
-                      for (var p = 0; p < 4; p++)
+                      for (var p = 0; p < s.playerCount; p++)
                         if (!widget.previousWins.any((e) => e.winner == p) &&
                             p != widget.fixedLoser)
                         ChoiceChip(
@@ -280,7 +285,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                     Wrap(
                       spacing: 6,
                       children: [
-                        for (var p = 0; p < 4; p++)
+                        for (var p = 0; p < s.playerCount; p++)
                           if (p != _winner)
                             ChoiceChip(
                               label: Text(s.playerNames[p]),
@@ -352,6 +357,29 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                           ? const Text('裏ドラ表示牌を選択')
                           : TileRow(_ura,
                               onTap: (i) => setState(() => _ura.removeAt(i))),
+                    ),
+                  ],
+                  if (s.settings.isSanma && s.settings.nukiDora) ...[
+                    _section(theme, '抜きドラ（抜いた北の枚数）'),
+                    Row(
+                      children: [
+                        IconButton.outlined(
+                          tooltip: '減らす',
+                          onPressed: _nuki > 0 ? () => setState(() => _nuki--) : null,
+                          icon: const Icon(Icons.remove),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('北 × $_nuki', style: theme.textTheme.titleMedium),
+                        ),
+                        IconButton.outlined(
+                          tooltip: '増やす',
+                          onPressed: _nuki < 4 && _remaining('4z') > 0
+                              ? () => setState(() => _nuki++)
+                              : null,
+                          icon: const Icon(Icons.add),
+                        ),
+                      ],
                     ),
                   ],
                   _section(theme, 'オプション'),
@@ -443,6 +471,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
               onSelected: _onTile,
               remaining: _remaining,
               showRed: s.settings.redDora,
+              sanma: s.settings.isSanma,
             ),
           ],
         ),

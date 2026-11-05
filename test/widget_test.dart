@@ -14,6 +14,8 @@ void main() {
 
     await tester.scrollUntilVisible(find.text('対局開始'), 200,
         scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('対局開始'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('対局開始'));
     await tester.pumpAndSettle();
 
@@ -34,6 +36,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('対局開始'), 200,
         scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('対局開始'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('対局開始'));
     await tester.pumpAndSettle();
 
