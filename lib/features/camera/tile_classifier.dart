@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
-import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
 import 'tile_detection.dart';
 
@@ -22,6 +21,9 @@ class TileClassifierInput {
 
   /// 箱の幅が高さのこの倍より大きければ、横向きの牌として時計回りに 90 度回す
   static const landscapeRatio = 1.15;
+
+  /// 分類モデルの「牌ではない」（検出モデルが間違えて見つけたもの・背景）のクラス名
+  static const notATile = 'bg';
 }
 
 /// 写真の中で切り抜く範囲（ピクセル）と、時計回りに 90 度回すかどうか
@@ -68,8 +70,9 @@ Float32List classifierInput(img.Image photo, TileDetection d) {
   return input;
 }
 
-/// 分類モデルの答え（クラスごとの確率）で、検出した牌の種類を置き換える。位置と確信度はそのまま
-TileDetection relabelWithClassifier(TileDetection d, List<double> probs, List<Tile> labels) {
+/// 分類モデルの答え（クラスごとの確率）で、検出した牌の種類を置き換える。位置と確信度はそのまま。
+/// 分類モデルが「牌ではない」と答えたら null（その検出は捨てる）
+TileDetection? relabelWithClassifier(TileDetection d, List<double> probs, List<String> labels) {
   if (probs.length != labels.length) {
     throw ArgumentError('分類モデルの出力の数（${probs.length}）とクラス名の数（${labels.length}）が合いません');
   }
@@ -77,5 +80,6 @@ TileDetection relabelWithClassifier(TileDetection d, List<double> probs, List<Ti
   for (var i = 1; i < probs.length; i++) {
     if (probs[i] > probs[best]) best = i;
   }
+  if (labels[best] == TileClassifierInput.notATile) return null;
   return TileDetection(labels[best], d.score, d.left, d.top, d.right, d.bottom);
 }

@@ -22,6 +22,10 @@ class TfliteTileRecognizer implements TileRecognizer {
   static const classifierAsset = 'assets/models/tile_classifier.tflite';
   static const classifierLabelsAsset = 'assets/models/tile_classifier_labels.txt';
 
+  /// 検出モデルの確信度がこれ以上なら牌の候補にする。低めにして見落としを減らし、
+  /// 牌でないものは分類モデルが「牌ではない」と答えて捨てる（tools/tile_model/evaluate.py で決めた値）
+  static const detectionThreshold = 0.2;
+
   final AssetBundle bundle;
 
   TfliteTileRecognizer({AssetBundle? bundle}) : bundle = bundle ?? rootBundle;
@@ -106,7 +110,7 @@ _Result _run(_ModelFiles files, Uint8List bytes) {
             .toList();
       }
     }
-    // 3回目: 見つけた牌を1枚ずつ切り抜いて大きくし、分類モデルで種類を見分け直す
+    // 3回目: 見つけた牌を1枚ずつ切り抜いて大きくし、分類モデルで種類を見分け直す（牌でないものは捨てる）
     detections = _classify(files, photo, detections);
     final arranged = arrangeTiles(detections);
     return _Result(arranged.tiles);
@@ -115,7 +119,7 @@ _Result _run(_ModelFiles files, Uint8List bytes) {
   }
 }
 
-/// 見つけた牌の種類を、分類モデルの答えに置き換える
+/// 見つけた牌の種類を、分類モデルの答えに置き換える。「牌ではない」と答えた検出は捨てる
 List<TileDetection> _classify(_ModelFiles files, img.Image photo, List<TileDetection> detections) {
   if (detections.isEmpty) return detections;
   final interpreter = Interpreter.fromBuffer(files.classifier, options: InterpreterOptions()..threads = 2);
@@ -125,7 +129,8 @@ List<TileDetection> _classify(_ModelFiles files, img.Image photo, List<TileDetec
     for (final d in detections) {
       final input = classifierInput(photo, d);
       interpreter.runForMultipleInputs([input.buffer.asUint8List()], {0: output.buffer.asUint8List()});
-      result.add(relabelWithClassifier(d, output, files.classifierLabels));
+      final relabeled = relabelWithClassifier(d, output, files.classifierLabels);
+      if (relabeled != null) result.add(relabeled);
     }
     return result;
   } finally {
@@ -165,6 +170,7 @@ List<TileDetection> _detect(Interpreter interpreter, _ModelFiles files, img.Imag
     rawScores: rawScores,
     anchors: files.anchors,
     labels: files.labels,
+    scoreThreshold: TfliteTileRecognizer.detectionThreshold,
   );
   return nonMaxSuppression(detections).map(box.toImage).toList();
 }

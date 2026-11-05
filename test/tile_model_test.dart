@@ -63,8 +63,10 @@ void main() {
           .readAsLinesSync()
           .where((l) => l.trim().isNotEmpty)
           .toList();
-      expect(labels, hasLength(37));
-      expect(labels.toSet(), detectorLabels.toSet());
+      // 37種類の牌と、最後に「牌ではない」
+      expect(labels, hasLength(38));
+      expect(labels.last, TileClassifierInput.notATile);
+      expect(labels.take(37).toSet(), detectorLabels.toSet());
       expect(File('assets/models/tile_classifier.tflite').lengthSync(), greaterThan(100000));
     });
 
@@ -116,12 +118,14 @@ void main() {
       }
     });
 
-    test('分類モデルの答えで種類を置き換え、位置と確信度はそのまま', () {
+    test('分類モデルの答えで種類を置き換え、位置と確信度はそのまま。牌ではないなら捨てる', () {
       const d = TileDetection('8m', 0.8, 0.1, 0.2, 0.3, 0.4);
-      final r = relabelWithClassifier(d, [0.1, 0.7, 0.2], ['8m', '6m', '9m']);
+      final r = relabelWithClassifier(d, [0.1, 0.7, 0.2], ['8m', '6m', '9m'])!;
       expect(r.tile, '6m');
       expect([r.score, r.left, r.top, r.right, r.bottom], [0.8, 0.1, 0.2, 0.3, 0.4]);
       expect(() => relabelWithClassifier(d, [1], ['1m', '2m']), throwsArgumentError);
+      // 「牌ではない」と答えたら捨てる
+      expect(relabelWithClassifier(d, [0.2, 0.1, 0.7], ['8m', '6m', 'bg']), isNull);
     });
   });
 }

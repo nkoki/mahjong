@@ -28,6 +28,10 @@ import numpy as np
 from PIL import Image
 
 
+# 分類モデルの「牌ではない」のクラス名（train_classifier.py の NOT_A_TILE）
+NOT_A_TILE = "bg"
+
+
 class Classifier:
     """牌を1枚ずつ見分ける分類モデル（アプリの tile_classifier.dart と同じ使い方）"""
 
@@ -50,12 +54,14 @@ class Classifier:
         return self.interp.get_tensor(out["index"])[0]
 
     def relabel(self, image: Image.Image, dets):
-        """見つけた牌（座標は割合）の種類を、分類モデルの答えに置き換える"""
+        """見つけた牌（座標は割合）の種類を、分類モデルの答えに置き換える。「牌ではない（bg）」なら捨てる"""
         W, H = image.size
         result = []
         for d in dets:
             p = self.probs(image, d[2] * W, d[3] * H, d[4] * W, d[5] * H)
-            result.append((self.labels[int(p.argmax())],) + tuple(d[1:]))
+            label = self.labels[int(p.argmax())]
+            if label != NOT_A_TILE:
+                result.append((label,) + tuple(d[1:]))
         return result
 
 
@@ -206,7 +212,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True, type=Path)
     ap.add_argument("--data", required=True, type=Path)
-    ap.add_argument("--threshold", type=float, default=0.3)
+    ap.add_argument("--threshold", type=float, default=0.2,
+                    help="検出モデルの確信度の下限（アプリの TfliteTileRecognizer.detectionThreshold と同じ）")
     ap.add_argument("--max-images", type=int, default=None)
     ap.add_argument("--save-preview", type=Path)
     ap.add_argument("--two-pass", action="store_true", help="アプリと同じく2回目の読み取りもする")
