@@ -106,12 +106,56 @@ class SessionLogic {
   static List<int> winsDeltas(GameSession s, List<ScoredWin> wins, {int? loser}) {
     final total = List<int>.filled(4, 0);
     for (final w in wins) {
-      final d = winDeltas(s, winner: w.winner, loser: loser, result: w.result);
+      final d = paoDeltas(s, w, loser: loser);
       for (var i = 0; i < 4; i++) {
         total[i] += d[i];
       }
     }
     return total;
+  }
+
+  /// 包（責任払い）の対象になる役満
+  static const paoYakuman = ['大三元', '大四喜'];
+
+  /// 包の対象になる役満の倍数（大三元なら1、大四喜はダブル役満ありなら2）。対象がなければ 0
+  static int paoUnits(ScoreResult r) {
+    if (!r.isValid || !r.isYakuman) return 0;
+    return r.yakuList
+        .where((y) => y.isYakuman && paoYakuman.contains(y.name))
+        .fold<int>(0, (a, y) => a + y.han);
+  }
+
+  /// 包を選べる和了か
+  static bool canChoosePao(GameSession s, ScoredWin w) =>
+      s.settings.pao && paoUnits(w.result) > 0;
+
+  /// 包を考えた、和了1人分の点数移動。
+  /// - ツモ: 包の対象の役満の分と本場を、包の人が全額払う
+  /// - ほかの人からのロン: 包の対象の役満の分を、包の人と放銃者で半分ずつ払う（本場は放銃者）
+  /// - 包の人からのロン: 普段どおり（放銃者が全額）
+  static List<int> paoDeltas(GameSession s, ScoredWin w, {int? loser}) {
+    final d = winDeltas(s, winner: w.winner, loser: loser, result: w.result);
+    final pao = w.pao;
+    final units = paoUnits(w.result);
+    if (pao == null || pao == w.winner || units == 0 || pao == loser) return d;
+
+    final isDealer = w.winner == s.dealer;
+    final paoBase = 8000 * units;
+    final paoPoints = paoBase * (isDealer ? 6 : 4);
+    if (loser != null) {
+      // ロン: 放銃者の支払いから半分を包の人に回す
+      d[loser] += paoPoints ~/ 2;
+      d[pao] -= paoPoints ~/ 2;
+      return d;
+    }
+    // ツモ: 包の分の各自の支払いと本場を、包の人にまとめる
+    for (var p = 0; p < 4; p++) {
+      if (p == w.winner) continue;
+      final share = paoBase * ((isDealer || p == s.dealer) ? 2 : 1) + s.honba * 100;
+      d[p] += share;
+      d[pao] -= share;
+    }
+    return d;
   }
 
   /// 和了の入力内容のチェック（問題なければ null）
@@ -405,5 +449,12 @@ class ScoredWin {
   final int winner;
   final WinInput input;
   final ScoreResult result;
-  const ScoredWin({required this.winner, required this.input, required this.result});
+
+  /// 包（責任払い）の人。いなければ null
+  final int? pao;
+
+  const ScoredWin({required this.winner, required this.input, required this.result, this.pao});
+
+  ScoredWin withPao(int? pao) =>
+      ScoredWin(winner: winner, input: input, result: result, pao: pao);
 }

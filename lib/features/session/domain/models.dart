@@ -46,6 +46,9 @@ class GameSettings {
   /// 延長中は誰かが返し点に届いた局で終了（サドンデス）、届かなくても延長の4局目で終了
   final bool westRound;
 
+  /// 包（責任払い）あり。大三元・大四喜を確定させる牌を鳴かせた人が払う
+  final bool pao;
+
   /// 流し満貫あり
   final bool nagashiMangan;
 
@@ -69,6 +72,7 @@ class GameSettings {
     this.doubleRon = true,
     this.agariYame = true,
     this.westRound = false,
+    this.pao = true,
     this.nagashiMangan = true,
     this.abortiveDraws = true,
     this.redDora = true,
@@ -105,6 +109,7 @@ class GameSettings {
         doubleRon ? 'ダブロンあり' : 'ダブロンなし（頭ハネ）',
         '和了止め${agariYame ? "あり" : "なし"}',
         '$extensionName${westRound ? "あり" : "なし"}',
+        '包${pao ? "あり" : "なし"}',
         '流し満貫${nagashiMangan ? "あり" : "なし"}',
         '途中流局${abortiveDraws ? "あり" : "なし"}',
         '赤ドラ${redDora ? "あり" : "なし"}',
@@ -124,6 +129,7 @@ class GameSettings {
     bool? doubleRon,
     bool? agariYame,
     bool? westRound,
+    bool? pao,
     bool? nagashiMangan,
     bool? abortiveDraws,
     bool? redDora,
@@ -142,6 +148,7 @@ class GameSettings {
         doubleRon: doubleRon ?? this.doubleRon,
         agariYame: agariYame ?? this.agariYame,
         westRound: westRound ?? this.westRound,
+        pao: pao ?? this.pao,
         nagashiMangan: nagashiMangan ?? this.nagashiMangan,
         abortiveDraws: abortiveDraws ?? this.abortiveDraws,
         redDora: redDora ?? this.redDora,
@@ -162,6 +169,7 @@ class GameSettings {
           'doubleRon': doubleRon,
           'agariYame': agariYame,
           'westRound': westRound,
+          'pao': pao,
           'nagashiMangan': nagashiMangan,
           'abortiveDraws': abortiveDraws,
           'redDora': redDora,
@@ -187,6 +195,7 @@ class GameSettings {
       doubleRon: r['doubleRon'] as bool? ?? d.doubleRon,
       agariYame: r['agariYame'] as bool? ?? d.agariYame,
       westRound: r['westRound'] as bool? ?? d.westRound,
+      pao: r['pao'] as bool? ?? d.pao,
       nagashiMangan: r['nagashiMangan'] as bool? ?? d.nagashiMangan,
       abortiveDraws: r['abortiveDraws'] as bool? ?? d.abortiveDraws,
       redDora: r['redDora'] as bool? ?? d.redDora,

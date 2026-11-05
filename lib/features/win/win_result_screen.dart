@@ -11,7 +11,7 @@ import '../session/session_providers.dart';
 import 'win_input_screen.dart';
 
 /// 和了の計算結果の確認画面（ダブロンのときは2人分をまとめて確認・確定する）
-class WinResultScreen extends ConsumerWidget {
+class WinResultScreen extends ConsumerStatefulWidget {
   final String sessionId;
 
   /// 和了者と手の入力内容（ダブロンなら2人分）
@@ -32,11 +32,26 @@ class WinResultScreen extends ConsumerWidget {
       : '${r.han}翻 ${r.fu}符${r.limitName != null ? "  ${r.limitName}" : ""}';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WinResultScreen> createState() => _WinResultScreenState();
+}
+
+class _WinResultScreenState extends ConsumerState<WinResultScreen> {
+  /// 和了者ごとの包（責任払い）の人
+  final Map<int, int?> _pao = {};
+
+  String get sessionId => widget.sessionId;
+  List<WinEntry> get entries => widget.entries;
+  int? get loser => widget.loser;
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(sessionProvider(sessionId));
     if (s == null) return const Scaffold();
     final theme = Theme.of(context);
-    final wins = SessionLogic.scoreWins(s, entries, loser: loser);
+    final wins = [
+      for (final w in SessionLogic.scoreWins(s, entries, loser: loser))
+        SessionLogic.canChoosePao(s, w) ? w.withPao(_pao[w.winner]) : w,
+    ];
     final deltas = SessionLogic.winsDeltas(s, wins, loser: loser);
     final isDouble = wins.length > 1;
     final taker = SessionLogic.honbaTaker([for (final w in wins) w.winner], loser: loser);
@@ -51,7 +66,14 @@ class WinResultScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
             for (final w in wins) ...[
-              _WinCard(session: s, win: w, loser: loser),
+              _WinCard(
+                session: s,
+                win: w,
+                loser: loser,
+                onPaoChanged: SessionLogic.canChoosePao(s, w)
+                    ? (p) => setState(() => _pao[w.winner] = p)
+                    : null,
+              ),
               const SizedBox(height: 12),
             ],
             if (isDouble && (s.honba > 0 || s.riichiSticks > 0))
@@ -154,9 +176,10 @@ class WinResultScreen extends ConsumerWidget {
       for (final w in wins)
         '${s.playerNames[w.winner]} '
             '${w.input.isTsumo ? "ツモ" : "ロン ← ${s.playerNames[loser!]}"} '
-            '${headlineOf(w.result)} '
+            '${WinResultScreen.headlineOf(w.result)} '
             '${ScoreCalculator.formatScore(w.result, isDealer: w.input.isDealer, isTsumo: w.input.isTsumo)}  '
             '[${w.result.yakuList.map((y) => y.name).join(' ')}]'
+            '${w.pao != null ? '（包: ${s.playerNames[w.pao!]}）' : ''}'
     ];
     return wins.length > 1 ? 'ダブロン: ${parts.join(' / ')}' : parts.single;
   }
@@ -168,7 +191,15 @@ class _WinCard extends StatelessWidget {
   final ScoredWin win;
   final int? loser;
 
-  const _WinCard({required this.session, required this.win, required this.loser});
+  /// 包の人を選んだとき（包を選べない和了なら null）
+  final ValueChanged<int?>? onPaoChanged;
+
+  const _WinCard({
+    required this.session,
+    required this.win,
+    required this.loser,
+    this.onPaoChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -241,6 +272,7 @@ class _WinCard extends StatelessWidget {
             ],
           ),
         ),
+        if (onPaoChanged != null) _paoSection(context),
         if (!r.isYakuman && r.fuDetails.isNotEmpty)
           ExpansionTile(
             title: Text('符の内訳（${r.fu}符）'),
@@ -250,6 +282,52 @@ class _WinCard extends StatelessWidget {
             ],
           ),
       ],
+    );
+  }
+
+  /// 包（責任払い）の人を選ぶ欄
+  Widget _paoSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final names = session.playerNames;
+    final yaku = win.result.yakuList
+        .where((y) => SessionLogic.paoYakuman.contains(y.name))
+        .map((y) => y.name)
+        .join('・');
+    return Card(
+      color: theme.colorScheme.tertiaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('包（責任払い）', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              '$yaku を確定させる牌を鳴かせた人がいれば選んでください。'
+              '${loser == null ? 'ツモなので、$yaku の分と本場をその人が全額払います。' : 'ロンなので、$yaku の分をその人と放銃者で半分ずつ払います（本場は放銃者）。放銃者が包の人なら普段どおりです。'}',
+              style: TextStyle(color: theme.colorScheme.onTertiaryContainer, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              children: [
+                ChoiceChip(
+                  label: const Text('なし'),
+                  selected: win.pao == null,
+                  onSelected: (_) => onPaoChanged!(null),
+                ),
+                for (var p = 0; p < 4; p++)
+                  if (p != win.winner)
+                    ChoiceChip(
+                      label: Text(names[p]),
+                      selected: win.pao == p,
+                      onSelected: (_) => onPaoChanged!(p),
+                    ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

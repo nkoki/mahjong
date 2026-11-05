@@ -178,6 +178,12 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
                   'ありのときの和了止めは、親が返し点に届いている場合だけです',
               s.westRound,
               (v) => update((c) => c.copyWith(westRound: v))),
+          sw(
+              '包（責任払い）',
+              '大三元・大四喜を確定させる牌を鳴かせた人が払います。ツモは包の人が全額、'
+                  'ほかの人からのロンは包の人と放銃者で半分ずつ。和了の結果画面で包の人を選びます',
+              s.pao,
+              (v) => update((c) => c.copyWith(pao: v))),
           section('流局'),
           sw('流し満貫', '流局の種類に「流し満貫」を表示します', s.nagashiMangan,
               (v) => update((c) => c.copyWith(nagashiMangan: v))),
