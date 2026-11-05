@@ -93,12 +93,24 @@ class SessionLogic {
         ScoredWin(
           winner: e.winner,
           input: e.input,
-          result: ScoreCalculator.calculate(
-            e.input,
-            honba: e.winner == taker ? s.honba : 0,
-            riichiSticks: e.winner == taker ? s.riichiSticks : 0,
-            rules: s.settings.scoreRules,
-          ),
+          hanFu: e.hanFu,
+          result: e.hanFu != null
+              ? ScoreCalculator.calculateFromHanFu(
+                  han: e.hanFu!.han,
+                  fu: e.hanFu!.fu,
+                  yakuman: e.hanFu!.yakuman,
+                  isTsumo: e.input.isTsumo,
+                  playerWind: e.input.playerWind,
+                  honba: e.winner == taker ? s.honba : 0,
+                  riichiSticks: e.winner == taker ? s.riichiSticks : 0,
+                  rules: s.settings.scoreRules,
+                )
+              : ScoreCalculator.calculate(
+                  e.input,
+                  honba: e.winner == taker ? s.honba : 0,
+                  riichiSticks: e.winner == taker ? s.riichiSticks : 0,
+                  rules: s.settings.scoreRules,
+                ),
         ),
     ];
   }
@@ -452,8 +464,47 @@ class SessionLogic {
 /// 和了者と、その手の入力内容
 class WinEntry {
   final int winner;
+
+  /// 手の入力内容。翻・符で入力したとき（[hanFu] があるとき）は、ロン／ツモと自風・場風だけを使う
   final WinInput input;
-  const WinEntry({required this.winner, required this.input});
+
+  /// 翻・符で入力したときの翻・符（手牌で入力したときは null）
+  final HanFuEntry? hanFu;
+
+  const WinEntry({required this.winner, required this.input, this.hanFu});
+
+  /// 翻・符で入力した和了（手牌は入れない）
+  factory WinEntry.hanFu({
+    required GameSession session,
+    required int winner,
+    required bool isTsumo,
+    required HanFuEntry hanFu,
+  }) =>
+      WinEntry(
+        winner: winner,
+        hanFu: hanFu,
+        input: WinInput(
+          handTiles: const [],
+          winningTile: '',
+          melds: const [],
+          winType: isTsumo ? 'tsumo' : 'ron',
+          isRiichi: false,
+          isIppatsu: false,
+          isDoubleRiichi: false,
+          doraTiles: const [],
+          uraDoraTiles: const [],
+          roundWind: session.roundWindTile,
+          playerWind: session.seatWindTileOf(winner),
+        ),
+      );
+}
+
+/// 翻・符で入力した手（ドラなども含めた翻数）。[yakuman] が 1 以上なら役満（倍数）で、翻・符は使わない
+class HanFuEntry {
+  final int han;
+  final int fu;
+  final int yakuman;
+  const HanFuEntry({this.han = 0, this.fu = 0, this.yakuman = 0});
 }
 
 /// 点数を計算した和了
@@ -465,8 +516,17 @@ class ScoredWin {
   /// 包（責任払い）の人。いなければ null
   final int? pao;
 
-  const ScoredWin({required this.winner, required this.input, required this.result, this.pao});
+  /// 翻・符で入力した和了なら、その翻・符（手牌で入力したときは null）
+  final HanFuEntry? hanFu;
+
+  const ScoredWin({
+    required this.winner,
+    required this.input,
+    required this.result,
+    this.pao,
+    this.hanFu,
+  });
 
   ScoredWin withPao(int? pao) =>
-      ScoredWin(winner: winner, input: input, result: result, pao: pao);
+      ScoredWin(winner: winner, input: input, result: result, pao: pao, hanFu: hanFu);
 }

@@ -309,29 +309,10 @@ class ScoreCalculator {
       if (ura > 0) allYaku.add(Yaku(name: '裏ドラ', han: ura, isYakuman: false));
 
       han = allYaku.fold<int>(0, (a, y) => a + y.han);
-      base = fuResult.fu * (1 << (han + 2));
-      if (han >= 13 && rules.kazoeYakuman) {
-        base = 8000;
-        limitName = '数え役満';
-        yakumanCount = 1;
-      } else if (han >= 11) {
-        base = 6000;
-        limitName = '三倍満';
-      } else if (han >= 8) {
-        base = 4000;
-        limitName = '倍満';
-      } else if (han >= 6) {
-        base = 3000;
-        limitName = '跳満';
-      } else if (han >= 5 || base >= 2000) {
-        base = 2000;
-        limitName = '満貫';
-      } else if (rules.kiriageMangan &&
-          ((han == 4 && fuResult.fu == 30) || (han == 3 && fuResult.fu == 60))) {
-        // 切り上げ満貫（基本点 1920 を 2000 に切り上げる）
-        base = 2000;
-        limitName = '満貫';
-      }
+      final limit = basePoints(han, fuResult.fu, rules);
+      base = limit.base;
+      limitName = limit.limitName;
+      yakumanCount = limit.yakumanCount;
     }
 
     final payment = _payments(
@@ -357,6 +338,92 @@ class ScoreCalculator {
       yakumanCount: yakumanCount,
       limitName: limitName,
       fuDetails: fuResult.details,
+    );
+  }
+
+  /// 翻・符から基本点を求める（満貫以上は上限の値）。役満以外の手に使う。
+  /// limitName は "満貫" "跳満" "倍満" "三倍満" "数え役満"（満貫未満は null）、
+  /// yakumanCount は数え役満なら 1（それ以外は 0）
+  static ({int base, String? limitName, int yakumanCount}) basePoints(int han, int fu, ScoreRules rules) {
+    final base = fu * (1 << (han + 2));
+    if (han >= 13 && rules.kazoeYakuman) return (base: 8000, limitName: '数え役満', yakumanCount: 1);
+    if (han >= 11) return (base: 6000, limitName: '三倍満', yakumanCount: 0);
+    if (han >= 8) return (base: 4000, limitName: '倍満', yakumanCount: 0);
+    if (han >= 6) return (base: 3000, limitName: '跳満', yakumanCount: 0);
+    if (han >= 5 || base >= 2000) return (base: 2000, limitName: '満貫', yakumanCount: 0);
+    if (rules.kiriageMangan && ((han == 4 && fu == 30) || (han == 3 && fu == 60))) {
+      // 切り上げ満貫（基本点 1920 を 2000 に切り上げる）
+      return (base: 2000, limitName: '満貫', yakumanCount: 0);
+    }
+    return (base: base, limitName: null, yakumanCount: 0);
+  }
+
+  /// 翻・符を選んで入力するときに選べる符
+  static const hanFuChoices = [20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110];
+
+  /// 手牌を入れずに、翻・符（または役満の倍数）から点数を計算する（簡易入力）。
+  ///
+  /// [han] にはドラ・赤ドラ・裏ドラ・抜きドラも含める。[yakuman] が 1 以上なら役満（倍数）として扱い、
+  /// [han]・[fu] は使わない。5翻以上は符に関係なく満貫以上なので、[fu] は使わない。
+  static ScoreResult calculateFromHanFu({
+    required int han,
+    required int fu,
+    int yakuman = 0,
+    required bool isTsumo,
+    required Tile playerWind,
+    int honba = 0,
+    int riichiSticks = 0,
+    ScoreRules rules = const ScoreRules(),
+  }) {
+    int base, yakumanCount;
+    String? limitName;
+    final List<Yaku> yaku;
+    var usedHan = han;
+    var usedFu = fu;
+    if (yakuman > 0) {
+      yakumanCount = rules.doubleYakuman ? yakuman.clamp(1, 6) : 1;
+      base = 8000 * yakumanCount;
+      limitName = yakumanCount == 1 ? '役満' : '${_kanjiNum(yakumanCount)}倍役満';
+      usedHan = 13 * yakumanCount;
+      usedFu = 0;
+      yaku = [Yaku(name: '$limitName（翻・符で入力）', han: yakumanCount, isYakuman: true)];
+    } else {
+      if (han < 1) return ScoreResult.error('翻数を選んでください');
+      if (han < 5) {
+        if (!hanFuChoices.contains(fu)) return ScoreResult.error('符を選んでください');
+        if (fu == 20 && !isTsumo) return ScoreResult.error('20符はツモ（平和ツモ）のときだけです。ロンなら30符です');
+        if (fu == 20 && han < 2) return ScoreResult.error('20符（平和ツモ）は2翻以上です');
+        if (fu == 25 && han < 2) return ScoreResult.error('25符（七対子）は2翻以上です');
+      } else {
+        usedFu = 0;
+      }
+      final limit = basePoints(han, han < 5 ? fu : 30, rules);
+      base = limit.base;
+      limitName = limit.limitName;
+      yakumanCount = limit.yakumanCount;
+      yaku = [Yaku(name: '翻・符で入力', han: han, isYakuman: false)];
+    }
+    final payment = _payments(
+      base: base,
+      isDealer: playerWind == '1z',
+      isTsumo: isTsumo,
+      winnerSeat: tileToIndex(playerWind) - 27,
+      honba: honba,
+      riichiSticks: riichiSticks,
+      playerCount: rules.playerCount,
+      tsumoSplit: rules.sanmaTsumoSplit,
+    );
+    return ScoreResult(
+      isValid: true,
+      yakuList: yaku,
+      han: usedHan,
+      fu: usedFu,
+      baseScore: base,
+      totalScore: payment.$1,
+      paymentDetails: payment.$2,
+      isYakuman: yakuman > 0,
+      yakumanCount: yakumanCount,
+      limitName: limitName,
     );
   }
 

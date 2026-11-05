@@ -18,6 +18,8 @@ enum _Target { hand, win, dora, ura }
 
 /// 和了入力画面（和了者・手牌・鳴き・ドラ・オプション）
 ///
+/// 「翻・符で入力」に切り替えると、手牌を入れずに翻・符（または役満）を選ぶだけで計算できる。
+///
 /// ダブロンの2人目を入力するときは、1人目の入力内容を [previousWins] に、
 /// 放銃者を [fixedLoser] に渡す（ロンのみ・放銃者・和了牌・ドラ表示牌は1人目と同じ）。
 class WinInputScreen extends ConsumerStatefulWidget {
@@ -56,14 +58,27 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     super.initState();
     if (widget.isAdditionalRon) {
       // 同じ捨て牌へのロンなので、放銃者・和了牌・ドラ表示牌は1人目と同じ
-      final first = widget.previousWins.first.input;
+      // （1人目を翻・符で入力したときは和了牌・ドラ表示牌が無いので、放銃者だけ同じ）
+      final firstEntry = widget.previousWins.first;
+      final first = firstEntry.input;
       _tsumo = false;
       _loser = widget.fixedLoser;
-      _winTile = first.winningTile;
-      _dora.addAll(first.doraTiles);
-      _ura.addAll(first.uraDoraTiles);
+      if (firstEntry.hanFu == null) {
+        _winTile = first.winningTile;
+        _dora.addAll(first.doraTiles);
+        _ura.addAll(first.uraDoraTiles);
+      }
+      _quick = firstEntry.hanFu != null;
     }
   }
+
+  /// 翻・符で入力する（手牌を入れない）
+  bool _quick = false;
+  int? _quickHan;
+  int? _quickFu;
+
+  /// 役満の倍数（1以上なら役満。翻・符は使わない）
+  int _quickYakuman = 0;
 
   bool _riichi = false;
   bool _doubleRiichi = false;
@@ -157,7 +172,49 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     });
   }
 
+  HanFuEntry get _hanFu => HanFuEntry(han: _quickHan ?? 0, fu: _quickFu ?? 0, yakuman: _quickYakuman);
+
+  /// 翻・符で入力した内容の点数（本場・供託を含まない。見込みの表示用）
+  ScoreResult _quickResult(GameSession s, int? winner) => ScoreCalculator.calculateFromHanFu(
+        han: _hanFu.han,
+        fu: _hanFu.fu,
+        yakuman: _hanFu.yakuman,
+        isTsumo: _tsumo,
+        playerWind: winner == null ? '2z' : s.seatWindTileOf(winner),
+        rules: s.settings.scoreRules,
+      );
+
+  void _calculateQuick(GameSession s) {
+    String? err;
+    if (_winner == null) {
+      err = '和了者を選択してください';
+    } else if (!_tsumo && _loser == null) {
+      err = '放銃者を選択してください';
+    } else if (_quickYakuman == 0 && _quickHan == null) {
+      err = '翻数を選んでください';
+    } else if (_quickYakuman == 0 && _quickHan! < 5 && _quickFu == null) {
+      err = '符を選んでください';
+    }
+    err ??= _quickResult(s, _winner).error;
+    if (err != null) {
+      _snack(err);
+      return;
+    }
+    final entry = WinEntry.hanFu(session: s, winner: _winner!, isTsumo: _tsumo, hanFu: _hanFu);
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => WinResultScreen(
+        sessionId: widget.sessionId,
+        entries: [...widget.previousWins, entry],
+        loser: _tsumo ? null : _loser,
+      ),
+    ));
+  }
+
   void _calculate(GameSession s) {
+    if (_quick) {
+      _calculateQuick(s);
+      return;
+    }
     String? err;
     if (_winner == null) {
       err = '和了者を選択してください';
@@ -390,7 +447,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                         padding: const EdgeInsets.all(12),
                         child: Text(
                           'ダブロンの2人目の和了を入力します。'
-                          '放銃者・和了牌・ドラ表示牌は1人目（'
+                          '${widget.previousWins.first.hanFu == null ? '放銃者・和了牌・ドラ表示牌' : '放銃者'}は1人目（'
                           '${widget.previousWins.map((e) => s.playerNames[e.winner]).join("・")}）と同じです。',
                           style: TextStyle(color: theme.colorScheme.onTertiaryContainer),
                         ),
@@ -439,6 +496,16 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                       ],
                     ),
                   ],
+                  const SizedBox(height: 14),
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('手牌で入力'), icon: Icon(Icons.grid_view)),
+                      ButtonSegment(value: true, label: Text('翻・符で入力'), icon: Icon(Icons.calculate_outlined)),
+                    ],
+                    selected: {_quick},
+                    onSelectionChanged: (v) => setState(() => _quick = v.first),
+                  ),
+                  if (_quick) ..._quickSection(theme, s) else ...[
                   _section(theme, '手牌（${_hand.length}/$_needHand枚・タップで削除）'),
                   _targetBox(
                     target: _Target.hand,
@@ -561,16 +628,123 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                       ],
                     ],
                   ),
+                  ],
                   const SizedBox(height: 12),
                 ],
               ),
             ),
-            _paletteArea(theme, s),
+            if (_quick) _quickBottom(theme, s) else _paletteArea(theme, s),
           ],
         ),
       ),
     );
   }
+
+  /// 翻・符で入力するときの、翻・符（役満）を選ぶ欄
+  List<Widget> _quickSection(ThemeData theme, GameSession s) {
+    final rules = s.settings.scoreRules;
+    final needFu = _quickYakuman == 0 && (_quickHan == null || _quickHan! < 5);
+    bool fuEnabled(int fu) {
+      final han = _quickHan ?? 1;
+      if (fu == 20) return _tsumo && han >= 2;
+      if (fu == 25) return han >= 2;
+      return true;
+    }
+
+    return [
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          'ドラ・赤ドラ・裏ドラ${s.settings.isSanma && s.settings.nukiDora ? '・抜きドラ' : ''}も含めた翻数を選んでください。'
+          '本場・供託は自動で加えます。包（責任払い）は手牌で入力したときだけ選べます。',
+          style: theme.textTheme.bodySmall,
+        ),
+      ),
+      _section(theme, '翻数'),
+      Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          for (var h = 1; h <= 13; h++)
+            ChoiceChip(
+              label: Text(h == 13 ? '13翻以上' : '$h翻'),
+              selected: _quickYakuman == 0 && _quickHan == h,
+              onSelected: (_) => setState(() {
+                _quickHan = h;
+                _quickYakuman = 0;
+                if (_quickFu != null && !fuEnabled(_quickFu!)) _quickFu = null;
+              }),
+            ),
+          for (var y = 1; y <= (rules.doubleYakuman ? 3 : 1); y++)
+            ChoiceChip(
+              label: Text(y == 1 ? '役満' : y == 2 ? '二倍役満' : '三倍役満'),
+              selected: _quickYakuman == y,
+              onSelected: (_) => setState(() => _quickYakuman = y),
+            ),
+        ],
+      ),
+      if (needFu) ...[
+        _section(theme, '符'),
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            for (final f in ScoreCalculator.hanFuChoices)
+              ChoiceChip(
+                label: Text('$f符'),
+                selected: _quickFu == f,
+                onSelected: fuEnabled(f) ? (_) => setState(() => _quickFu = f) : null,
+              ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text('20符は平和ツモ、25符は七対子（どちらも2翻以上）。5翻以上は符に関係なく満貫以上です。',
+              style: theme.textTheme.bodySmall),
+        ),
+      ],
+    ];
+  }
+
+  /// 翻・符で入力するときの下の欄（点数の見込みと計算ボタン）
+  Widget _quickBottom(ThemeData theme, GameSession s) {
+    final ready = _quickYakuman > 0 || (_quickHan != null && (_quickHan! >= 5 || _quickFu != null));
+    var preview = '翻数と符を選んでください';
+    if (ready) {
+      final r = _quickResult(s, _winner);
+      if (!r.isValid) {
+        preview = r.error ?? '';
+      } else {
+        final isDealer = _winner != null && _winner == s.dealer;
+        final who = _winner == null ? '' : (isDealer ? '親の' : '子の');
+        final score = _tsumo
+            ? ScoreCalculator.formatScore(r, isDealer: isDealer, isTsumo: true)
+            : '${r.totalScore}点';
+        preview = '$who${_tsumo ? 'ツモ' : 'ロン'} $score'
+            '${r.limitName != null ? '（${r.limitName}）' : ''}'
+            '${_winner == null ? '（和了者を選ぶと親・子が決まります）' : ''}';
+      }
+    }
+    return Material(
+      elevation: 8,
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+        child: Row(
+          children: [
+            Expanded(child: Text(preview, style: theme.textTheme.titleSmall)),
+            const SizedBox(width: 8),
+            FilledButton(
+              style: FilledButton.styleFrom(minimumSize: const Size(80, 40)),
+              onPressed: () => _calculate(s),
+              child: const Text('計算'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _paletteArea(ThemeData theme, GameSession s) {
     const labels = {

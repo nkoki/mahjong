@@ -29,7 +29,7 @@ class WinResultScreen extends ConsumerStatefulWidget {
 
   static String headlineOf(ScoreResult r) => r.isYakuman
       ? r.limitName ?? '役満'
-      : '${r.han}翻 ${r.fu}符${r.limitName != null ? "  ${r.limitName}" : ""}';
+      : '${r.han}翻${r.fu > 0 ? " ${r.fu}符" : ""}${r.limitName != null ? "  ${r.limitName}" : ""}';
 
   @override
   ConsumerState<WinResultScreen> createState() => _WinResultScreenState();
@@ -222,20 +222,23 @@ class _WinCard extends StatelessWidget {
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 2,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.end,
-          children: [
-            for (final t in input.handTiles) TileView(t, width: 24),
-            const SizedBox(width: 6),
-            TileView(input.winningTile, width: 24, selected: true),
-            for (final m in input.melds) ...[
-              const SizedBox(width: 8),
-              for (final t in m.tiles) TileView(t, width: 20),
+        if (win.hanFu != null)
+          Text('翻・符で入力（手牌は入力していません）', style: theme.textTheme.bodySmall)
+        else
+          Wrap(
+            spacing: 2,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            children: [
+              for (final t in input.handTiles) TileView(t, width: 24),
+              const SizedBox(width: 6),
+              TileView(input.winningTile, width: 24, selected: true),
+              for (final m in input.melds) ...[
+                const SizedBox(width: 8),
+                for (final t in m.tiles) TileView(t, width: 20),
+              ],
             ],
-          ],
-        ),
+          ),
         const SizedBox(height: 12),
         Card(
           color: theme.colorScheme.primaryContainer,
