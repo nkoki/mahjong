@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
 import '../../core/l10n.dart';
+import '../../core/theme.dart';
 import '../session/domain/session_logic.dart' show HanFuEntry;
 import '../session/session_providers.dart';
 
@@ -17,7 +18,10 @@ class ScoreTableCell {
   /// 満貫などの名前（満貫未満なら null）
   final String? limitName;
 
-  const ScoreTableCell({this.ron, this.tsumo, this.limitName});
+  /// ツモで受け取る合計（3人打ちのツモ損では、北家の分が無いので4人打ちより少ない）
+  final int? tsumoTotal;
+
+  const ScoreTableCell({this.ron, this.tsumo, this.limitName, this.tsumoTotal});
 }
 
 /// 点数早見表（UI に依存しない）
@@ -51,6 +55,7 @@ class ScoreTable {
       ron: ron.isValid ? ScoreCalculator.formatScore(ron, isDealer: isDealer, isTsumo: false) : null,
       tsumo: tsumo.isValid ? ScoreCalculator.formatScore(tsumo, isDealer: isDealer, isTsumo: true) : null,
       limitName: ron.isValid ? ron.limitName : (tsumo.isValid ? tsumo.limitName : null),
+      tsumoTotal: tsumo.isValid ? tsumo.paymentDetails.winnerGain : null,
     );
   }
 }
@@ -67,11 +72,17 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
   bool _dealer = false;
   int _players = 4;
 
+  /// 3人打ちのツモの支払い（null ならルール設定のまま。true: 折半 / false: ツモ損）
+  bool? _split;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final settings = ref.watch(defaultSettingsProviderFor(_players));
-    final rules = settings.scoreRules;
+    final split = _split ?? settings.sanmaTsumoSplit;
+    final rules = _players == 3 ? settings.copyWith(sanmaTsumoSplit: split).scoreRules : settings.scoreRules;
+    final sanma = _players == 3;
+    String total(int? v) => v == null ? '' : tr('計${formatPoints(v)}', 'total ${formatPoints(v)}');
     final small = theme.textTheme.bodySmall;
     final border = BorderSide(color: theme.colorScheme.outlineVariant);
 
@@ -93,6 +104,9 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
           children: [
             Text(_score(c.ron), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
             Text(_score(c.tsumo), style: small),
+            // 3人打ちは受け取る合計も出す（ツモ損では払う額が4人打ちと同じで、合計が少なくなるため）
+            if (sanma && c.tsumoTotal != null)
+              Text(total(c.tsumoTotal), style: small?.copyWith(color: theme.colorScheme.outline, fontSize: 10)),
           ],
         ),
       );
@@ -123,21 +137,46 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
                 selected: {_players},
                 onSelectionChanged: (v) => setState(() => _players = v.first),
               ),
+              if (sanma)
+                SegmentedButton<bool>(
+                  key: const ValueKey('tsumo-split'),
+                  segments: [
+                    ButtonSegment(value: false, label: Text(tr('ツモ損', 'Tsumo loss'))),
+                    ButtonSegment(value: true, label: Text(tr('折半', 'Split'))),
+                  ],
+                  selected: {split},
+                  onSelectionChanged: (v) => setState(() => _split = v.first),
+                ),
             ],
           ),
+          if (sanma) ...[
+            const SizedBox(height: 8),
+            Text(
+              split
+                  ? tr('折半: いない北家の分を2人で分けて払います。ロンは4人打ちと同じ点数です（例: 子の満貫ツモは 3000-5000、合計 8,000）。',
+                      'Split: the missing North\'s share is split between the two payers. Ron is the same as 4-player '
+                          '(e.g. non-dealer mangan tsumo: 3000-5000, total 8,000).')
+                  : tr('ツモ損: 1人が払う額は4人打ちと同じで、いない北家の分は受け取れないので、合計が少なくなります。'
+                      'ロンは4人打ちと同じ点数です（例: 子の満貫ツモは 2000-4000 で、合計 6,000。4人打ちなら 8,000）。',
+                      'Tsumo loss: each payer pays the same as in 4-player, but there is no North, so the total is smaller. '
+                          'Ron is the same as 4-player (e.g. non-dealer mangan tsumo: 2000-4000, total 6,000 vs 8,000).'),
+              key: const ValueKey('sanma-note'),
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary),
+            ),
+          ],
           const SizedBox(height: 8),
           Text(
             tr(
               '上の数字がロン、下の数字がツモ（${_dealer ? "全員が払う額" : "子-親が払う額"}）です。本場・供託は含みません。'
                   '色の付いたマスは満貫です。ルール設定（${_players == 3 ? "3人打ち" : "4人打ち"}）の'
                   '「切り上げ満貫${settings.kiriageMangan ? "あり" : "なし"}」'
-                  '${_players == 3 ? "・${settings.sanmaTsumoSplit ? "ツモ折半" : "ツモ損"}" : ""}で計算しています。'
+                  '${_players == 3 ? "・${split ? "ツモ折半" : "ツモ損"}" : ""}で計算しています。'
                   '20符はツモ（平和ツモ）だけ、25符（七対子）は2翻からです。',
               'Top: ron. Bottom: tsumo (${_dealer ? "paid by each player" : "non-dealer-dealer payments"}). '
                   'Honba and riichi deposits are not included. Shaded cells are mangan. '
                   'Calculated with the rule settings (${_players == 3 ? "3-player" : "4-player"}): '
                   'rounded-up mangan ${settings.kiriageMangan ? "on" : "off"}'
-                  '${_players == 3 ? ", ${settings.sanmaTsumoSplit ? "tsumo split" : "tsumo loss"}" : ""}. '
+                  '${_players == 3 ? ", ${split ? "tsumo split" : "tsumo loss"}" : ""}. '
                   '20 fu is tsumo only (pinfu tsumo); 25 fu (chiitoitsu) starts at 2 han.',
             ),
             style: small,
@@ -191,7 +230,8 @@ class _ScoreTableScreenState extends ConsumerState<ScoreTableScreen> {
                     Text(_score(c.ron),
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
-                    Text(_score(c.tsumo), textAlign: TextAlign.center),
+                    Text('${_score(c.tsumo)}${sanma && c.tsumoTotal != null ? '\n${total(c.tsumoTotal)}' : ''}',
+                        textAlign: TextAlign.center),
                   ]);
                 }(),
             ],

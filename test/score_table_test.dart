@@ -55,10 +55,43 @@ void main() {
       expect(rows['役満']!.tsumo, '8000-16000');
     });
 
+    test('ツモで受け取る合計: 3人打ちのツモ損は北家の分だけ少なく、折半は4人打ちと同じ', () {
+      int? total(ScoreRules r, {bool dealer = false}) =>
+          ScoreTable.cell(han: 5, fu: 30, isDealer: dealer, rules: r).tsumoTotal;
+      expect(total(rules), 8000);
+      expect(total(const ScoreRules(playerCount: 3)), 6000);
+      expect(total(const ScoreRules(playerCount: 3, sanmaTsumoSplit: true)), 8000);
+      expect(total(rules, dealer: true), 12000);
+      expect(total(const ScoreRules(playerCount: 3), dealer: true), 8000);
+      // 1人が払う額: ツモ損は4人打ちと同じ、折半は増える
+      expect(ScoreTable.cell(han: 5, fu: 30, isDealer: false, rules: const ScoreRules(playerCount: 3)).tsumo, '2000-4000');
+      expect(ScoreTable.cell(han: 5, fu: 30, isDealer: false, rules: const ScoreRules(playerCount: 3, sanmaTsumoSplit: true)).tsumo,
+          '3000-5000');
+      // ロンは同じ
+      expect(ScoreTable.cell(han: 3, fu: 30, isDealer: false, rules: const ScoreRules(playerCount: 3)).ron, '3900');
+    });
+
     test('3人打ち（ツモ損）は子・親の2人が払う', () {
       final c = ScoreTable.cell(han: 1, fu: 30, isDealer: true, rules: const ScoreRules(playerCount: 3));
       expect(c.tsumo, '500オール');
     });
+  });
+
+  testWidgets('3人打ちはツモの合計とツモ損・折半の説明を出し、その場で切り替えて比べられる', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.binding.setSurfaceSize(const Size(420, 3000));
+    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: ScoreTableScreen())));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('tsumo-split')), findsNothing);
+    expect(find.textContaining('計8,000'), findsNothing, reason: '4人打ちでは合計を出さない');
+    await tester.tap(find.text('3人打ち'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('ツモ損: 1人が払う額は4人打ちと同じ'), findsOneWidget);
+    expect(find.text('2000-4000\n計6,000'), findsOneWidget, reason: '満貫の行');
+    await tester.tap(find.text('折半'));
+    await tester.pumpAndSettle();
+    expect(find.text('3000-5000\n計8,000'), findsOneWidget);
+    expect(find.textContaining('折半: いない北家の分'), findsOneWidget);
   });
 
   testWidgets('子・親を切り替えられる', (tester) async {
