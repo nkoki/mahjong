@@ -86,7 +86,7 @@ class TilePainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = math.max(2, w * 0.08)
-          ..color = Colors.orange,
+          ..color = const Color(0xFFD9822B),
       );
     }
   }

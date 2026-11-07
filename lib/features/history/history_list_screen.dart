@@ -266,7 +266,7 @@ class _SessionTile extends StatelessWidget {
       child: ListTile(
         leading: Icon(
           s.finished ? Icons.emoji_events : Icons.timelapse,
-          color: s.finished ? Colors.amber.shade700 : null,
+          color: s.finished ? const Color(0xFFB8860B) : null,
         ),
         title: Text(s.playerNames.join(' / ')),
         subtitle: Column(
@@ -292,7 +292,7 @@ class _SessionTile extends StatelessWidget {
           tooltip: s.favorite ? tr('お気に入りを解除', 'Remove from favorites') : tr('お気に入りにする', 'Add to favorites'),
           icon: Icon(
             s.favorite ? Icons.star : Icons.star_border,
-            color: s.favorite ? Colors.amber.shade700 : null,
+            color: s.favorite ? const Color(0xFFB8860B) : null,
           ),
           onPressed: onFavorite,
         ),

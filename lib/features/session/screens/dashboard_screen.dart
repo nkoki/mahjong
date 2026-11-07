@@ -517,13 +517,15 @@ class _PlayerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = AppTheme.accent(context);
     return Card(
-      elevation: isDealer ? 4 : 1,
+      elevation: 0,
+      color: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(6),
         side: BorderSide(
-          color: isDealer ? Colors.orange : Colors.transparent,
-          width: 2,
+          color: isDealer ? accent : theme.colorScheme.outlineVariant,
+          width: isDealer ? 2 : 1,
         ),
       ),
       child: Padding(
@@ -533,14 +535,20 @@ class _PlayerCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor:
-                      isDealer ? Colors.orange : theme.colorScheme.secondaryContainer,
+                // 風の札（親は朱色の札。起家マークのように四角く）
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isDealer ? accent : theme.colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(4),
+                    border: isDealer ? null : Border.all(color: theme.colorScheme.outlineVariant),
+                  ),
                   child: Text(wind,
                       style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isDealer ? Colors.white : null)),
+                          fontWeight: FontWeight.w800,
+                          color: isDealer ? Colors.white : theme.colorScheme.onSurface)),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -566,8 +574,8 @@ class _PlayerCard extends StatelessWidget {
                   ? FilledButton(
                       style: FilledButton.styleFrom(
                           minimumSize: const Size(0, 36),
-                          backgroundColor: Theme.of(context).colorScheme.error,
-                          foregroundColor: Theme.of(context).colorScheme.onError),
+                          backgroundColor: accent,
+                          foregroundColor: Colors.white),
                       onPressed: onRiichi,
                       child: Text(tr('立直中（取消）', 'Riichi (cancel)')),
                     )

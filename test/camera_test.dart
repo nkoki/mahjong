@@ -179,7 +179,7 @@ void main() {
         overrides: [sessionRepositoryProvider.overrideWithValue(InMemorySessionRepository())],
         child: const MaterialApp(home: HomeScreen()),
       ));
-      await tester.tap(find.byTooltip('ライセンス・データの出典'));
+      await tester.tap(find.text('ライセンス・データの出典'));
       await tester.pumpAndSettle();
       expect(find.byType(LicenseScreen), findsOneWidget);
       expect(find.text('Riichi Mahjong（バージョン 8）'), findsOneWidget);

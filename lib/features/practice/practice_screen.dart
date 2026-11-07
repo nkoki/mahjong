@@ -124,14 +124,20 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
             ),
           ],
           const SizedBox(height: 8),
-          Row(
+          // 幅の狭い画面や英語の表示でもはみ出さないよう、入りきらなければ折り返す
+          Wrap(
+            spacing: 16,
+            runSpacing: 6,
             children: [
-              Text(tr('ドラ表示牌 ', 'Dora indicator '), style: small),
-              for (final t in input.doraTiles) TileView(t, width: 22),
-              if (input.uraDoraTiles.isNotEmpty) ...[
-                Text(tr('  裏ドラ表示牌 ', '  Ura dora indicator '), style: small),
-                for (final t in input.uraDoraTiles) TileView(t, width: 22),
-              ],
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(tr('ドラ表示牌 ', 'Dora indicator '), style: small),
+                for (final t in input.doraTiles) TileView(t, width: 22),
+              ]),
+              if (input.uraDoraTiles.isNotEmpty)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(tr('裏ドラ表示牌 ', 'Ura dora indicator '), style: small),
+                  for (final t in input.uraDoraTiles) TileView(t, width: 22),
+                ]),
             ],
           ),
           const SizedBox(height: 16),

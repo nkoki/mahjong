@@ -14,6 +14,8 @@ import '../../settings/display_settings.dart';
 import '../../settings/rule_settings_screen.dart';
 import '../../storage/storage_info_screen.dart';
 import '../session_providers.dart';
+import '../../../shared/widgets/tile_view.dart';
+import '../domain/models.dart';
 import 'new_session_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -29,160 +31,304 @@ class HomeScreen extends ConsumerWidget {
     void openInfo() => Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const StorageInfoScreen()));
 
+    void push(Widget w) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => w));
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(tr('麻雀点数計算', 'Mahjong Scorer')),
-        actions: [
-          IconButton(
-            tooltip: tr('ルール設定', 'Rules'),
-            icon: const Icon(Icons.tune),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const RuleSettingsScreen())),
-          ),
-          IconButton(
-            tooltip: tr('表示の設定（明るさ・文字の大きさ）', 'Display (theme, text size, language)'),
-            icon: const Icon(Icons.brightness_6_outlined),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const DisplaySettingsScreen())),
-          ),
-          IconButton(
-            tooltip: tr('データの保存について', 'About data storage'),
-            icon: const Icon(Icons.info_outline),
-            onPressed: openInfo,
-          ),
-          IconButton(
-            tooltip: tr('ライセンス・データの出典', 'Licenses & data sources'),
-            icon: const Icon(Icons.description_outlined),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const LicenseScreen())),
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const _Header(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (saveError != null)
+                  _NoticeCard(
+                    icon: Icons.error_outline,
+                    message: saveError,
+                    error: true,
+                    onTap: openInfo,
+                  ),
+                for (var i = 0; i < warnings.length; i++)
+                  _NoticeCard(
+                    icon: Icons.warning_amber_rounded,
+                    message: warnings[i],
+                    onClose: () => ref.read(loadWarningsProvider.notifier).state = [
+                      for (var j = 0; j < warnings.length; j++)
+                        if (j != i) warnings[j]
+                    ],
+                  ),
+                if (ongoing.isNotEmpty) ...[
+                  _SectionLabel(tr('対局中（続きから）', 'In progress (continue)')),
+                  for (final s in ongoing) _OngoingSlip(session: s),
+                  const SizedBox(height: 12),
+                ],
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.accent(context),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 56),
+                  ),
+                  onPressed: () => push(const NewSessionScreen()),
+                  child: Text(tr('新規対局', 'New game')),
+                ),
+                _SectionLabel(tr('記録', 'Records')),
+                _MenuGroup(children: [
+                  _MenuRow(icon: Icons.format_list_numbered, title: tr('戦績', 'Records'), onTap: () => push(const HistoryListScreen())),
+                  _MenuRow(icon: Icons.person_outline, title: tr('個人成績', 'Player stats'), onTap: () => push(const StatsScreen())),
+                ]),
+                _SectionLabel(tr('道具', 'Tools')),
+                _MenuGroup(children: [
+                  _MenuRow(icon: Icons.grid_on, title: tr('点数早見表', 'Score table'), onTap: () => push(const ScoreTableScreen())),
+                  _MenuRow(icon: Icons.edit_note, title: tr('点数計算の練習', 'Scoring practice'), onTap: () => push(const PracticeScreen())),
+                ]),
+                _SectionLabel(tr('設定', 'Settings')),
+                _MenuGroup(children: [
+                  _MenuRow(icon: Icons.rule, title: tr('ルール設定', 'Rules'), onTap: () => push(const RuleSettingsScreen())),
+                  _MenuRow(
+                      icon: Icons.contrast,
+                      title: tr('表示の設定（明るさ・文字の大きさ）', 'Display (theme, text size, language)'),
+                      onTap: () => push(const DisplaySettingsScreen())),
+                  _MenuRow(
+                      icon: Icons.article_outlined,
+                      title: tr('ライセンス・データの出典', 'Licenses & data sources'),
+                      onTap: () => push(const LicenseScreen())),
+                ]),
+                _SectionLabel(tr('データ', 'Data')),
+                _MenuGroup(children: [
+                  InkWell(
+                    onTap: openInfo,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(tr('データの保存について', 'About data storage'), style: theme.textTheme.titleSmall),
+                              ),
+                              Icon(Icons.chevron_right, color: theme.colorScheme.outline),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            tr(
+                                '対局データはこの端末に自動で保存されます。'
+                                    'アプリを削除したり、ブラウザのデータを消したりすると消えてしまいます。',
+                                'Game data is saved automatically on this device. '
+                                    'It will be lost if you uninstall the app or clear browser data.'),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          const StorageUsageView(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                    child: _BackupRow(sessionCount: ref.watch(sessionsProvider).length),
+                  ),
+                ]),
+              ],
+            ),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (saveError != null)
-            _NoticeCard(
-              icon: Icons.error_outline,
-              message: saveError,
-              error: true,
-              onTap: openInfo,
-            ),
-          for (var i = 0; i < warnings.length; i++)
-            _NoticeCard(
-              icon: Icons.warning_amber_rounded,
-              message: warnings[i],
-              onClose: () => ref.read(loadWarningsProvider.notifier).state = [
-                for (var j = 0; j < warnings.length; j++)
-                  if (j != i) warnings[j]
-              ],
-            ),
-          const SizedBox(height: 16),
-          Icon(Icons.grid_view_rounded, size: 72, color: theme.colorScheme.primary),
-          const SizedBox(height: 8),
-          Text(tr('4人打ち 点数計算・対局管理', '4-player scoring & game manager'),
-              textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
-          const SizedBox(height: 32),
-          FilledButton.icon(
-            icon: const Icon(Icons.play_arrow),
-            label: Text(tr('新規対局', 'New game')),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const NewSessionScreen()),
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-            icon: const Icon(Icons.history),
-            label: Text(tr('戦績', 'Records')),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const HistoryListScreen()),
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-            icon: const Icon(Icons.leaderboard_outlined),
-            label: Text(tr('個人成績', 'Player stats')),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const StatsScreen()),
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-            icon: const Icon(Icons.table_chart_outlined),
-            label: Text(tr('点数早見表', 'Score table')),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ScoreTableScreen()),
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-            icon: const Icon(Icons.school_outlined),
-            label: Text(tr('点数計算の練習', 'Scoring practice')),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PracticeScreen()),
-            ),
-          ),
-          if (ongoing.isNotEmpty) ...[
-            const SizedBox(height: 32),
-            Text(tr('対局中（続きから）', 'In progress (continue)'), style: theme.textTheme.titleSmall),
-            const SizedBox(height: 8),
-            for (final s in ongoing)
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.casino_outlined),
-                  title: Text(s.playerNames.join(' / ')),
-                  subtitle: Text(
-                      '${displayRoundLabel(s.roundLabel)}  ${tr('供託${s.riichiSticks}本', 'Riichi sticks: ${s.riichiSticks}')}\n'
-                      '${[for (final v in s.scores) formatPoints(v)].join(' / ')}'),
-                  isThreeLine: true,
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(dashboardRoute(s.id)),
-                ),
-              ),
-          ],
-          const SizedBox(height: 32),
-          Card(
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: openInfo,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+    );
+  }
+}
+
+/// ホームのいちばん上の看板（卓の緑に、東南西北の牌とアプリの名前）
+class _Header extends StatelessWidget {
+  const _Header();
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      color: dark ? const Color(0xFF17201C) : AppTheme.tableGreen,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+          child: Row(
+            children: [
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.save_outlined, size: 20, color: theme.colorScheme.primary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(tr('データの保存について', 'About data storage'), style: theme.textTheme.titleSmall),
-                        ),
-                        const Icon(Icons.chevron_right),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
                     Text(
-                      tr(
-                          '対局データはこの端末に自動で保存されます。'
-                              'アプリを削除したり、ブラウザのデータを消したりすると消えてしまいます。',
-                          'Game data is saved automatically on this device. '
-                              'It will be lost if you uninstall the app or clear browser data.'),
-                      style: theme.textTheme.bodySmall,
+                      tr('麻雀点数計算', 'Mahjong Scorer'),
+                      style: const TextStyle(
+                        color: Color(0xFFF7F3EA),
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                        height: 1.1,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    const StorageUsageView(),
-                    const Divider(height: 20),
-                    _BackupRow(sessionCount: ref.watch(sessionsProvider).length),
+                    const SizedBox(height: 6),
+                    Text(
+                      tr('点数計算と対局の記録', 'Scoring and game records'),
+                      style: const TextStyle(color: Color(0xCCF7F3EA), fontSize: 13, letterSpacing: 1),
+                    ),
                   ],
                 ),
               ),
+              // 東南西北を少しずつ重ねて並べる（飾り。読み上げでは読まない）
+              ExcludeSemantics(
+                child: SizedBox(
+                  width: 100,
+                  height: 44,
+                  child: Stack(
+                    children: [
+                      for (var i = 0; i < 4; i++)
+                        Positioned(left: i * 22.0, top: i.isEven ? 0 : 4, child: TileView('${i + 1}z', width: 30)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// まとまりの見出し
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
+      child: Text(text,
+          style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+/// 線で囲んだメニューのまとまり（行の間に区切り線）
+class _MenuGroup extends StatelessWidget {
+  final List<Widget> children;
+  const _MenuGroup({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) Divider(height: 1, indent: 16, color: scheme.outlineVariant),
+            children[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  const _MenuRow({required this.icon, required this.title, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 14),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),
+            Icon(Icons.chevron_right, color: scheme.outline),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 対局中の対局（点数表の紙のように、名前と点数を並べる）
+class _OngoingSlip extends StatelessWidget {
+  final GameSession session;
+  const _OngoingSlip({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = session;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: scheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(6),
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(dashboardRoute(s.id)),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 4, color: AppTheme.accent(context)),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${displayRoundLabel(s.roundLabel)}  ${tr('供託${s.riichiSticks}本', 'Riichi sticks: ${s.riichiSticks}')}',
+                          style: theme.textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 14,
+                          runSpacing: 4,
+                          children: [
+                            for (var p = 0; p < s.playerCount; p++)
+                              Text.rich(TextSpan(children: [
+                                TextSpan(text: '${s.playerNames[p]} ', style: theme.textTheme.bodySmall),
+                                TextSpan(
+                                    text: formatPoints(s.scores[p]),
+                                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                              ])),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: scheme.outline),
+                const SizedBox(width: 8),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

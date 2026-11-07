@@ -50,7 +50,10 @@ void main() {
   testWidgets('ホーム画面から表示の設定を開いて変えると、すぐに反映され保存される', (tester) async {
     final repo = await pumpApp(tester);
     expect(tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode, ThemeMode.system);
-    await tester.tap(find.byTooltip('表示の設定（明るさ・文字の大きさ）'));
+    // 設定はホームのメニューの「設定」のまとまりにある
+    await tester.scrollUntilVisible(find.text('表示の設定（明るさ・文字の大きさ）'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('表示の設定（明るさ・文字の大きさ）'));
     await tester.pumpAndSettle();
     expect(find.byType(DisplaySettingsScreen), findsOneWidget);
 
@@ -83,8 +86,9 @@ void main() {
         return const SizedBox();
       }),
     ));
-    expect(lightUp, Colors.green.shade700);
-    expect(darkUp, Colors.green.shade300);
+    expect(lightUp, const Color(0xFF1F6B4A));
+    expect(darkUp, const Color(0xFF8FC4AA));
+    expect(darkUp!.computeLuminance(), greaterThan(lightUp!.computeLuminance()), reason: '暗い表示では明るめ');
   });
 
   group('文字を特大にして、暗い表示・幅の狭い画面でもはみ出さない', () {

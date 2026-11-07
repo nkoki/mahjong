@@ -59,7 +59,8 @@ node smoke.mjs http://localhost:8765/mahjong/
 |---|---|
 | アプリの ID | `app.naashi.mahjong`（Android の applicationId・namespace、iOS の Bundle ID）。ストアに公開すると変えられない |
 | 権限 | 正式版の Android アプリはインターネットの権限を持たない（このアプリは通信しない）。開発用の debug / profile だけが持つ |
-| アイコン・起動画面 | `tools/app_icon/make_icons.py` で作ったオリジナルのアイコン（緑の卓に牌1枚）。Android（従来・アダプティブ）・iOS・Web・ストア用（`store/icon-512.png`）。起動画面はテーマの緑 |
+| アイコン・起動画面 | `tools/app_icon/make_icons.py` で作ったオリジナルのアイコン（卓の緑の上に、少し傾けた「中」の牌。字はフォントを使わず線で描いている）。Android（従来・アダプティブ）・iOS・Web・ストア用（`store/icon-512.png`）。起動画面はテーマの緑（#1F4A3A） |
+| 見た目 | 自動で作る色の組み合わせは使わず、雀卓と牌から取った色を手で決めている（卓の緑・牌の象牙色の紙・墨色の文字・中の朱色。`lib/core/theme.dart`）。角は小さく丸め、影の代わりに細い線で区切る。数字は等幅で桁がそろう。ホームは卓の緑の看板（東南西北の牌とアプリ名）と、記録・道具・設定・データのまとまりのメニュー。親の札・立直中・新規対局のボタンは朱色。暗い表示も同じ考えで色を決めている |
 | プライバシーポリシー | アプリ内（「ライセンス・データの出典」画面のいちばん上）と、Web 版と一緒に公開するページ `https://nkoki.github.io/mahjong/privacy.html`（ストアに登録する URL）。内容は `lib/features/about/privacy_policy.dart` と `web/privacy.html` の両方にあり、テストでそろっているかを確かめる |
 | 署名（Android） | `android/key.properties` があれば、その鍵で正式版に署名する。無ければデバッグ用の鍵で署名する（自分の端末で試す用。ストアには出せない） |
 

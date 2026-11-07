@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,7 +46,7 @@ void main() {
     'rule settings': const RuleSettingsScreen(),
     'display settings': const DisplaySettingsScreen(),
     'score table': const ScoreTableScreen(),
-    'practice': const PracticeScreen(),
+    'practice': PracticeScreen(random: Random(1)),
     'backup': const BackupScreen(),
     'storage info': const StorageInfoScreen(),
   };

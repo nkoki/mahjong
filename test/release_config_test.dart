@@ -86,7 +86,7 @@ void main() {
       expect(png('web/icons/Icon-maskable-512.png').width, 512);
       expect(png('store/icon-512.png').width, 512);
       final manifest = jsonDecode(File('web/manifest.json').readAsStringSync()) as Map<String, dynamic>;
-      expect(manifest['theme_color'], '#1B5E20');
+      expect(manifest['theme_color'], '#1F4A3A');
     });
   });
 

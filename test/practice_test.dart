@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mahjong_app/core/l10n.dart';
 import 'package:mahjong_app/features/practice/practice_generator.dart';
 import 'package:mahjong_app/features/practice/practice_screen.dart';
 import 'package:mahjong_app/features/session/data/session_repository.dart';
@@ -69,5 +70,22 @@ void main() {
     await tester.pump();
     expect(find.textContaining('正解 ').evaluate().isNotEmpty, isTrue);
     expect(find.textContaining('/ 2問'), findsOneWidget);
+  });
+
+  testWidgets('裏ドラ表示牌がある問題を英語・幅の狭い画面で出しても、はみ出さない', (tester) async {
+    // 裏ドラ表示牌がある（立直している）問題が出る種を探す
+    var seed = 0;
+    while (PracticeGenerator.generate(Random(seed)).input.uraDoraTiles.isEmpty) {
+      seed++;
+    }
+    L10n.isEnglish = true;
+    addTearDown(() => L10n.isEnglish = false);
+    await tester.binding.setSurfaceSize(const Size(320, 1600));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [sessionRepositoryProvider.overrideWithValue(InMemorySessionRepository([]))],
+      child: MaterialApp(home: PracticeScreen(random: Random(seed))),
+    ));
+    expect(tester.takeException(), isNull);
+    expect(find.text('Ura dora indicator '), findsOneWidget);
   });
 }

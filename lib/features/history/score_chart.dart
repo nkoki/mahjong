@@ -47,7 +47,8 @@ class ScoreSeries {
 }
 
 /// プレイヤーごとの線の色（明るい表示・暗い表示のどちらでも見分けやすい色）
-const scoreChartColors = [Color(0xFFE53935), Color(0xFF1E88E5), Color(0xFF43A047), Color(0xFFFB8C00)];
+/// 朱・藍・緑・山吹（牌の絵柄の色に合わせた、落ち着いた色）
+const scoreChartColors = [Color(0xFFC0392B), Color(0xFF2F5D9A), Color(0xFF2E7D57), Color(0xFFC9901F)];
 
 /// 点数の推移の折れ線グラフ
 class ScoreChart extends StatelessWidget {

@@ -171,7 +171,8 @@ class ResultCard extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 14,
-                          backgroundColor: r.rank == 1 ? Colors.amber.shade600 : theme.colorScheme.secondaryContainer,
+                          backgroundColor: r.rank == 1 ? AppTheme.vermilion : theme.colorScheme.secondaryContainer,
+                          foregroundColor: r.rank == 1 ? Colors.white : null,
                           child: Text('${r.rank}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                         ),
                         const SizedBox(width: 10),

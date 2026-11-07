@@ -1,6 +1,8 @@
 """アプリのアイコン（Android・iOS・Web・ストア用）を作る。
 
-デザイン: 緑の卓の上に、象牙色の牌を1枚置いたもの（牌の面は丸の模様。特定の牌の絵柄は写していない）。
+デザイン: 卓の緑（布の細かい目だけで、色の移り変わりは付けない）の上に、「中」の牌を1枚、少し傾けて置いたもの。
+「中」の字はフォントを使わず、太い線（縦の線と口の形）を組み合わせて描いている。
+牌の背はアプリの牌（lib/shared/widgets/tile_painter.dart）と同じ緑。
 色やデザインを変えたら、リポジトリのいちばん上で次を実行して作り直す。
 
   python tools/app_icon/make_icons.py
@@ -8,66 +10,84 @@
 必要なもの: Pillow
 """
 
+import math
+import random
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[2]
-FELT_TOP = (46, 125, 50)      # 卓の緑（上）
-FELT_BOTTOM = (27, 94, 32)    # 卓の緑（下）= アプリのテーマの色（#1B5E20）
-IVORY = (250, 246, 232)
-TILE_BACK = (240, 182, 40)    # 牌の背（黄）
-RED = (198, 40, 40)
-GREEN = (27, 94, 32)
-NAVY = (21, 57, 110)
+FELT = (31, 74, 58)           # 卓の緑 = アプリのテーマの色（#1F4A3A）
+IVORY = (251, 248, 238)       # 牌の面
+IVORY_SHADE = (232, 224, 205)  # 牌の面の下の陰
+TILE_BACK = (30, 122, 87)     # 牌の背（緑）
+VERMILION = (176, 53, 43)     # 中の朱色（#B0352B）
 
 SS = 4  # なめらかに描くための拡大率
 
 
 def felt(size: int) -> Image.Image:
-    """卓の布（上から下へ少し暗くなる緑）"""
-    img = Image.new("RGB", (size, size))
-    d = ImageDraw.Draw(img)
+    """卓の布（同じ緑に、ごく細かい目を付ける。毎回同じになるよう乱数の種は固定）"""
+    img = Image.new("RGB", (size, size), FELT)
+    px = img.load()
+    rnd = random.Random(7)
     for y in range(size):
-        t = y / (size - 1)
-        c = tuple(round(a + (b - a) * t) for a, b in zip(FELT_TOP, FELT_BOTTOM))
-        d.line([(0, y), (size, y)], fill=c)
-    return img
+        for x in range(size):
+            d = rnd.randint(-5, 5)
+            r, g, b = FELT
+            px[x, y] = (r + d, g + d, b + d)
+    return img.filter(ImageFilter.GaussianBlur(max(0.4, size / 1400)))
 
 
-def tile_layer(size: int, scale: float) -> Image.Image:
-    """透明な背景に牌を1枚描く。scale は牌の高さ（画像の高さに対する割合）"""
+def tile_layer(size: int, scale: float, angle: float = -8) -> Image.Image:
+    """透明な背景に「中」の牌を1枚描く。scale は牌の高さ（画像の高さに対する割合）、angle は傾き（度）"""
     S = size * SS
     layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     h = S * scale
     w = h * 0.74
-    x0, y0 = (S - w) / 2, (S - h) / 2 - h * 0.03
-    r = w * 0.16
-    # 影
-    shadow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle(
-        [x0 + w * 0.04, y0 + h * 0.08, x0 + w * 1.04, y0 + h * 1.06], r, fill=(0, 0, 0, 110))
-    layer = Image.alpha_composite(layer, shadow.filter(ImageFilter.GaussianBlur(S * 0.02)))
+    x0, y0 = (S - w) / 2, (S - h) / 2
+    r = w * 0.13
+    thick = h * 0.09
     d = ImageDraw.Draw(layer)
-    # 牌の背（下の厚み）と表面
-    d.rounded_rectangle([x0, y0 + h * 0.06, x0 + w, y0 + h], r, fill=TILE_BACK)
-    d.rounded_rectangle([x0, y0, x0 + w, y0 + h * 0.9], r, fill=IVORY)
-    # 面の模様: 大きな丸（外側から 緑・白・紺・白・赤）
-    cx, cy = x0 + w / 2, y0 + h * 0.45
-    for rad, color in [(0.36, GREEN), (0.30, IVORY), (0.25, NAVY), (0.19, IVORY), (0.14, RED)]:
-        rr = w * rad
-        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=color)
-    # 丸のまわりの小さな飾り（8つ）
-    import math
-    for k in range(8):
-        a = math.pi * 2 * k / 8
-        px, py = cx + math.cos(a) * w * 0.33, cy + math.sin(a) * w * 0.33
-        rr = w * 0.025
-        d.ellipse([px - rr, py - rr, px + rr, py + rr], fill=IVORY)
-    return layer.resize((size, size), Image.LANCZOS)
+    # 牌の背（厚み）と面
+    d.rounded_rectangle([x0, y0, x0 + w, y0 + h], r, fill=TILE_BACK)
+    face_h = h - thick
+    d.rounded_rectangle([x0, y0, x0 + w, y0 + face_h], r, fill=IVORY)
+    # 面の下の方を少し陰らせる
+    shade = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shade)
+    for i in range(40):
+        t = i / 39
+        a = round(110 * t * t)
+        yy = y0 + face_h * (0.6 + 0.4 * t)
+        sd.line([(x0, yy), (x0 + w, yy)], fill=IVORY_SHADE + (a,), width=max(1, round(face_h * 0.012)))
+    mask = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([x0, y0, x0 + w, y0 + face_h], r, fill=255)
+    layer.paste(shade, (0, 0), Image.composite(shade, Image.new("RGBA", (S, S)), mask).split()[3])
+    d = ImageDraw.Draw(layer)
+    # 「中」: 口の形（太い線の四角）と、上下に突き抜ける縦の線（筆で書いたように下へ少し細くする）
+    cx = x0 + w / 2
+    stroke = w * 0.135
+    bx0, bx1 = x0 + w * 0.16, x0 + w * 0.84
+    by0, by1 = y0 + face_h * 0.31, y0 + face_h * 0.63
+    d.rounded_rectangle([bx0, by0, bx1, by1], stroke * 0.3, outline=VERMILION, width=round(stroke))
+    top, bottom = y0 + face_h * 0.11, y0 + face_h * 0.89
+    wt, wb = w * 0.17, w * 0.12
+    d.polygon([(cx - wt / 2, top), (cx + wt / 2, top), (cx + wb / 2, bottom), (cx - wb / 2, bottom)], fill=VERMILION)
+    d.ellipse([cx - wt / 2, top - wt * 0.18, cx + wt / 2, top + wt * 0.18], fill=VERMILION)
+    d.ellipse([cx - wb / 2, bottom - wb * 0.3, cx + wb / 2, bottom + wb * 0.3], fill=VERMILION)
+    # 傾けて、影を付ける
+    layer = layer.rotate(angle, resample=Image.BICUBIC, center=(S / 2, S / 2))
+    shadow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    alpha = layer.split()[3].point(lambda v: round(v * 0.45))
+    shadow.putalpha(alpha)
+    shadow = shadow.transform((S, S), Image.AFFINE, (1, 0, -S * 0.012, 0, 1, -S * 0.022)).filter(
+        ImageFilter.GaussianBlur(S * 0.018))
+    out = Image.alpha_composite(shadow, layer)
+    return out.resize((size, size), Image.LANCZOS)
 
 
-def full_icon(size: int, scale: float = 0.66) -> Image.Image:
+def full_icon(size: int, scale: float = 0.64) -> Image.Image:
     """背景つきのアイコン（四角いまま。角の丸めは端末が行う）"""
     img = felt(size).convert("RGBA")
     img = Image.alpha_composite(img, tile_layer(size, scale))
