@@ -41,7 +41,8 @@ void main() {
     await tester.tap(find.text('対局開始'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('和了'));
+    // 画面の下の「和了」ボタン（各カードの「和了」とは別）
+    await tester.tap(find.byKey(const ValueKey('win-button')));
     await tester.pumpAndSettle();
 
     // 和了者: 東 プレイヤー1（親）・ツモ

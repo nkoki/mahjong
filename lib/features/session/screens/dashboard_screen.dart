@@ -123,6 +123,8 @@ class DashboardScreen extends ConsumerWidget {
                       : _PlayerGrid(
                           session: s,
                           onRiichi: (p) => notifier.toggleRiichi(sessionId, p),
+                          onWin: (p) => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => WinInputScreen(sessionId: sessionId, initialWinner: p))),
                         ),
             ),
             if (!s.finished)
@@ -132,6 +134,7 @@ class DashboardScreen extends ConsumerWidget {
                   children: [
                     Expanded(
                       child: FilledButton.icon(
+                        key: const ValueKey('win-button'),
                         icon: const Icon(Icons.emoji_events),
                         label: Text(tr('和了', 'Win')),
                         onPressed: () => Navigator.of(context).push(
@@ -480,7 +483,8 @@ class _InfoBar extends StatelessWidget {
 class _PlayerGrid extends StatelessWidget {
   final GameSession session;
   final void Function(int player) onRiichi;
-  const _PlayerGrid({required this.session, required this.onRiichi});
+  final void Function(int player)? onWin;
+  const _PlayerGrid({required this.session, required this.onRiichi, this.onWin});
 
   @override
   Widget build(BuildContext context) {
@@ -506,6 +510,7 @@ class _PlayerGrid extends StatelessWidget {
               onRiichi: (session.riichi[p] || session.scores[p] >= 1000)
                   ? () => onRiichi(p)
                   : null,
+              onWin: onWin == null ? null : () => onWin!(p),
             ),
         ],
       );
@@ -522,8 +527,10 @@ class _PlayerCard extends StatelessWidget {
   final bool riichi;
   final int diffFromTop;
   final VoidCallback? onRiichi;
+  final VoidCallback? onWin;
 
   const _PlayerCard({
+    this.onWin,
     required this.name,
     required this.wind,
     required this.isDealer,
@@ -588,22 +595,47 @@ class _PlayerCard extends StatelessWidget {
             Text(diffFromTop == 0 ? tr('トップ', 'Top') : tr('トップまで ${formatPoints(diffFromTop)}', '${formatPoints(diffFromTop)} behind top'),
                 style: theme.textTheme.bodySmall),
             const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: riichi
-                  ? FilledButton(
+            // 立直と和了を横に並べる（和了はこの人を和了者に選んだ状態で和了入力を開く）
+            Row(
+              children: [
+                Expanded(
+                  child: riichi
+                      ? Tooltip(
+                          message: tr('もう一度押すと立直を取り消します', 'Tap again to cancel riichi'),
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                                minimumSize: const Size(0, 40),
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                backgroundColor: accent,
+                                foregroundColor: Colors.white),
+                            onPressed: onRiichi,
+                            child: FittedBox(child: Text(tr('立直中', 'In riichi'))),
+                          ),
+                        )
+                      : OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 4)),
+                          onPressed: onRiichi,
+                          child: FittedBox(child: Text(tr('立直', 'Riichi'))),
+                        ),
+                ),
+                if (onWin != null) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      key: const ValueKey('card-win'),
                       style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 36),
-                          backgroundColor: accent,
-                          foregroundColor: Colors.white),
-                      onPressed: onRiichi,
-                      child: Text(tr('立直中（取消）', 'Riichi (cancel)')),
-                    )
-                  : OutlinedButton(
-                      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)),
-                      onPressed: onRiichi,
-                      child: Text(tr('立直', 'Riichi')),
+                        minimumSize: const Size(0, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        backgroundColor: theme.colorScheme.secondaryContainer,
+                        foregroundColor: theme.colorScheme.onSecondaryContainer,
+                      ),
+                      onPressed: onWin,
+                      child: FittedBox(child: Text(tr('和了', 'Win'))),
                     ),
+                  ),
+                ],
+              ],
             ),
           ],
         ),

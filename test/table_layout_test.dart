@@ -149,4 +149,14 @@ void main() {
     // 立直していた人なので、状況役の立直が付いている
     expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, '立直').first).selected, isTrue);
   });
+
+  testWidgets('シンプルの画面でも、カードの「和了」で和了者を選んだ状態で和了入力を開く', (tester) async {
+    await pump(tester, start('x', ['A', 'B', 'C', 'D']), table: false);
+    expect(find.byType(MahjongTableView), findsNothing);
+    expect(find.byKey(const ValueKey('card-win')), findsNWidgets(4));
+    await tester.tap(find.byKey(const ValueKey('card-win')).at(1)); // B のカード
+    await tester.pumpAndSettle();
+    expect(find.byType(WinInputScreen), findsOneWidget);
+    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '南 B').first).selected, isTrue);
+  });
 }
