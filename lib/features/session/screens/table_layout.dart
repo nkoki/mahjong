@@ -349,124 +349,132 @@ class _Seat extends StatelessWidget {
         label: tr(
             '$wind $name ${formatPoints(score)}点 $rank位${riichi ? ' 立直中（押すと取消）' : ''}',
             '$wind $name ${formatPoints(score)} pts, rank $rank${riichi ? ', in riichi (tap to cancel)' : ''}'),
-        child: Material(
-          color: riichi ? const Color(0x24FFFFFF) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              // 念のため: フォントによって高さが足りないときだけ、席の中身を縮めて収める（ふだんは縮めない）
-              child: LayoutBuilder(
-                builder: (context, box) => FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: SizedBox(
-                    width: box.maxWidth,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 22 * k,
-                              height: 22 * k,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: isDealer
-                                    ? AppTheme.vermilionDark
-                                    : const Color(0x26FFFFFF),
-                                borderRadius: BorderRadius.circular(4),
+        // 押せる範囲は席の中身の大きさだけにする（となりの席と重ならないように）。
+        // 立直は、千点棒と朱色の「立直中」の札で示す（席の後ろに色を付けない）
+        child: LayoutBuilder(
+          builder: (context, box) => Center(
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: onTap,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  // 念のため: フォントによって高さが足りないときだけ、席の中身を縮めて収める（ふだんは縮めない）
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                          maxWidth: math.max(0, box.maxWidth - 8)),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 22 * k,
+                                height: 22 * k,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: isDealer
+                                      ? AppTheme.vermilionDark
+                                      : const Color(0x26FFFFFF),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(wind.characters.first,
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13 * k,
+                                        height: 1)),
                               ),
-                              child: Text(wind.characters.first,
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 13 * k,
-                                      height: 1)),
-                            ),
-                            SizedBox(width: 5 * k),
-                            Flexible(
-                              child: Text(name,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                  style: TextStyle(
-                                      color: fg,
-                                      fontSize: 13 * k,
-                                      fontWeight: FontWeight.w700)),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 2 * k),
-                        // 点数（10万点を超えるような長い数字だけ、はみ出さないよう縮める）
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            formatPoints(score),
-                            style: TextStyle(
-                              color: fg,
-                              fontSize: 26 * k,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
-                              height: 1.15,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures()
-                              ],
+                              SizedBox(width: 5 * k),
+                              Flexible(
+                                child: Text(name,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                        color: fg,
+                                        fontSize: 13 * k,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 2 * k),
+                          // 点数（10万点を超えるような長い数字だけ、はみ出さないよう縮める）
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              formatPoints(score),
+                              style: TextStyle(
+                                color: fg,
+                                fontSize: 26 * k,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                                height: 1.15,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        if (riichi) ...[
-                          SizedBox(height: 3 * k),
-                          PointStick(
-                              width: 60 * k, kind: PointStickKind.thousand),
-                        ],
-                        SizedBox(height: 5 * k),
-                        // 順位と、立直の札・和了のボタン（押せることが分かるように、ほかの文字より大きめのボタンの形）
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Text(tr('$rank位', '#$rank'),
-                                style: TextStyle(
-                                    color: const Color(0xCCF7F3EA),
-                                    fontSize: 12 * k,
-                                    fontWeight: FontWeight.w700)),
-                            SizedBox(width: 6 * k),
-                            Column(mainAxisSize: MainAxisSize.min, children: [
-                              _SeatButton(
-                                k: k,
-                                label: action,
-                                filled: riichi,
-                                enabled: onTap != null,
-                                color: AppTheme.vermilionDark,
-                              ),
-                              if (onWin != null) ...[
-                                SizedBox(height: 5 * k),
-                                Semantics(
-                                  button: true,
-                                  label: tr(
-                                      '$name の和了を入力', 'Enter a win for $name'),
-                                  child: ExcludeSemantics(
-                                    child: GestureDetector(
-                                      key: const ValueKey('seat-win'),
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: onWin,
-                                      child: _SeatButton(
-                                        k: k,
-                                        label: tr('和了', 'Win'),
-                                        filled: true,
-                                        enabled: true,
-                                        color: const Color(0xFFF1E9D6),
-                                        textColor: AppTheme.tableGreen,
+                          if (riichi) ...[
+                            SizedBox(height: 3 * k),
+                            PointStick(
+                                width: 60 * k, kind: PointStickKind.thousand),
+                          ],
+                          SizedBox(height: 5 * k),
+                          // 順位と、立直の札・和了のボタン（押せることが分かるように、ほかの文字より大きめのボタンの形）
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child:
+                                Row(mainAxisSize: MainAxisSize.min, children: [
+                              Text(tr('$rank位', '#$rank'),
+                                  style: TextStyle(
+                                      color: const Color(0xCCF7F3EA),
+                                      fontSize: 12 * k,
+                                      fontWeight: FontWeight.w700)),
+                              SizedBox(width: 6 * k),
+                              Column(mainAxisSize: MainAxisSize.min, children: [
+                                _SeatButton(
+                                  k: k,
+                                  label: action,
+                                  filled: riichi,
+                                  enabled: onTap != null,
+                                  color: AppTheme.vermilionDark,
+                                ),
+                                if (onWin != null) ...[
+                                  SizedBox(height: 5 * k),
+                                  Semantics(
+                                    button: true,
+                                    label: tr('$name の和了を入力',
+                                        'Enter a win for $name'),
+                                    child: ExcludeSemantics(
+                                      child: GestureDetector(
+                                        key: const ValueKey('seat-win'),
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: onWin,
+                                        child: _SeatButton(
+                                          k: k,
+                                          label: tr('和了', 'Win'),
+                                          filled: true,
+                                          enabled: true,
+                                          color: const Color(0xFFF1E9D6),
+                                          textColor: AppTheme.tableGreen,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ]),
                             ]),
-                          ]),
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

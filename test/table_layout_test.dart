@@ -159,4 +159,23 @@ void main() {
     expect(find.byType(WinInputScreen), findsOneWidget);
     expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '南 B').first).selected, isTrue);
   });
+
+  testWidgets('全員が立直しても、席の押せる範囲どうしが重ならない', (tester) async {
+    for (final size in [const Size(390, 844), const Size(340, 640)]) {
+      var s = start('x', ['プレイヤー1', 'プレイヤー2', 'プレイヤー3', 'プレイヤー4']);
+      for (var p = 0; p < 4; p++) {
+        s = SessionLogic.toggleRiichi(s, p);
+      }
+      await pump(tester, s, size: size);
+      final rects = [
+        for (var p = 0; p < 4; p++)
+          tester.getRect(find.descendant(of: find.byKey(ValueKey('seat-$p')), matching: find.byType(InkWell)).first),
+      ];
+      for (var i = 0; i < 4; i++) {
+        for (var j = i + 1; j < 4; j++) {
+          expect(rects[i].overlaps(rects[j]), isFalse, reason: '$size: 席$i と席$j');
+        }
+      }
+    }
+  });
 }
