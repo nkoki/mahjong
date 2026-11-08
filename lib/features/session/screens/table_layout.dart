@@ -296,8 +296,8 @@ class _CenterPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  tr('${rules.isSanma ? "3人 " : ""}${rules.tonpuu ? "東風" : "半荘"}・${s.records.length}局消化',
-                      '${rules.isSanma ? "3P " : ""}${rules.tonpuu ? "East" : "Hanchan"} · ${s.records.length} played'),
+                  tr('${rules.isSanma ? "3人 " : ""}${rules.length.shortLabel}・${s.records.length}局消化',
+                      '${rules.isSanma ? "3P " : ""}${rules.length.shortLabel} · ${s.records.length} played'),
                   style:
                       const TextStyle(color: Color(0xB3E7F2EA), fontSize: 11),
                 ),

@@ -98,7 +98,9 @@ class SharedPrefsSessionRepository implements SessionRepository {
   ///      version 6 以前のデータはそのまま読める（交代なしとして扱う）
   /// - 8: 局の記録に和了の役を追加（個人成績の役の出現回数用）。
   ///      version 7 以前のデータはそのまま読める（その局は役の出現回数に含めない）
-  static const formatVersion = 8;
+  /// - 9: ルールに対局の長さ（一局精算・一荘戦）を追加。
+  ///      version 8 以前のデータはそのまま読める（東風戦・半荘戦の設定から読む）
+  static const formatVersion = 9;
 
   static String sessionKey(String id) => '$sessionKeyPrefix$id';
 

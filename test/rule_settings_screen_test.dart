@@ -121,7 +121,7 @@ void main() {
       ));
       await tester.tap(find.text('喰いタン'));
       await tester.tap(find.text('切り上げ満貫'));
-      await tester.tap(find.text('東風戦'));
+      await tester.tap(find.text('東風'));
       await tester.enterText(find.widgetWithText(TextField, '持ち点'), '27000');
       await tester.pump();
       await tester.tap(find.text('保存'));

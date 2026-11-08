@@ -274,10 +274,10 @@ class _SessionTile extends StatelessWidget {
           children: [
             Text(
               tr(
-                  '$dateText  ${s.settings.isSanma ? "3人打ち " : ""}${s.settings.tonpuu ? "東風" : "半荘"}\n'
+                  '$dateText  ${s.settings.isSanma ? "3人打ち " : ""}${s.settings.length.shortLabel}\n'
                       '${s.finished ? "終局" : "対局中 ${s.roundLabel}"}  '
                       'トップ: ${s.playerNames[top]} ${formatPoints(s.scores[top])}',
-                  '$dateText  ${s.settings.isSanma ? "3-player " : ""}${s.settings.tonpuu ? "East-only" : "Hanchan"}\n'
+                  '$dateText  ${s.settings.isSanma ? "3-player " : ""}${s.settings.length.label}\n'
                       '${s.finished ? "Finished" : "In progress ${displayRoundLabel(s.roundLabel)}"}  '
                       'Top: ${s.playerNames[top]} ${formatPoints(s.scores[top])}'),
             ),

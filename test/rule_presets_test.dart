@@ -47,7 +47,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
     final c = ProviderScope.containerOf(tester.element(find.byType(RuleSettingsScreen)));
-    await tester.tap(find.text('東風戦'));
+    await tester.tap(find.text('東風'));
     await tester.tap(find.text('切り上げ満貫'));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('preset-save')));

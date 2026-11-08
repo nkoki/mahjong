@@ -15,8 +15,8 @@ class ResultText {
     final b = StringBuffer()
       ..writeln(tr('【麻雀 ${s.finished ? "対局結果" : "対局中（${s.roundLabel}）の順位"}】',
           '[Mahjong ${s.finished ? "result" : "standings (${displayRoundLabel(s.roundLabel)})"}]'))
-      ..writeln(tr('${d.year}/${d.month}/${d.day}  ${rules.isSanma ? "3人打ち " : ""}${rules.tonpuu ? "東風戦" : "半荘戦"}',
-          '${d.year}/${d.month}/${d.day}  ${rules.isSanma ? "3-player " : ""}${rules.tonpuu ? "East-only" : "Hanchan"}'));
+      ..writeln(tr('${d.year}/${d.month}/${d.day}  ${rules.isSanma ? "3人打ち " : ""}${rules.length.label}',
+          '${d.year}/${d.month}/${d.day}  ${rules.isSanma ? "3-player " : ""}${rules.length.label}'));
     final chips = s.chipTotals;
     for (final r in s.finalResults) {
       b.write(tr('${r.rank}位 ${s.playerNames[r.player]}  ${formatPoints(r.score)}点',

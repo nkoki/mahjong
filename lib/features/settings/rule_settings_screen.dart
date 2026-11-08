@@ -145,7 +145,7 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
           padding: const EdgeInsets.only(top: 12, bottom: 6),
           child: Text(text, style: theme.textTheme.bodyMedium),
         );
-    Widget sw(String title, String subtitle, bool value, ValueChanged<bool> onChanged) =>
+    Widget sw(String title, String subtitle, bool value, ValueChanged<bool>? onChanged) =>
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(title),
@@ -233,13 +233,16 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
             ),
           ),
           section(tr('対局', 'Game')),
-          SegmentedButton<bool>(
-            segments: [
-              ButtonSegment(value: false, label: Text(tr('半荘戦', 'Hanchan'))),
-              ButtonSegment(value: true, label: Text(tr('東風戦', 'East-only'))),
-            ],
-            selected: {s.tonpuu},
-            onSelectionChanged: (v) => update((c) => c.copyWith(tonpuu: v.first)),
+          SegmentedButton<GameLength>(
+            key: const ValueKey('game-length'),
+            showSelectedIcon: false,
+            segments: [for (final l in GameLength.values) ButtonSegment(value: l, label: Text(l.shortLabel))],
+            selected: {s.length},
+            onSelectionChanged: (v) => update((c) => c.copyWith(length: v.first)),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(_lengthHelp(s.length, _playerCount), style: theme.textTheme.bodySmall),
           ),
           label(tr('持ち点（配給原点）', 'Starting points')),
           PointsInput(
@@ -297,7 +300,8 @@ class _RuleSettingsScreenState extends ConsumerState<RuleSettingsScreen> {
                       'The extension ends when someone reaches the return points, or after its 4th hand at the latest. '
                       'With this on, agari-yame applies only if the dealer has reached the return points'),
               s.westRound,
-              (v) => update((c) => c.copyWith(westRound: v))),
+              // 一局精算・一荘戦には延長がない
+              s.length.canExtend ? (v) => update((c) => c.copyWith(westRound: v)) : null),
           sw(
               tr('包（責任払い）', 'Pao (liability)'),
               tr(
@@ -480,3 +484,16 @@ class _PresetNameDialogState extends State<_PresetNameDialog> {
     );
   }
 }
+
+/// 対局の長さの説明
+String _lengthHelp(GameLength l, int playerCount) => switch (l) {
+      GameLength.single => tr('一局精算: 1局（和了か流局）で終局し、その時点の点数で順位・ウマ・オカを付けます。'
+          '親が和了・テンパイでも続けません。チョンボ・途中流局のときは、同じ局をやり直します。',
+          'Single hand: the game ends after one hand (a win or a draw) and is settled with rank, uma and oka. '
+              'It does not continue on a dealer win or tenpai. After a chombo or an abortive draw, the hand is replayed.'),
+      GameLength.tonpuu => tr('東風戦: 東場だけ（${GameLength.tonpuu.rounds(playerCount)}局）。', 'East-only: East round only (${GameLength.tonpuu.rounds(playerCount)} hands).'),
+      GameLength.hanchan =>
+        tr('半荘戦: 東場・南場（${GameLength.hanchan.rounds(playerCount)}局）。', 'Hanchan: East and South (${GameLength.hanchan.rounds(playerCount)} hands).'),
+      GameLength.iichan => tr('一荘戦: 東場・南場・西場・北場（${GameLength.iichan.rounds(playerCount)}局）。延長（西入）はありません。',
+          'Full game: East, South, West and North (${GameLength.iichan.rounds(playerCount)} hands). No extension.'),
+    };

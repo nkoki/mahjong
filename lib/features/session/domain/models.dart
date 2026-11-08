@@ -2,6 +2,54 @@ import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
 import '../../../core/l10n.dart';
 
+/// 対局の長さ
+enum GameLength {
+  /// 一局精算（1局だけで終局して精算する）
+  single,
+
+  /// 東風戦（東場だけ）
+  tonpuu,
+
+  /// 半荘戦（東場・南場）
+  hanchan,
+
+  /// 一荘戦（東場・南場・西場・北場）
+  iichan;
+
+  String get label => switch (this) {
+        single => tr('一局精算', 'Single hand'),
+        tonpuu => tr('東風戦', 'East-only'),
+        hanchan => tr('半荘戦', 'Hanchan'),
+        iichan => tr('一荘戦', 'Full game'),
+      };
+
+  /// 短い名前（ボタン・一覧用）
+  String get shortLabel => switch (this) {
+        single => tr('一局', '1 hand'),
+        tonpuu => tr('東風', 'East'),
+        hanchan => tr('半荘', 'Hanchan'),
+        iichan => tr('一荘', 'Full'),
+      };
+
+  /// 局の数（延長は含まない）
+  int rounds(int playerCount) => switch (this) {
+        single => 1,
+        tonpuu => playerCount,
+        hanchan => playerCount * 2,
+        iichan => playerCount * 4,
+      };
+
+  /// 西入（東風戦は南入）の延長ができるか（一局精算・一荘戦はできない）
+  bool get canExtend => this == tonpuu || this == hanchan;
+
+  static GameLength? tryParse(String? name) {
+    for (final v in values) {
+      if (v.name == name) return v;
+    }
+    return null;
+  }
+}
+
 /// 対局ルール設定
 class GameSettings {
   /// 配給原点（持ち点）
@@ -13,8 +61,11 @@ class GameSettings {
   /// ウマ（1位〜4位、千点単位）
   final List<int> uma;
 
-  /// 東風戦なら true、半荘戦なら false
-  final bool tonpuu;
+  /// 対局の長さ（一局精算・東風戦・半荘戦・一荘戦）
+  final GameLength length;
+
+  /// 東風戦か（以前の形との互換のため）
+  bool get tonpuu => length == GameLength.tonpuu;
 
   /// 0点未満で終了（トビあり）
   final bool tobi;
@@ -86,7 +137,8 @@ class GameSettings {
     this.startingPoints = 25000,
     this.returnPoints = 30000,
     this.uma = const [20, 10, -10, -20],
-    this.tonpuu = false,
+    bool tonpuu = false,
+    GameLength? length,
     this.tobi = true,
     this.kuitan = true,
     this.kiriageMangan = false,
@@ -106,14 +158,15 @@ class GameSettings {
     this.playerCount = 4,
     this.nukiDora = true,
     this.sanmaTsumoSplit = false,
-  });
+  }) : length = length ?? (tonpuu ? GameLength.tonpuu : GameLength.hanchan);
 
   /// 3人打ちの初期値（35,000点持ち・40,000点返し・ウマ +15/0/-15・赤ドラは筒子と索子のみ）
   const GameSettings.sanma({
     this.startingPoints = 35000,
     this.returnPoints = 40000,
     this.uma = const [15, 0, -15],
-    this.tonpuu = false,
+    bool tonpuu = false,
+    GameLength? length,
     this.tobi = true,
     this.kuitan = true,
     this.kiriageMangan = false,
@@ -132,13 +185,17 @@ class GameSettings {
     this.tobiBonus = 0,
     this.nukiDora = true,
     this.sanmaTsumoSplit = false,
-  }) : playerCount = 3;
+  })  : playerCount = 3,
+        length = length ?? (tonpuu ? GameLength.tonpuu : GameLength.hanchan);
 
   /// 3人打ちか
   bool get isSanma => playerCount == 3;
 
   /// 総局数（4人打ち: 東風4 / 半荘8、3人打ち: 東風3 / 半荘6）。西入の延長は含まない
-  int get totalRounds => tonpuu ? playerCount : playerCount * 2;
+  int get totalRounds => length.rounds(playerCount);
+
+  /// 延長（西入・南入）を使うか（ありにしていて、延長できる長さのとき）
+  bool get extensionEnabled => westRound && length.canExtend;
 
   /// 延長の呼び方（半荘戦は西入、東風戦は南入）
   String get extensionName => tonpuu ? tr('南入', 'South extension') : tr('西入', 'West extension');
@@ -173,7 +230,8 @@ class GameSettings {
         tr('連風牌の雀頭$renpuuPairFu符', 'Double wind pair $renpuuPairFu fu'),
         doubleRon ? tr('ダブロンあり', 'Double ron on') : tr('ダブロンなし（頭ハネ）', 'Double ron off (head bump)'),
         tr('和了止め${agariYame ? "あり" : "なし"}', 'Agari-yame ${agariYame ? "on" : "off"}'),
-        tr('$extensionName${westRound ? "あり" : "なし"}', '$extensionName ${westRound ? "on" : "off"}'),
+        if (length.canExtend)
+          tr('$extensionName${westRound ? "あり" : "なし"}', '$extensionName ${westRound ? "on" : "off"}'),
         tr('包${pao ? "あり" : "なし"}', 'Pao ${pao ? "on" : "off"}'),
         tr('流し満貫${nagashiMangan ? "あり" : "なし"}', 'Nagashi mangan ${nagashiMangan ? "on" : "off"}'),
         tr('途中流局${abortiveDraws ? "あり" : "なし"}', 'Abortive draws ${abortiveDraws ? "on" : "off"}'),
@@ -188,6 +246,7 @@ class GameSettings {
     int? returnPoints,
     List<int>? uma,
     bool? tonpuu,
+    GameLength? length,
     bool? tobi,
     bool? kuitan,
     bool? kiriageMangan,
@@ -211,7 +270,7 @@ class GameSettings {
         startingPoints: startingPoints ?? this.startingPoints,
         returnPoints: returnPoints ?? this.returnPoints,
         uma: uma ?? this.uma,
-        tonpuu: tonpuu ?? this.tonpuu,
+        length: length ?? (tonpuu == null ? this.length : (tonpuu ? GameLength.tonpuu : GameLength.hanchan)),
         tobi: tobi ?? this.tobi,
         kuitan: kuitan ?? this.kuitan,
         kiriageMangan: kiriageMangan ?? this.kiriageMangan,
@@ -238,6 +297,8 @@ class GameSettings {
         'returnPoints': returnPoints,
         'uma': uma,
         'tonpuu': tonpuu,
+        // 一局精算・一荘戦（version 9 から）。東風戦・半荘戦は 'tonpuu' だけで分かる
+        if (length == GameLength.single || length == GameLength.iichan) 'length': length.name,
         'tobi': tobi,
         if (isSanma) 'playerCount': playerCount,
         'rules': {
@@ -271,6 +332,7 @@ class GameSettings {
       returnPoints: j['returnPoints'] as int,
       uma: _intList(j['uma']),
       tonpuu: j['tonpuu'] as bool,
+      length: GameLength.tryParse(j['length'] as String?),
       tobi: j['tobi'] as bool,
       kuitan: r['kuitan'] as bool? ?? d.kuitan,
       kiriageMangan: r['kiriageMangan'] as bool? ?? d.kiriageMangan,

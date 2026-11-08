@@ -153,9 +153,9 @@ class ResultCard extends StatelessWidget {
                       Text(
                         tr(
                             '${d.year}/${d.month}/${d.day}  ${s.settings.isSanma ? "3人打ち " : ""}'
-                                '${s.settings.tonpuu ? "東風戦" : "半荘戦"}・${s.records.length}局',
+                                '${s.settings.length.label}・${s.records.length}局',
                             '${d.year}/${d.month}/${d.day}  ${s.settings.isSanma ? "3-player " : ""}'
-                                '${s.settings.tonpuu ? "East-only" : "Hanchan"} · ${s.records.length} rounds'),
+                                '${s.settings.length.label} · ${s.records.length} rounds'),
                         style: const TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                     ],

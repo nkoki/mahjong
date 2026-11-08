@@ -30,7 +30,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
 
   /// ルール設定画面で決めたルール（詳細ルールはこれをそのまま使う）
   late GameSettings _defaults;
-  late bool _tonpuu;
+  late GameLength _length;
   late bool _tobi;
   int? _starting;
   int? _return;
@@ -46,7 +46,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   void _loadDefaults() {
     _preset = null;
     _defaults = ref.read(defaultSettingsProviderFor(_playerCount));
-    _tonpuu = _defaults.tonpuu;
+    _length = _defaults.length;
     _tobi = _defaults.tobi;
     _starting = _defaults.startingPoints;
     _return = _defaults.returnPoints;
@@ -59,7 +59,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
 
   void _applyPreset(RulePreset p) {
     _defaults = p.settings;
-    _tonpuu = p.settings.tonpuu;
+    _length = p.settings.length;
     _tobi = p.settings.tobi;
     _starting = p.settings.startingPoints;
     _return = p.settings.returnPoints;
@@ -132,7 +132,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
       startingPoints: _starting!,
       returnPoints: _return!,
       uma: List.unmodifiable(_uma.map((v) => v!)),
-      tonpuu: _tonpuu,
+      length: _length,
       tobi: _tobi,
     );
     final notifier = ref.read(sessionsProvider.notifier);
@@ -323,13 +323,20 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
                   style: Theme.of(context).textTheme.bodySmall),
             ),
           ],
-          SegmentedButton<bool>(
-            segments: [
-              ButtonSegment(value: false, label: Text(tr('半荘戦', 'Hanchan'))),
-              ButtonSegment(value: true, label: Text(tr('東風戦', 'East-only'))),
-            ],
-            selected: {_tonpuu},
-            onSelectionChanged: (v) => setState(() => _tonpuu = v.first),
+          SegmentedButton<GameLength>(
+            key: const ValueKey('game-length'),
+            showSelectedIcon: false,
+            segments: [for (final l in GameLength.values) ButtonSegment(value: l, label: Text(l.shortLabel))],
+            selected: {_length},
+            onSelectionChanged: (v) => setState(() => _length = v.first),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              tr('${_length.label}（${_length.rounds(_playerCount)}局${_length == GameLength.single ? "で終局して精算" : ""}）',
+                  '${_length.label} (${_length.rounds(_playerCount)} hand${_length == GameLength.single ? ", then settle" : "s"})'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
           const SizedBox(height: 12),
           _label(context, tr('持ち点（配給原点）', 'Starting points')),

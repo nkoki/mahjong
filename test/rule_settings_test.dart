@@ -61,7 +61,7 @@ void main() {
   group('画面', () {
     Future<ProviderContainer> pump(WidgetTester tester, Widget home,
         [List<GameSession> sessions = const []]) async {
-      await tester.binding.setSurfaceSize(const Size(420, 1400));
+      await tester.binding.setSurfaceSize(const Size(420, 1600));
       await tester.pumpWidget(ProviderScope(
         overrides: [
           sessionRepositoryProvider.overrideWithValue(InMemorySessionRepository(sessions)),

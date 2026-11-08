@@ -441,9 +441,9 @@ class _InfoBar extends StatelessWidget {
         spacing: 16,
         children: [
           Text(tr(
-              '${rules.isSanma ? "3人打ち " : ""}${rules.tonpuu ? "東風戦" : "半荘戦"}  '
+              '${rules.isSanma ? "3人打ち " : ""}${rules.length.label}  '
                   '${session.records.length}局消化',
-              '${rules.isSanma ? "3-player " : ""}${rules.tonpuu ? "East-only" : "Hanchan"}  '
+              '${rules.isSanma ? "3-player " : ""}${rules.length.label}  '
                   '${session.records.length} rounds played')),
           Text(tr('本場 ${session.honba}  /  供託 ${session.riichiSticks}本',
               'Honba ${session.honba}  /  Riichi sticks ${session.riichiSticks}')),

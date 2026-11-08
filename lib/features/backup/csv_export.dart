@@ -43,7 +43,7 @@ class CsvExport {
       rows.add([
         _date(s.createdAt),
         tr('${s.playerCount}人', '${s.playerCount} players'),
-        s.settings.tonpuu ? tr('東風戦', 'East-only') : tr('半荘戦', 'Hanchan'),
+        s.settings.length.label,
         s.finished ? tr('終局', 'Finished') : tr('対局中', 'In progress'),
         s.favorite ? '★' : '',
         '${s.settings.startingPoints}',

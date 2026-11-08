@@ -365,6 +365,7 @@ class SessionLogic {
       nextHonba: s.honba + 1,
       clearSticks: false,
       undoTo: original,
+      countsAsHand: !type.isAbortive,
     );
   }
 
@@ -423,6 +424,7 @@ class SessionLogic {
     List<int>? chips,
     List<List<String>>? yaku,
     GameSession? undoTo,
+    bool countsAsHand = true,
   }) {
     final record = RoundRecord(
       roundLabel: s.roundLabel,
@@ -455,7 +457,7 @@ class SessionLogic {
     final reached = scores.any((p) => p >= rules.returnPoints);
     final total = rules.totalRounds;
     // 西入ありなら延長の4局目まで
-    final maxRounds = rules.westRound ? total + 4 : total;
+    final maxRounds = rules.extensionEnabled ? total + 4 : total;
 
     bool overLast;
     if (s.roundIndex >= total) {
@@ -463,7 +465,7 @@ class SessionLogic {
       overLast = reached || nextRound >= maxRounds;
     } else if (nextRound >= total) {
       // 最終局が終わった: 西入なしなら終了。西入ありなら、返し点に届いた人がいれば終了
-      overLast = !rules.westRound || reached;
+      overLast = !rules.extensionEnabled || reached;
     } else {
       overLast = false;
     }
@@ -475,8 +477,11 @@ class SessionLogic {
         s.isAllLast &&
         next.ranking.first == s.dealer &&
         kind == 'win' &&
-        (!rules.westRound || scores[s.dealer] >= rules.returnPoints);
-    if (busted || overLast || allLastDealerTop) {
+        (!rules.extensionEnabled || scores[s.dealer] >= rules.returnPoints);
+    // 一局精算: 1局（和了・流局）が終わったら、親の連荘でも終局する。
+    // チョンボ・途中流局は局をやり直すので数えない
+    final singleOver = rules.length == GameLength.single && countsAsHand && kind != 'chombo';
+    if (busted || overLast || allLastDealerTop || singleOver) {
       next = _settle(next.copyWith(roundIndex: s.roundIndex));
     }
     return next;
@@ -725,7 +730,7 @@ class SessionLogic {
 
   /// 局の通し番号として選べる最後の番号（西入ありなら延長の4局目まで）
   static int maxRoundIndex(GameSettings rules) =>
-      (rules.westRound ? rules.totalRounds + rules.playerCount : rules.totalRounds) - 1;
+      (rules.extensionEnabled ? rules.totalRounds + rules.playerCount : rules.totalRounds) - 1;
 
   /// 今の局・本場・供託を直す（数え間違いなど）。点数は変えない。元に戻すで戻せる
   static GameSession adjustProgress(GameSession s, {required int roundIndex, required int honba, required int riichiSticks}) {

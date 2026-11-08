@@ -121,10 +121,10 @@ class HistoryDetailScreen extends ConsumerWidget {
                 ListTile(
                   dense: true,
                   title: Text(tr(
-                      '${s.settings.isSanma ? "3人打ち " : ""}${s.settings.tonpuu ? "東風戦" : "半荘戦"}  '
+                      '${s.settings.isSanma ? "3人打ち " : ""}${s.settings.length.label}  '
                           '持ち点 ${formatPoints(s.settings.startingPoints)} / '
                           '返し ${formatPoints(s.settings.returnPoints)}',
-                      '${s.settings.isSanma ? "3-player " : ""}${s.settings.tonpuu ? "East-only" : "Hanchan"}  '
+                      '${s.settings.isSanma ? "3-player " : ""}${s.settings.length.label}  '
                           'Start ${formatPoints(s.settings.startingPoints)} / '
                           'Return ${formatPoints(s.settings.returnPoints)}')),
                   subtitle: Text(tr(
