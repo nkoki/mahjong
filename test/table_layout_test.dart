@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mahjong_app/core/l10n.dart';
 import 'package:mahjong_app/features/session/data/session_repository.dart';
 import 'package:mahjong_app/features/session/domain/models.dart';
+import 'package:mahjong_app/features/session/domain/session_logic.dart';
 import 'package:mahjong_app/features/session/screen_awake.dart';
 import 'package:mahjong_app/features/session/screens/dashboard_screen.dart';
 import 'package:mahjong_app/features/session/screens/table_layout.dart';
@@ -50,7 +51,7 @@ void main() {
     var s = c.read(sessionProvider('x'))!;
     expect(s.riichi[2], isTrue);
     expect(s.riichiSticks, 1);
-    expect(find.text('立直中（取消）'), findsOneWidget);
+    expect(find.text('立直中'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('seat-2')));
     await tester.pumpAndSettle();
     s = c.read(sessionProvider('x'))!;
@@ -108,5 +109,25 @@ void main() {
     ];
     expect(left, isEmpty);
     expect(find.text('East 2'), findsOneWidget);
+  });
+
+  testWidgets('文字の大きさは4人とも同じ（左右の狭い席も、立直中の席も）', (tester) async {
+    var s = start('x', ['A', 'B', 'C', 'D']);
+    s = SessionLogic.toggleRiichi(s, 1); // 右の席が立直
+    await pump(tester, s);
+    double size(int p, String text) => tester
+        .widget<Text>(find.descendant(of: find.byKey(ValueKey('seat-$p')), matching: find.text(text)).first)
+        .style!
+        .fontSize!;
+    final scores = {for (var p = 0; p < 4; p++) size(p, p == 1 ? '24,000' : '25,000')};
+    expect(scores.length, 1, reason: '点数の文字');
+    final names = {for (var p = 0; p < 4; p++) size(p, ['A', 'B', 'C', 'D'][p])};
+    expect(names.length, 1, reason: '名前の文字');
+    // 立直の札は、名前より大きい
+    expect(size(0, '立直'), greaterThan(names.single));
+    // 実際に描かれる大きさ（縮めて表示していないか）も同じ
+    double drawn(int p, String text) =>
+        tester.getSize(find.descendant(of: find.byKey(ValueKey('seat-$p')), matching: find.text(text)).first).height;
+    expect((drawn(1, '立直中') - drawn(0, '立直')).abs(), lessThan(0.5));
   });
 }

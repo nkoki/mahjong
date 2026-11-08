@@ -29,14 +29,17 @@ class MahjongTableView extends StatelessWidget {
       child: LayoutBuilder(builder: (context, c) {
         final w = c.maxWidth, h = c.maxHeight;
         // 真ん中の表示窓のまわりに、十字の形に席を寄せて置く（縦長の画面でも端に離れすぎないように）
-        final centerSize = math.max(96.0, math.min(math.min(w * 0.36, h * 0.26), 190.0));
-        final sideW = math.max(80.0, math.min((w - centerSize) / 2 - 14, 170.0));
+        final centerSize = math.max(92.0, math.min(math.min(w * 0.27, h * 0.22), 170.0));
+        final sideW = math.max(80.0, math.min((w - centerSize) / 2 - 8, 190.0));
         final vertW = math.min(w * 0.62, 280.0);
-        final seatH = math.max(84.0, math.min((h - centerSize) / 2 - 22, 150.0));
+        final seatH = math.max(96.0, math.min((h - centerSize) / 2 - 22, 160.0));
+        // 文字の大きさは4人とも同じにする（いちばん狭い左右の席に合わせて、1つの倍率を決める）
+        final scale = math.min((sideW - 10) / 104, (seatH - 24) / 96).clamp(0.62, 1.5).toDouble();
         final cx = w / 2, cy = h / 2;
         final gap = math.min(16.0, (h - centerSize - seatH * 2) / 4).clamp(4.0, 16.0);
         Widget seat(int p) => _Seat(
               key: ValueKey('seat-$p'),
+              scale: scale,
               name: s.playerNames[p],
               wind: windName(s.seatWindIndexOf(p)),
               isDealer: s.dealer == p,
@@ -50,9 +53,9 @@ class MahjongTableView extends StatelessWidget {
           final pos = positionOf(s, p);
           seats.add(switch (pos) {
             0 => Positioned(left: cx - vertW / 2, top: cy + centerSize / 2 + gap, width: vertW, height: seatH, child: seat(p)),
-            1 => Positioned(left: cx + centerSize / 2 + 4, top: cy - seatH / 2, width: sideW, height: seatH, child: seat(p)),
+            1 => Positioned(left: cx + centerSize / 2 + 2, top: cy - seatH / 2, width: sideW, height: seatH, child: seat(p)),
             2 => Positioned(left: cx - vertW / 2, top: cy - centerSize / 2 - gap - seatH, width: vertW, height: seatH, child: seat(p)),
-            _ => Positioned(left: cx - centerSize / 2 - 4 - sideW, top: cy - seatH / 2, width: sideW, height: seatH, child: seat(p)),
+            _ => Positioned(left: cx - centerSize / 2 - 2 - sideW, top: cy - seatH / 2, width: sideW, height: seatH, child: seat(p)),
           });
         }
         // 席のまわりに余白があれば、卓の縁にその人の手牌（裏向き13枚）を並べる
@@ -74,7 +77,7 @@ class MahjongTableView extends StatelessWidget {
             }
           } else {
             final left = pos == 1 ? w - 18 - tileLong : 18.0;
-            final seatLeft = pos == 1 ? cx + centerSize / 2 + 4 : cx - centerSize / 2 - 4 - sideW;
+            final seatLeft = pos == 1 ? cx + centerSize / 2 + 2 : cx - centerSize / 2 - 2 - sideW;
             final clear = pos == 1 ? left > seatLeft + sideW + 6 : left + tileLong + 6 < seatLeft;
             if (clear && rowLen < h - 40) {
               hands.add((Rect.fromLTWH(left, cy - rowLen / 2, tileLong, rowLen), false));
@@ -236,8 +239,9 @@ class _CenterPanel extends StatelessWidget {
   }
 }
 
-/// 卓の上の1人分の席
+/// 卓の上の1人分の席。文字の大きさは [scale] で決め、4人とも同じにする
 class _Seat extends StatelessWidget {
+  final double scale;
   final String name;
   final String wind;
   final bool isDealer;
@@ -248,6 +252,7 @@ class _Seat extends StatelessWidget {
 
   const _Seat({
     super.key,
+    required this.scale,
     required this.name,
     required this.wind,
     required this.isDealer,
@@ -260,73 +265,95 @@ class _Seat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const fg = Color(0xFFF7F3EA);
-    final action = riichi ? tr('立直中（取消）', 'Riichi (cancel)') : tr('立直', 'Riichi');
-    return Semantics(
-      button: true,
-      enabled: onTap != null,
-      label: tr('$wind $name ${formatPoints(score)}点 $rank位', '$wind $name ${formatPoints(score)} pts, rank $rank'),
-      child: Material(
-        color: riichi ? const Color(0x24FFFFFF) : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
+    final k = scale;
+    // 卓ビューの札は短く（立直中の札をもう一度押すと取り消す。読み上げでは取り消せることも伝える）
+    final action = riichi ? tr('立直中', 'In riichi') : tr('立直', 'Riichi');
+    // 端末の文字の大きさの設定は、倍率に含めて計算済みなので重ねて掛けない
+    return MediaQuery.withNoTextScaling(
+      child: Semantics(
+        button: true,
+        enabled: onTap != null,
+        label: tr('$wind $name ${formatPoints(score)}点 $rank位${riichi ? ' 立直中（押すと取消）' : ''}',
+            '$wind $name ${formatPoints(score)} pts, rank $rank${riichi ? ', in riichi (tap to cancel)' : ''}'),
+        child: Material(
+          color: riichi ? const Color(0x24FFFFFF) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: FittedBox(
-              fit: BoxFit.contain,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: 24,
-                        height: 24,
+                        width: 22 * k,
+                        height: 22 * k,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: isDealer ? AppTheme.vermilionDark : const Color(0x26FFFFFF),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(wind.characters.first,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14)),
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13 * k, height: 1)),
                       ),
-                      const SizedBox(width: 6),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 120),
+                      SizedBox(width: 5 * k),
+                      Flexible(
                         child: Text(name,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: fg, fontSize: 13, fontWeight: FontWeight.w700)),
+                            maxLines: 1,
+                            style: TextStyle(color: fg, fontSize: 13 * k, fontWeight: FontWeight.w700)),
                       ),
-                      const SizedBox(width: 6),
-                      Text(tr('$rank位', '#$rank'), style: const TextStyle(color: Color(0xB3F7F3EA), fontSize: 11)),
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    formatPoints(score),
-                    style: const TextStyle(
-                      color: fg,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
-                      fontFeatures: [FontFeature.tabularFigures()],
+                  SizedBox(height: 2 * k),
+                  // 点数（10万点を超えるような長い数字だけ、はみ出さないよう縮める）
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      formatPoints(score),
+                      style: TextStyle(
+                        color: fg,
+                        fontSize: 26 * k,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                        height: 1.15,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  if (riichi) const PointStick(width: 70, kind: PointStickKind.thousand),
-                  const SizedBox(height: 3),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: riichi ? AppTheme.vermilionDark : Colors.transparent,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: riichi ? AppTheme.vermilionDark : const Color(0x80F7F3EA)),
-                    ),
-                    child: Text(action,
-                        style: TextStyle(
-                            color: onTap == null ? const Color(0x66F7F3EA) : fg, fontSize: 12, fontWeight: FontWeight.w700)),
+                  if (riichi) ...[
+                    SizedBox(height: 3 * k),
+                    PointStick(width: 60 * k, kind: PointStickKind.thousand),
+                  ],
+                  SizedBox(height: 5 * k),
+                  // 順位と、立直の札（押せることが分かるように、ほかの文字より大きめのボタンの形）
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(tr('$rank位', '#$rank'),
+                          style: TextStyle(color: const Color(0xCCF7F3EA), fontSize: 12 * k, fontWeight: FontWeight.w700)),
+                      SizedBox(width: 6 * k),
+                      Container(
+                      constraints: BoxConstraints(minWidth: 72 * k),
+                      padding: EdgeInsets.symmetric(horizontal: 14 * k, vertical: 6 * k),
+                      decoration: BoxDecoration(
+                        color: riichi ? AppTheme.vermilionDark : const Color(0x14FFFFFF),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: riichi ? AppTheme.vermilionDark : const Color(0x99F7F3EA), width: 1.5),
+                      ),
+                      child: Text(action,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              color: onTap == null ? const Color(0x66F7F3EA) : fg,
+                              fontSize: 16 * k,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2)),
+                      ),
+                    ]),
                   ),
                 ],
               ),
