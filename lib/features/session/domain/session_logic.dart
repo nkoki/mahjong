@@ -302,13 +302,39 @@ class SessionLogic {
     return deltas;
   }
 
-  /// 流局を適用する
+  /// 四家立直のときに、アプリで立直を押していない（立直棒を出していない）人
+  static List<int> suuchaMissingRiichi(GameSession s) => [
+        for (var p = 0; p < s.playerCount; p++)
+          if (!s.riichi[p]) p
+      ];
+
+  /// 四家立直は全員が立直しているので、立直棒を出していない人から1本ずつ供託を取る。
+  /// すでに立直している人（立直棒を出している人）からは取らない
+  static GameSession _collectSuuchaSticks(GameSession s) {
+    final missing = suuchaMissingRiichi(s);
+    if (missing.isEmpty) return s;
+    return s.copyWith(
+      scores: List.unmodifiable([
+        for (var p = 0; p < s.playerCount; p++) s.scores[p] - (missing.contains(p) ? 1000 : 0)
+      ]),
+      riichiSticks: s.riichiSticks + missing.length,
+      riichi: List.unmodifiable(List.filled(s.playerCount, true)),
+    );
+  }
+
+  /// 流局を適用する。
+  ///
+  /// 四家立直のときは、立直棒を出していない人から1本ずつ供託を取ってから流局にする
+  /// （すでに立直している人からは取らない。元に戻すと、取る前に戻る）
   static GameSession applyDraw(
     GameSession s, {
     required DrawType type,
     required List<bool> tenpai,
     int? nagashiPlayer,
   }) {
+    final original = s;
+    final missing = type == DrawType.suucha ? suuchaMissingRiichi(s) : const <int>[];
+    if (missing.isNotEmpty) s = _collectSuuchaSticks(s);
     final deltas = drawDeltas(s,
         type: type, tenpai: tenpai, nagashiPlayer: nagashiPlayer);
     final scores = [for (var i = 0; i < s.playerCount; i++) s.scores[i] + deltas[i]];
@@ -326,6 +352,10 @@ class SessionLogic {
     if (type == DrawType.nagashiMangan && nagashiPlayer != null) {
       buf.write(' ${s.playerNames[nagashiPlayer]}');
     }
+    if (missing.isNotEmpty) {
+      final names = [for (final p in missing) s.playerNames[p]];
+      buf.write(tr('（${names.join("・")} からも供託1本ずつ）', ' (1 stick each also taken from ${names.join(", ")})'));
+    }
     return _finishRound(
       s,
       scores: scores,
@@ -334,6 +364,7 @@ class SessionLogic {
       renchan: renchan,
       nextHonba: s.honba + 1,
       clearSticks: false,
+      undoTo: original,
     );
   }
 

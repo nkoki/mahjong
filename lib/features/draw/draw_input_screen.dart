@@ -38,6 +38,12 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
     final needsTenpai = !_type.isAbortive;
     final deltas = SessionLogic.drawDeltas(s,
         type: _type, tenpai: _tenpai, nagashiPlayer: _nagashi);
+    // 四家立直: 立直を押していない人からも、供託を1本ずつ取る（すでに立直している人からは取らない）
+    final suuchaMissing = _type == DrawType.suucha ? SessionLogic.suuchaMissingRiichi(s) : const <int>[];
+    for (final p in suuchaMissing) {
+      deltas[p] -= 1000;
+    }
+    final sticksAfter = s.riichiSticks + suuchaMissing.length;
     final renchan = _type.isAbortive || _tenpai[s.dealer];
     final canConfirm = _type != DrawType.nagashiMangan || _nagashi != null;
 
@@ -87,6 +93,24 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
                   onChanged: (v) => setState(() => _tenpai[p] = v ?? false),
                 ),
             ],
+            if (_type == DrawType.suucha)
+              Padding(
+                key: const ValueKey('suucha-note'),
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  suuchaMissing.isEmpty
+                      ? tr('4人とも立直の供託を出しているので、追加では取りません。',
+                          'All four players have already put in a riichi stick, so nothing more is taken.')
+                      : tr(
+                          '四家立直は全員が立直しているので、立直を押していない '
+                              '${suuchaMissing.map((p) => s.playerNames[p]).join("・")} からも供託を1本（1,000点）ずつ取ります。'
+                              'すでに立直している人からは取りません。',
+                          'Everyone is in riichi, so 1 stick (1,000 pts) each is also taken from '
+                              '${suuchaMissing.map((p) => s.playerNames[p]).join(", ")}, who had not pressed riichi. '
+                              'Players already in riichi are not charged again.'),
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary),
+                ),
+              ),
             const SizedBox(height: 8),
             Card(
               child: Column(
@@ -106,9 +130,9 @@ class _DrawInputScreenState extends ConsumerState<DrawInputScreen> {
               child: Text(
                 tr(
                     '次局: ${renchan ? "親の連荘" : "親流れ"}・${s.honba + 1}本場'
-                        '（供託${s.riichiSticks}本は持ち越し）',
+                        '（供託$sticksAfter本は持ち越し）',
                     'Next: ${renchan ? "dealer renchan" : "dealer passes"}, ${s.honba + 1} honba'
-                        ' (${s.riichiSticks} riichi sticks carried over)'),
+                        ' ($sticksAfter riichi sticks carried over)'),
                 style: theme.textTheme.bodyMedium,
               ),
             ),
