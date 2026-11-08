@@ -14,7 +14,7 @@ import '../../settings/display_settings.dart';
 import '../../settings/rule_settings_screen.dart';
 import '../../storage/storage_info_screen.dart';
 import '../session_providers.dart';
-import '../../../shared/widgets/tile_view.dart';
+import '../../../shared/widgets/app_mark.dart';
 import '../domain/models.dart';
 import 'new_session_screen.dart';
 
@@ -178,19 +178,8 @@ class _Header extends StatelessWidget {
                   ],
                 ),
               ),
-              // 東南西北を少しずつ重ねて並べる（飾り。読み上げでは読まない）
-              ExcludeSemantics(
-                child: SizedBox(
-                  width: 100,
-                  height: 44,
-                  child: Stack(
-                    children: [
-                      for (var i = 0; i < 4; i++)
-                        Positioned(left: i * 22.0, top: i.isEven ? 0 : 4, child: TileView('${i + 1}z', width: 30)),
-                    ],
-                  ),
-                ),
-              ),
+              // アプリの印（アイコンと同じ、上から見た卓。飾りなので読み上げでは読まない）
+              const AppMark(size: 56),
             ],
           ),
         ),
