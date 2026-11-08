@@ -29,11 +29,15 @@ class WinInputScreen extends ConsumerStatefulWidget {
   final List<WinEntry> previousWins;
   final int? fixedLoser;
 
+  /// 最初から選んでおく和了者（卓ビューの席の「和了」から開いたとき）
+  final int? initialWinner;
+
   const WinInputScreen({
     super.key,
     required this.sessionId,
     this.previousWins = const [],
     this.fixedLoser,
+    this.initialWinner,
   });
 
   /// ダブロンの2人目の入力かどうか
@@ -73,6 +77,14 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
         _ura.addAll(first.uraDoraTiles);
       }
       _quick = firstEntry.hanFu != null;
+    } else if (widget.initialWinner != null) {
+      // 和了者を選んだ状態で始める（立直していれば立直も付ける）
+      final s = ref.read(sessionProvider(widget.sessionId));
+      final p = widget.initialWinner!;
+      if (s != null && p >= 0 && p < s.playerCount) {
+        _winner = p;
+        _riichi = s.riichi[p];
+      }
     }
   }
 

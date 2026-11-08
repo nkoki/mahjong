@@ -10,6 +10,7 @@ import 'package:mahjong_app/features/session/screens/dashboard_screen.dart';
 import 'package:mahjong_app/features/session/screens/table_layout.dart';
 import 'package:mahjong_app/features/session/session_providers.dart';
 import 'package:mahjong_app/features/settings/display_settings.dart';
+import 'package:mahjong_app/features/win/win_input_screen.dart';
 
 import 'player_stats_test.dart' show start, win;
 import 'table_view_test.dart' show FakeScreenAwake;
@@ -129,5 +130,23 @@ void main() {
     double drawn(int p, String text) =>
         tester.getSize(find.descendant(of: find.byKey(ValueKey('seat-$p')), matching: find.text(text)).first).height;
     expect((drawn(1, '立直中') - drawn(0, '立直')).abs(), lessThan(0.5));
+  });
+
+  testWidgets('席の「和了」を押すと、その人を和了者に選んだ状態で和了入力を開く（立直も付く）', (tester) async {
+    var s = start('x', ['A', 'B', 'C', 'D']);
+    s = SessionLogic.toggleRiichi(s, 2); // C が立直
+    await pump(tester, s);
+    await tester.tap(find.descendant(of: find.byKey(const ValueKey('seat-2')), matching: find.byKey(const ValueKey('seat-win'))));
+    await tester.pumpAndSettle();
+    expect(find.byType(WinInputScreen), findsOneWidget);
+    // 状況役の欄まで1画面に入るよう、画面を縦に長くする
+    await tester.binding.setSurfaceSize(const Size(400, 2600));
+    await tester.pumpAndSettle();
+    final winnerChip = tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '西 C').first);
+    expect(winnerChip.selected, isTrue, reason: '和了者は C を選んだ状態');
+    final others = tester.widgetList<ChoiceChip>(find.widgetWithText(ChoiceChip, '東 A'));
+    expect(others.first.selected, isFalse);
+    // 立直していた人なので、状況役の立直が付いている
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, '立直').first).selected, isTrue);
   });
 }

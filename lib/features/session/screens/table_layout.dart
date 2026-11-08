@@ -15,7 +15,11 @@ class MahjongTableView extends StatelessWidget {
   final GameSession session;
   final void Function(int player) onRiichi;
 
-  const MahjongTableView({super.key, required this.session, required this.onRiichi});
+  /// 席の「和了」を押したとき（その人を和了者にして和了入力を開く）
+  final void Function(int player)? onWin;
+
+  const MahjongTableView(
+      {super.key, required this.session, required this.onRiichi, this.onWin});
 
   /// 席の位置（0=下, 1=右, 2=上, 3=左）。起家が下で、打つ順番に反時計回り
   static int positionOf(GameSession s, int player) => player % s.playerCount;
@@ -29,14 +33,21 @@ class MahjongTableView extends StatelessWidget {
       child: LayoutBuilder(builder: (context, c) {
         final w = c.maxWidth, h = c.maxHeight;
         // 真ん中の表示窓のまわりに、十字の形に席を寄せて置く（縦長の画面でも端に離れすぎないように）
-        final centerSize = math.max(92.0, math.min(math.min(w * 0.27, h * 0.22), 170.0));
+        final centerSize =
+            math.max(92.0, math.min(math.min(w * 0.27, h * 0.22), 170.0));
         final sideW = math.max(80.0, math.min((w - centerSize) / 2 - 8, 190.0));
         final vertW = math.min(w * 0.62, 280.0);
-        final seatH = math.max(96.0, math.min((h - centerSize) / 2 - 22, 160.0));
+        final seatH =
+            math.max(96.0, math.min((h - centerSize) / 2 - 22, 160.0));
         // 文字の大きさは4人とも同じにする（いちばん狭い左右の席に合わせて、1つの倍率を決める）
-        final scale = math.min((sideW - 10) / 104, (seatH - 24) / 96).clamp(0.62, 1.5).toDouble();
+        // 高さ: 名前22 + 点数30 + 千点棒10 + 立直・和了のボタン67 + 間の余白・行の高さのゆとり ≒ 156（倍率1のとき）
+        final scale = math
+            .min((sideW - 10) / 110, (seatH - 12) / 156)
+            .clamp(0.5, 1.5)
+            .toDouble();
         final cx = w / 2, cy = h / 2;
-        final gap = math.min(16.0, (h - centerSize - seatH * 2) / 4).clamp(4.0, 16.0);
+        final gap =
+            math.min(16.0, (h - centerSize - seatH * 2) / 4).clamp(4.0, 16.0);
         Widget seat(int p) => _Seat(
               key: ValueKey('seat-$p'),
               scale: scale,
@@ -46,16 +57,39 @@ class MahjongTableView extends StatelessWidget {
               score: s.scores[p],
               rank: rank.indexOf(p) + 1,
               riichi: s.riichi[p],
-              onTap: (s.riichi[p] || s.scores[p] >= 1000) ? () => onRiichi(p) : null,
+              onTap: (s.riichi[p] || s.scores[p] >= 1000)
+                  ? () => onRiichi(p)
+                  : null,
+              onWin: onWin == null ? null : () => onWin!(p),
             );
         final seats = <Widget>[];
         for (var p = 0; p < s.playerCount; p++) {
           final pos = positionOf(s, p);
           seats.add(switch (pos) {
-            0 => Positioned(left: cx - vertW / 2, top: cy + centerSize / 2 + gap, width: vertW, height: seatH, child: seat(p)),
-            1 => Positioned(left: cx + centerSize / 2 + 2, top: cy - seatH / 2, width: sideW, height: seatH, child: seat(p)),
-            2 => Positioned(left: cx - vertW / 2, top: cy - centerSize / 2 - gap - seatH, width: vertW, height: seatH, child: seat(p)),
-            _ => Positioned(left: cx - centerSize / 2 - 2 - sideW, top: cy - seatH / 2, width: sideW, height: seatH, child: seat(p)),
+            0 => Positioned(
+                left: cx - vertW / 2,
+                top: cy + centerSize / 2 + gap,
+                width: vertW,
+                height: seatH,
+                child: seat(p)),
+            1 => Positioned(
+                left: cx + centerSize / 2 + 2,
+                top: cy - seatH / 2,
+                width: sideW,
+                height: seatH,
+                child: seat(p)),
+            2 => Positioned(
+                left: cx - vertW / 2,
+                top: cy - centerSize / 2 - gap - seatH,
+                width: vertW,
+                height: seatH,
+                child: seat(p)),
+            _ => Positioned(
+                left: cx - centerSize / 2 - 2 - sideW,
+                top: cy - seatH / 2,
+                width: sideW,
+                height: seatH,
+                child: seat(p)),
           });
         }
         // 席のまわりに余白があれば、卓の縁にその人の手牌（裏向き13枚）を並べる
@@ -68,19 +102,32 @@ class MahjongTableView extends StatelessWidget {
           if (pos == 0) {
             final top = h - 18 - tileLong;
             if (top > cy + centerSize / 2 + gap + seatH + 6) {
-              hands.add((Rect.fromLTWH(cx - rowLen / 2, top, rowLen, tileLong), true));
+              hands.add((
+                Rect.fromLTWH(cx - rowLen / 2, top, rowLen, tileLong),
+                true
+              ));
             }
           } else if (pos == 2) {
             const top = 18.0;
             if (top + tileLong + 6 < cy - centerSize / 2 - gap - seatH) {
-              hands.add((Rect.fromLTWH(cx - rowLen / 2, top, rowLen, tileLong), true));
+              hands.add((
+                Rect.fromLTWH(cx - rowLen / 2, top, rowLen, tileLong),
+                true
+              ));
             }
           } else {
             final left = pos == 1 ? w - 18 - tileLong : 18.0;
-            final seatLeft = pos == 1 ? cx + centerSize / 2 + 2 : cx - centerSize / 2 - 2 - sideW;
-            final clear = pos == 1 ? left > seatLeft + sideW + 6 : left + tileLong + 6 < seatLeft;
+            final seatLeft = pos == 1
+                ? cx + centerSize / 2 + 2
+                : cx - centerSize / 2 - 2 - sideW;
+            final clear = pos == 1
+                ? left > seatLeft + sideW + 6
+                : left + tileLong + 6 < seatLeft;
             if (clear && rowLen < h - 40) {
-              hands.add((Rect.fromLTWH(left, cy - rowLen / 2, tileLong, rowLen), false));
+              hands.add((
+                Rect.fromLTWH(left, cy - rowLen / 2, tileLong, rowLen),
+                false
+              ));
             }
           }
         }
@@ -112,7 +159,8 @@ class _TablePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final outer = RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(16));
+    final outer =
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(16));
     canvas.drawRRect(
       outer,
       Paint()
@@ -132,7 +180,8 @@ class _TablePainter extends CustomPainter {
     final dark = Paint()..color = const Color(0x12000000);
     final n = (size.width * size.height / 90).clamp(500, 6000).toInt();
     for (var i = 0; i < n; i++) {
-      final o = Offset(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height);
+      final o =
+          Offset(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height);
       canvas.drawCircle(o, 0.8, i.isEven ? light : dark);
     }
     // 内側の影（縁の段差）
@@ -149,22 +198,28 @@ class _TablePainter extends CustomPainter {
       const n = 13;
       for (var i = 0; i < n; i++) {
         final r = horizontal
-            ? Rect.fromLTWH(rect.left + rect.width / n * i, rect.top, rect.width / n - 1, rect.height)
-            : Rect.fromLTWH(rect.left, rect.top + rect.height / n * i, rect.width, rect.height / n - 1);
+            ? Rect.fromLTWH(rect.left + rect.width / n * i, rect.top,
+                rect.width / n - 1, rect.height)
+            : Rect.fromLTWH(rect.left, rect.top + rect.height / n * i,
+                rect.width, rect.height / n - 1);
         final rr = RRect.fromRectAndRadius(r, const Radius.circular(2));
-        canvas.drawRRect(rr.shift(const Offset(0, 1.5)), Paint()..color = const Color(0x55000000));
+        canvas.drawRRect(rr.shift(const Offset(0, 1.5)),
+            Paint()..color = const Color(0x55000000));
         canvas.drawRRect(rr, Paint()..color = const Color(0xFFF3EDDD));
         final back = horizontal
             ? Rect.fromLTRB(r.left, r.top, r.right, r.bottom - r.height * 0.28)
             : Rect.fromLTRB(r.left, r.top, r.right - r.width * 0.28, r.bottom);
-        canvas.drawRRect(RRect.fromRectAndRadius(back, const Radius.circular(2)), Paint()..color = const Color(0xFF1E7A57));
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(back, const Radius.circular(2)),
+            Paint()..color = const Color(0xFF1E7A57));
       }
     }
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_TablePainter old) => old.hands.length != hands.length ||
+  bool shouldRepaint(_TablePainter old) =>
+      old.hands.length != hands.length ||
       Iterable<int>.generate(hands.length).any((i) => old.hands[i] != hands[i]);
 }
 
@@ -187,7 +242,10 @@ class _CenterPanel extends StatelessWidget {
           color: const Color(0xFF0F1F19),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFF2F5545), width: 2),
-          boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 6, offset: Offset(0, 2))],
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x55000000), blurRadius: 6, offset: Offset(0, 2))
+          ],
         ),
         padding: const EdgeInsets.all(8),
         child: ExcludeSemantics(
@@ -197,10 +255,18 @@ class _CenterPanel extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(displayRoundLabel(s.roundName),
-                    style: const TextStyle(color: fg, fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: 1, height: 1.1)),
+                    style: const TextStyle(
+                        color: fg,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                        height: 1.1)),
                 const SizedBox(height: 4),
                 Text(tr('${s.honba}本場', '${s.honba} honba'),
-                    style: const TextStyle(color: Color(0xFFFFD27A), fontSize: 14, fontWeight: FontWeight.w700)),
+                    style: const TextStyle(
+                        color: Color(0xFFFFD27A),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 // 供託の点棒（多いときは5本まで描いて、数を添える）
                 Row(
@@ -210,12 +276,16 @@ class _CenterPanel extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (s.riichiSticks == 0)
-                          const PointStick(width: 52, kind: PointStickKind.thousand, faded: true)
+                          const PointStick(
+                              width: 52,
+                              kind: PointStickKind.thousand,
+                              faded: true)
                         else
                           for (var i = 0; i < math.min(s.riichiSticks, 5); i++)
                             const Padding(
                               padding: EdgeInsets.symmetric(vertical: 1),
-                              child: PointStick(width: 52, kind: PointStickKind.thousand),
+                              child: PointStick(
+                                  width: 52, kind: PointStickKind.thousand),
                             ),
                       ],
                     ),
@@ -228,7 +298,8 @@ class _CenterPanel extends StatelessWidget {
                 Text(
                   tr('${rules.isSanma ? "3人 " : ""}${rules.tonpuu ? "東風" : "半荘"}・${s.records.length}局消化',
                       '${rules.isSanma ? "3P " : ""}${rules.tonpuu ? "East" : "Hanchan"} · ${s.records.length} played'),
-                  style: const TextStyle(color: Color(0xB3E7F2EA), fontSize: 11),
+                  style:
+                      const TextStyle(color: Color(0xB3E7F2EA), fontSize: 11),
                 ),
               ],
             ),
@@ -249,9 +320,11 @@ class _Seat extends StatelessWidget {
   final int rank;
   final bool riichi;
   final VoidCallback? onTap;
+  final VoidCallback? onWin;
 
   const _Seat({
     super.key,
+    this.onWin,
     required this.scale,
     required this.name,
     required this.wind,
@@ -273,7 +346,8 @@ class _Seat extends StatelessWidget {
       child: Semantics(
         button: true,
         enabled: onTap != null,
-        label: tr('$wind $name ${formatPoints(score)}点 $rank位${riichi ? ' 立直中（押すと取消）' : ''}',
+        label: tr(
+            '$wind $name ${formatPoints(score)}点 $rank位${riichi ? ' 立直中（押すと取消）' : ''}',
             '$wind $name ${formatPoints(score)} pts, rank $rank${riichi ? ', in riichi (tap to cancel)' : ''}'),
         child: Material(
           color: riichi ? const Color(0x24FFFFFF) : Colors.transparent,
@@ -283,84 +357,165 @@ class _Seat extends StatelessWidget {
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 22 * k,
-                        height: 22 * k,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isDealer ? AppTheme.vermilionDark : const Color(0x26FFFFFF),
-                          borderRadius: BorderRadius.circular(4),
+              // 念のため: フォントによって高さが足りないときだけ、席の中身を縮めて収める（ふだんは縮めない）
+              child: LayoutBuilder(
+                builder: (context, box) => FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: box.maxWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 22 * k,
+                              height: 22 * k,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isDealer
+                                    ? AppTheme.vermilionDark
+                                    : const Color(0x26FFFFFF),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(wind.characters.first,
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13 * k,
+                                      height: 1)),
+                            ),
+                            SizedBox(width: 5 * k),
+                            Flexible(
+                              child: Text(name,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                      color: fg,
+                                      fontSize: 13 * k,
+                                      fontWeight: FontWeight.w700)),
+                            ),
+                          ],
                         ),
-                        child: Text(wind.characters.first,
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13 * k, height: 1)),
-                      ),
-                      SizedBox(width: 5 * k),
-                      Flexible(
-                        child: Text(name,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                            style: TextStyle(color: fg, fontSize: 13 * k, fontWeight: FontWeight.w700)),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 2 * k),
-                  // 点数（10万点を超えるような長い数字だけ、はみ出さないよう縮める）
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      formatPoints(score),
-                      style: TextStyle(
-                        color: fg,
-                        fontSize: 26 * k,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                        height: 1.15,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
+                        SizedBox(height: 2 * k),
+                        // 点数（10万点を超えるような長い数字だけ、はみ出さないよう縮める）
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            formatPoints(score),
+                            style: TextStyle(
+                              color: fg,
+                              fontSize: 26 * k,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                              height: 1.15,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (riichi) ...[
+                          SizedBox(height: 3 * k),
+                          PointStick(
+                              width: 60 * k, kind: PointStickKind.thousand),
+                        ],
+                        SizedBox(height: 5 * k),
+                        // 順位と、立直の札・和了のボタン（押せることが分かるように、ほかの文字より大きめのボタンの形）
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Text(tr('$rank位', '#$rank'),
+                                style: TextStyle(
+                                    color: const Color(0xCCF7F3EA),
+                                    fontSize: 12 * k,
+                                    fontWeight: FontWeight.w700)),
+                            SizedBox(width: 6 * k),
+                            Column(mainAxisSize: MainAxisSize.min, children: [
+                              _SeatButton(
+                                k: k,
+                                label: action,
+                                filled: riichi,
+                                enabled: onTap != null,
+                                color: AppTheme.vermilionDark,
+                              ),
+                              if (onWin != null) ...[
+                                SizedBox(height: 5 * k),
+                                Semantics(
+                                  button: true,
+                                  label: tr(
+                                      '$name の和了を入力', 'Enter a win for $name'),
+                                  child: ExcludeSemantics(
+                                    child: GestureDetector(
+                                      key: const ValueKey('seat-win'),
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: onWin,
+                                      child: _SeatButton(
+                                        k: k,
+                                        label: tr('和了', 'Win'),
+                                        filled: true,
+                                        enabled: true,
+                                        color: const Color(0xFFF1E9D6),
+                                        textColor: AppTheme.tableGreen,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ]),
+                          ]),
+                        ),
+                      ],
                     ),
                   ),
-                  if (riichi) ...[
-                    SizedBox(height: 3 * k),
-                    PointStick(width: 60 * k, kind: PointStickKind.thousand),
-                  ],
-                  SizedBox(height: 5 * k),
-                  // 順位と、立直の札（押せることが分かるように、ほかの文字より大きめのボタンの形）
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text(tr('$rank位', '#$rank'),
-                          style: TextStyle(color: const Color(0xCCF7F3EA), fontSize: 12 * k, fontWeight: FontWeight.w700)),
-                      SizedBox(width: 6 * k),
-                      Container(
-                      constraints: BoxConstraints(minWidth: 72 * k),
-                      padding: EdgeInsets.symmetric(horizontal: 14 * k, vertical: 6 * k),
-                      decoration: BoxDecoration(
-                        color: riichi ? AppTheme.vermilionDark : const Color(0x14FFFFFF),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: riichi ? AppTheme.vermilionDark : const Color(0x99F7F3EA), width: 1.5),
-                      ),
-                      child: Text(action,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: onTap == null ? const Color(0x66F7F3EA) : fg,
-                              fontSize: 16 * k,
-                              fontWeight: FontWeight.w800,
-                              height: 1.2)),
-                      ),
-                    ]),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 席の中のボタンの形（立直・和了。同じ幅にそろえる）
+class _SeatButton extends StatelessWidget {
+  final double k;
+  final String label;
+  final bool filled;
+  final bool enabled;
+  final Color color;
+  final Color? textColor;
+
+  const _SeatButton({
+    required this.k,
+    required this.label,
+    required this.filled,
+    required this.enabled,
+    required this.color,
+    this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const fg = Color(0xFFF7F3EA);
+    return Container(
+      width: 84 * k,
+      padding: EdgeInsets.symmetric(vertical: 6 * k),
+      decoration: BoxDecoration(
+        color: filled ? color : const Color(0x14FFFFFF),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+            color: filled ? color : const Color(0x99F7F3EA), width: 1.5),
+      ),
+      child: Text(label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+              color: !enabled ? const Color(0x66F7F3EA) : (textColor ?? fg),
+              fontSize: 16 * k,
+              fontWeight: FontWeight.w800,
+              height: 1.2)),
     );
   }
 }
@@ -375,12 +530,14 @@ class PointStick extends StatelessWidget {
   /// 薄く描く（供託が無いとき）
   final bool faded;
 
-  const PointStick({super.key, required this.width, required this.kind, this.faded = false});
+  const PointStick(
+      {super.key, required this.width, required this.kind, this.faded = false});
 
   @override
   Widget build(BuildContext context) => Opacity(
         opacity: faded ? 0.25 : 1,
-        child: CustomPaint(size: Size(width, width * 0.11), painter: _PointStickPainter(kind)),
+        child: CustomPaint(
+            size: Size(width, width * 0.11), painter: _PointStickPainter(kind)),
       );
 }
 
@@ -390,8 +547,10 @@ class _PointStickPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final r = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(size.height / 2));
-    canvas.drawRRect(r.shift(const Offset(0, 1)), Paint()..color = const Color(0x55000000));
+    final r = RRect.fromRectAndRadius(
+        Offset.zero & size, Radius.circular(size.height / 2));
+    canvas.drawRRect(
+        r.shift(const Offset(0, 1)), Paint()..color = const Color(0x55000000));
     canvas.drawRRect(r, Paint()..color = const Color(0xFFFFFCF4));
     final dot = size.height * 0.3;
     final c = size.center(Offset.zero);

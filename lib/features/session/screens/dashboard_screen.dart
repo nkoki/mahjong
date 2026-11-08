@@ -117,6 +117,8 @@ class DashboardScreen extends ConsumerWidget {
                       ? MahjongTableView(
                           session: s,
                           onRiichi: (p) => notifier.toggleRiichi(sessionId, p),
+                          onWin: (p) => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => WinInputScreen(sessionId: sessionId, initialWinner: p))),
                         )
                       : _PlayerGrid(
                           session: s,
