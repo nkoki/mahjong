@@ -289,4 +289,15 @@ class SessionsNotifier extends Notifier<List<GameSession>> {
   }
 
   void delete(String id) => state = state.where((s) => s.id != id).toList();
+
+  /// 指定した対局をまとめて削除する（お気に入りも削除する）。削除した件数を返す
+  int deleteMany(Set<String> ids) {
+    final next = [for (final s in state) if (!ids.contains(s.id)) s];
+    final removed = state.length - next.length;
+    if (removed > 0) state = next;
+    return removed;
+  }
+
+  /// お気に入り（★）以外の対局をすべて削除する（対局中の対局も削除する）。削除した件数を返す
+  int deleteAllExceptFavorites() => deleteMany({for (final s in state) if (!s.favorite) s.id});
 }

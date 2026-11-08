@@ -30,7 +30,8 @@ class HistoryFilter {
   /// 何か絞り込んでいるか
   bool get isActive => name.trim().isNotEmpty || period != StatsPeriod.all || playerCount != null || favoritesOnly;
 
-  HistoryFilter copyWith({String? name, StatsPeriod? period, int? playerCount, bool clearPlayerCount = false, bool? favoritesOnly}) =>
+  HistoryFilter copyWith(
+          {String? name, StatsPeriod? period, int? playerCount, bool clearPlayerCount = false, bool? favoritesOnly}) =>
       HistoryFilter(
         name: name ?? this.name,
         period: period ?? this.period,
@@ -48,8 +49,10 @@ class HistoryFilter {
     return true;
   }
 
-  List<GameSession> apply(List<GameSession> sessions, DateTime now) =>
-      [for (final s in sessions) if (matches(s, now)) s];
+  List<GameSession> apply(List<GameSession> sessions, DateTime now) => [
+        for (final s in sessions)
+          if (matches(s, now)) s
+      ];
 }
 
 /// 戦績一覧
@@ -67,14 +70,104 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
   HistoryFilter _filter = const HistoryFilter();
   final _nameController = TextEditingController();
 
+  /// 選択モード（削除する対局を選ぶ）。null なら通常の表示
+  Set<String>? _selected;
+
   @override
   void dispose() {
     _nameController.dispose();
     super.dispose();
   }
 
-  String _date(DateTime d) =>
-      '${d.year}/${d.month}/${d.day} ${d.hour}:${d.minute.toString().padLeft(2, '0')}';
+  String _date(DateTime d) => '${d.year}/${d.month}/${d.day} ${d.hour}:${d.minute.toString().padLeft(2, '0')}';
+
+  /// 選択モードで対局の選択を切り替える（続けてタップしても最新の選択から切り替える）
+  void _toggleSelected(String id) {
+    final cur = _selected;
+    if (cur == null) return;
+    _selected = cur.contains(id) ? ({...cur}..remove(id)) : {...cur, id};
+  }
+
+  /// 選択した対局を削除する（お気に入りを含むときは警告してから）
+  Future<void> _deleteSelected(List<GameSession> visible) async {
+    final targets = [
+      for (final s in visible)
+        if (_selected!.contains(s.id)) s
+    ];
+    if (targets.isEmpty) return;
+    final favs = targets.where((s) => s.favorite).length;
+    final playing = targets.where((s) => !s.finished).length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: favs > 0 ? Icon(Icons.warning_amber_rounded, color: Theme.of(ctx).colorScheme.error) : null,
+        title: Text(favs > 0
+            ? tr('お気に入りが含まれています', 'Favorites are included')
+            : tr('${targets.length}件の対局を削除', 'Delete ${targets.length} games')),
+        content: Text([
+          if (favs > 0)
+            tr('選択した${targets.length}件のうち、お気に入り（★）の対局が$favs件含まれています。お気に入りも含めて削除しますか？',
+                '$favs of the ${targets.length} selected games are favorites (★). Delete them including the favorites?')
+          else
+            tr('選択した${targets.length}件の対局を削除しますか？', 'Delete the ${targets.length} selected games?'),
+          if (playing > 0) tr('対局中の対局（$playing件）も削除されます。', '$playing games in progress will also be deleted.'),
+          tr('削除した対局は元に戻せません。個人成績からも消えます。', 'Deleted games cannot be restored and are removed from player stats.'),
+        ].join('\n')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('キャンセル', 'Cancel'))),
+          FilledButton(
+            key: const ValueKey('confirm-delete-selected'),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(favs > 0 ? tr('お気に入りも含めて削除', 'Delete including favorites') : tr('削除', 'Delete')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final n = ref.read(sessionsProvider.notifier).deleteMany({for (final s in targets) s.id});
+    setState(() => _selected = null);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('$n件の対局を削除しました', 'Deleted $n games'))));
+  }
+
+  /// お気に入り以外をすべて削除する
+  Future<void> _deleteAllExceptFavorites(List<GameSession> all) async {
+    final targets = all.where((s) => !s.favorite).toList();
+    final messenger = ScaffoldMessenger.of(context);
+    if (targets.isEmpty) {
+      messenger
+          .showSnackBar(SnackBar(content: Text(tr('お気に入り以外の対局はありません', 'There are no games other than favorites'))));
+      return;
+    }
+    final favs = all.length - targets.length;
+    final playing = targets.where((s) => !s.finished).length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('お気に入り以外をすべて削除', 'Delete all except favorites')),
+        content: Text([
+          tr('お気に入り（★）以外の${targets.length}件の対局をすべて削除しますか？',
+              'Delete all ${targets.length} games that are not favorites (★)?'),
+          if (favs > 0) tr('お気に入りの$favs件は残ります。', 'The $favs favorite games are kept.'),
+          if (playing > 0) tr('対局中の対局（$playing件）も削除されます。', '$playing games in progress will also be deleted.'),
+          tr('削除した対局は元に戻せません。個人成績からも消えます。', 'Deleted games cannot be restored and are removed from player stats.'),
+        ].join('\n')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('キャンセル', 'Cancel'))),
+          FilledButton(
+            key: const ValueKey('confirm-delete-all'),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('削除', 'Delete')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final n = ref.read(sessionsProvider.notifier).deleteAllExceptFavorites();
+    setState(() => _selected = null);
+    messenger.showSnackBar(SnackBar(content: Text(tr('$n件の対局を削除しました', 'Deleted $n games'))));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,25 +180,80 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
     // 次に新しい対局を始めたときに削除される対局
     final nextRemoved = {for (final s in notifier.sessionsRemovedByNextCreate()) s.id};
     const max = SessionLogic.maxSavedSessions;
+    final selected = _selected;
+    final selectedVisible = selected == null ? 0 : sessions.where((s) => selected.contains(s.id)).length;
+    final allVisibleSelected = sessions.isNotEmpty && selectedVisible == sessions.length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(tr('戦績', 'History')),
-        actions: [
-          IconButton(
-            tooltip: tr('個人成績', 'Player stats'),
-            icon: const Icon(Icons.leaderboard_outlined),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const StatsScreen())),
-          ),
-          IconButton(
-            tooltip: tr('データの保存について', 'About data storage'),
-            icon: const Icon(Icons.info_outline),
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const StorageInfoScreen())),
-          ),
-        ],
-      ),
+      appBar: selected != null
+          ? AppBar(
+              leading: IconButton(
+                key: const ValueKey('selection-close'),
+                tooltip: tr('選択をやめる', 'Cancel selection'),
+                icon: const Icon(Icons.close),
+                onPressed: () => setState(() => _selected = null),
+              ),
+              title: Text(tr('$selectedVisible件を選択', '$selectedVisible selected')),
+              actions: [
+                IconButton(
+                  key: const ValueKey('select-all'),
+                  tooltip: allVisibleSelected ? tr('すべての選択を外す', 'Deselect all') : tr('表示中をすべて選択', 'Select all shown'),
+                  icon: Icon(allVisibleSelected ? Icons.deselect : Icons.select_all),
+                  onPressed: () => setState(() =>
+                      _selected = allVisibleSelected ? <String>{} : {...selected, for (final s in sessions) s.id}),
+                ),
+                IconButton(
+                  key: const ValueKey('delete-selected'),
+                  tooltip: tr('選択した対局を削除', 'Delete selected games'),
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: selectedVisible == 0 ? null : () => _deleteSelected(sessions),
+                ),
+              ],
+            )
+          : AppBar(
+              title: Text(tr('戦績', 'History')),
+              actions: [
+                IconButton(
+                  tooltip: tr('個人成績', 'Player stats'),
+                  icon: const Icon(Icons.leaderboard_outlined),
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StatsScreen())),
+                ),
+                IconButton(
+                  tooltip: tr('データの保存について', 'About data storage'),
+                  icon: const Icon(Icons.info_outline),
+                  onPressed: () =>
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StorageInfoScreen())),
+                ),
+                PopupMenuButton<String>(
+                  key: const ValueKey('history-menu'),
+                  tooltip: tr('その他', 'More'),
+                  onSelected: (v) {
+                    if (v == 'select') setState(() => _selected = <String>{});
+                    if (v == 'delete-all') _deleteAllExceptFavorites(all);
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'select',
+                      enabled: all.isNotEmpty,
+                      child: ListTile(
+                        leading: const Icon(Icons.checklist),
+                        title: Text(tr('選択して削除', 'Select and delete')),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete-all',
+                      enabled: all.isNotEmpty,
+                      child: ListTile(
+                        leading: const Icon(Icons.delete_sweep_outlined),
+                        title: Text(tr('お気に入り以外をすべて削除', 'Delete all except favorites')),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
       body: ListView(
         padding: const EdgeInsets.all(8),
         children: [
@@ -116,7 +264,9 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tr('保存中: ${all.length} / $max件（★お気に入り $favCount件）', 'Saved: ${all.length} / $max (★ favorites: $favCount)'),
+                  Text(
+                      tr('保存中: ${all.length} / $max件（★お気に入り $favCount件）',
+                          'Saved: ${all.length} / $max (★ favorites: $favCount)'),
                       style: theme.textTheme.titleSmall),
                   const SizedBox(height: 4),
                   Text(
@@ -135,8 +285,7 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
                       child: Text(
                         tr('お気に入り・対局中の対局が多いため、$max件を超えて保存しています。',
                             'More than $max games are saved because of many favorites / games in progress.'),
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.error),
+                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
                       ),
                     ),
                 ],
@@ -183,8 +332,8 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
                   FilterChip(
                     label: Text(tr('$n人打ち', '$n-player')),
                     selected: f.playerCount == n,
-                    onSelected: (v) => setState(
-                        () => _filter = v ? f.copyWith(playerCount: n) : f.copyWith(clearPlayerCount: true)),
+                    onSelected: (v) =>
+                        setState(() => _filter = v ? f.copyWith(playerCount: n) : f.copyWith(clearPlayerCount: true)),
                   ),
                 for (final p in StatsPeriod.values.where((p) => p != StatsPeriod.all))
                   FilterChip(
@@ -201,7 +350,8 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(tr('${all.length}件中 ${sessions.length}件を表示', 'Showing ${sessions.length} of ${all.length}'),
+                    child: Text(
+                        tr('${all.length}件中 ${sessions.length}件を表示', 'Showing ${sessions.length} of ${all.length}'),
                         style: theme.textTheme.bodySmall),
                   ),
                   TextButton(
@@ -221,20 +371,31 @@ class _HistoryListScreenState extends ConsumerState<HistoryListScreen> {
                 all.isEmpty
                     ? tr('まだ対局がありません', 'No games yet')
                     : f.favoritesOnly && favCount == 0
-                        ? tr('お気に入りの対局はありません。\n★ を押すとお気に入りにできます。',
-                            'No favorite games.\nTap ★ to add a favorite.')
+                        ? tr('お気に入りの対局はありません。\n★ を押すとお気に入りにできます。', 'No favorite games.\nTap ★ to add a favorite.')
                         : tr('この条件に合う対局はありません', 'No games match these filters'),
                 textAlign: TextAlign.center,
               ),
+            ),
+          if (selected != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Text(
+                  tr('削除する対局をタップして選びます。お気に入り（★）を選んだときは、削除の前に確認します。',
+                      'Tap games to select them for deletion. You will be asked to confirm if favorites (★) are selected.'),
+                  style: theme.textTheme.bodySmall),
             ),
           for (final s in sessions)
             _SessionTile(
               session: s,
               dateText: _date(s.createdAt),
               willBeRemoved: nextRemoved.contains(s.id),
+              selected: selected?.contains(s.id),
               onFavorite: () => notifier.toggleFavorite(s.id),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => HistoryDetailScreen(sessionId: s.id))),
+              onTap: selected != null
+                  ? () => setState(() => _toggleSelected(s.id))
+                  : () => Navigator.of(context)
+                      .push(MaterialPageRoute(builder: (_) => HistoryDetailScreen(sessionId: s.id))),
+              onLongPress: selected == null ? () => setState(() => _selected = {s.id}) : null,
             ),
         ],
       ),
@@ -246,15 +407,21 @@ class _SessionTile extends StatelessWidget {
   final GameSession session;
   final String dateText;
   final bool willBeRemoved;
+
+  /// 選択モードのときの選択状態（null なら選択モードではない）
+  final bool? selected;
   final VoidCallback onFavorite;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const _SessionTile({
     required this.session,
     required this.dateText,
     required this.willBeRemoved,
+    required this.selected,
     required this.onFavorite,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -262,12 +429,17 @@ class _SessionTile extends StatelessWidget {
     final s = session;
     final theme = Theme.of(context);
     final top = s.ranking.first;
+    final sel = selected;
     return Card(
       child: ListTile(
-        leading: Icon(
-          s.finished ? Icons.emoji_events : Icons.timelapse,
-          color: s.finished ? const Color(0xFFB8860B) : null,
-        ),
+        key: ValueKey('session-${s.id}'),
+        selected: sel ?? false,
+        leading: sel != null
+            ? Checkbox(key: ValueKey('select-${s.id}'), value: sel, onChanged: (_) => onTap())
+            : Icon(
+                s.finished ? Icons.emoji_events : Icons.timelapse,
+                color: s.finished ? const Color(0xFFB8860B) : null,
+              ),
         title: Text(s.playerNames.join(' / ')),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,20 +455,22 @@ class _SessionTile extends StatelessWidget {
             ),
             if (willBeRemoved)
               Text(tr('次に新しい対局を始めると削除されます', 'Will be deleted when the next game starts'),
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.error)),
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
           ],
         ),
         isThreeLine: true,
-        trailing: IconButton(
-          tooltip: s.favorite ? tr('お気に入りを解除', 'Remove from favorites') : tr('お気に入りにする', 'Add to favorites'),
-          icon: Icon(
-            s.favorite ? Icons.star : Icons.star_border,
-            color: s.favorite ? const Color(0xFFB8860B) : null,
-          ),
-          onPressed: onFavorite,
-        ),
+        trailing: sel != null
+            ? (s.favorite ? const Icon(Icons.star, color: Color(0xFFB8860B)) : null)
+            : IconButton(
+                tooltip: s.favorite ? tr('お気に入りを解除', 'Remove from favorites') : tr('お気に入りにする', 'Add to favorites'),
+                icon: Icon(
+                  s.favorite ? Icons.star : Icons.star_border,
+                  color: s.favorite ? const Color(0xFFB8860B) : null,
+                ),
+                onPressed: onFavorite,
+              ),
         onTap: onTap,
+        onLongPress: onLongPress,
       ),
     );
   }
