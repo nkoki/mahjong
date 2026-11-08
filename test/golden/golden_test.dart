@@ -44,11 +44,16 @@ void main() {
 
   GameSession finished() => SessionLogic.finishManually(ongoing(id: 'done'));
 
-  Future<void> shot(WidgetTester tester, String name, Widget home, {ThemeMode mode = ThemeMode.light}) async {
+  Future<void> shot(WidgetTester tester, String name, Widget home,
+      {ThemeMode mode = ThemeMode.light, Map<String, String> preferences = const {}}) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
+    final repo = InMemorySessionRepository([ongoing(), finished()]);
+    for (final e in preferences.entries) {
+      await repo.savePreference(e.key, e.value);
+    }
     await tester.pumpWidget(ProviderScope(
       overrides: [
-        sessionRepositoryProvider.overrideWithValue(InMemorySessionRepository([ongoing(), finished()])),
+        sessionRepositoryProvider.overrideWithValue(repo),
         screenAwakeProvider.overrideWithValue(FakeScreenAwake()),
       ],
       child: MaterialApp(
@@ -66,6 +71,8 @@ void main() {
   testWidgets('ホーム', (t) => shot(t, 'home', const HomeScreen()));
   testWidgets('対局画面', (t) => shot(t, 'dashboard', const DashboardScreen(sessionId: 'x')));
   testWidgets('対局画面（暗い表示）', (t) => shot(t, 'dashboard_dark', const DashboardScreen(sessionId: 'x'), mode: ThemeMode.dark));
+  testWidgets('対局画面（卓ビュー）', (t) => shot(t, 'dashboard_table', const DashboardScreen(sessionId: 'x'),
+      preferences: {PreferenceKeys.dashboardLayout: 'table'}));
   testWidgets('和了入力', (t) => shot(t, 'win_input', const WinInputScreen(sessionId: 'x')));
   testWidgets('計算結果', (t) {
     final s = ongoing();

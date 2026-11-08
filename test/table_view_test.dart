@@ -87,7 +87,12 @@ void main() {
       // メニューで切り替える（設定は端末に保存する）
       await tester.tap(find.byType(PopupMenuButton<String>));
       await tester.pumpAndSettle();
-      expect(tester.widget<CheckedPopupMenuItem<String>>(find.byType(CheckedPopupMenuItem<String>)).checked, isTrue);
+      expect(
+          tester
+              .widget<CheckedPopupMenuItem<String>>(find.ancestor(
+                  of: find.text('対局中は画面を消さない'), matching: find.byType(CheckedPopupMenuItem<String>)))
+              .checked,
+          isTrue);
       await tester.tap(find.text('対局中は画面を消さない'));
       await tester.pumpAndSettle();
       expect(awake.awake, isFalse);

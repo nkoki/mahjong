@@ -25,6 +25,10 @@ double textScaleOf(String? v) {
 final languageProvider =
     Provider<AppLanguage>((ref) => AppLanguage.of(ref.watch(preferenceProvider(PreferenceKeys.language))));
 
+/// 対局画面を卓ビュー（グラフィカル）で表示するか
+final tableLayoutProvider =
+    Provider<bool>((ref) => ref.watch(preferenceProvider(PreferenceKeys.dashboardLayout)) == 'table');
+
 final themeModeProvider =
     Provider<ThemeMode>((ref) => themeModeOf(ref.watch(preferenceProvider(PreferenceKeys.themeMode))));
 final textScaleProvider =
@@ -68,6 +72,27 @@ class DisplaySettingsScreen extends ConsumerWidget {
                       '切り替えるとホーム画面に戻ります。',
                   'Switches the app to English. Text you entered and notes saved earlier stay as they are. '
                   'Switching returns to the home screen.'),
+              style: theme.textTheme.bodySmall),
+          const SizedBox(height: 24),
+          Text(tr('対局画面のレイアウト', 'Game screen layout'), style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SegmentedButton<bool>(
+            key: const ValueKey('dashboard-layout'),
+            segments: [
+              ButtonSegment(value: false, label: Text(tr('シンプル', 'Simple'))),
+              ButtonSegment(value: true, label: Text(tr('卓（グラフィカル）', 'Table (graphical)'))),
+            ],
+            selected: {ref.watch(tableLayoutProvider)},
+            onSelectionChanged: (v) => ref
+                .read(preferenceProvider(PreferenceKeys.dashboardLayout).notifier)
+                .set(v.first ? 'table' : 'simple'),
+          ),
+          const SizedBox(height: 6),
+          Text(
+              tr('「卓」は、卓を真上から見た形で4人を席の位置に並べ、真ん中に局・本場・供託を出します。席を押すと立直です。'
+                  '対局画面の右上のメニューからも切り替えられます。',
+                  '"Table" shows the players in their seats around a table seen from above, with the round, honba and '
+                      'riichi sticks in the middle. Tap a seat to declare riichi. You can also switch from the game screen menu.'),
               style: theme.textTheme.bodySmall),
           const SizedBox(height: 24),
           Text(tr('画面の明るさ', 'Theme'), style: theme.textTheme.titleMedium),

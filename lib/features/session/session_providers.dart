@@ -54,6 +54,9 @@ class PreferenceKeys {
 
   /// 表示の言語（'ja' | 'en'。無ければ日本語）
   static const language = 'language';
+
+  /// 対局画面のレイアウト（'simple' | 'table'。無ければシンプル）
+  static const dashboardLayout = 'dashboard_layout';
 }
 
 /// 全対局の一覧（変更のたびに端末へ自動保存）

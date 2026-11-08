@@ -7,12 +7,14 @@ import '../../draw/draw_input_screen.dart';
 import '../../history/history_detail_screen.dart';
 import '../../history/result_image.dart';
 import '../../history/result_text.dart';
+import '../../settings/display_settings.dart';
 import '../../win/win_input_screen.dart';
 import '../domain/models.dart';
 import '../domain/session_logic.dart';
 import '../screen_awake.dart';
 import '../session_providers.dart';
 import 'all_last_conditions_sheet.dart';
+import 'table_layout.dart';
 import 'table_view_screen.dart';
 import '../domain/all_last_conditions.dart';
 
@@ -32,6 +34,8 @@ class DashboardScreen extends ConsumerWidget {
     }
     final notifier = ref.read(sessionsProvider.notifier);
     final awake = keepScreenOn(ref);
+    // 対局画面のレイアウト（シンプル / 卓ビュー）
+    final table = ref.watch(tableLayoutProvider);
 
     // 対局中は画面を自動で消さない（メニューで切り替えられる）
     return KeepScreenOn(
@@ -78,6 +82,8 @@ class DashboardScreen extends ConsumerWidget {
                       ..showSnackBar(SnackBar(content: Text(tr('「${r.$2}」に交代しました（元に戻すで取り消せます）', 'Substituted "${r.$2}" (undo to revert)'))));
                   }
                 }
+              } else if (v == 'layout') {
+                ref.read(preferenceProvider(PreferenceKeys.dashboardLayout).notifier).set(table ? 'simple' : 'table');
               } else if (v == 'awake') {
                 ref.read(preferenceProvider(PreferenceKeys.keepScreenOn).notifier).set(awake ? '0' : '1');
               } else if (v == 'finish') {
@@ -91,6 +97,7 @@ class DashboardScreen extends ConsumerWidget {
               if (!s.finished) PopupMenuItem(value: 'chombo', child: Text(tr('チョンボ（錯和）を入力', 'Enter chombo'))),
               if (!s.finished) PopupMenuItem(value: 'progress', child: Text(tr('局・本場・供託を直す', 'Fix round / honba / riichi sticks'))),
               if (!s.finished) PopupMenuItem(value: 'substitute', child: Text(tr('プレイヤーを交代', 'Substitute player'))),
+              CheckedPopupMenuItem(value: 'layout', checked: table, child: Text(tr('卓の形で表示', 'Table view'))),
               CheckedPopupMenuItem(value: 'awake', checked: awake, child: Text(tr('対局中は画面を消さない', 'Keep screen on during game'))),
               if (!s.finished)
                 PopupMenuItem(value: 'finish', child: Text(tr('対局を終了', 'End game'))),
@@ -101,15 +108,20 @@ class DashboardScreen extends ConsumerWidget {
       body: SafeArea(
         child: Column(
           children: [
-            _InfoBar(session: s),
+            _InfoBar(session: s, compact: table && !s.finished),
             if (AllLastConditions.applies(s)) AllLastConditionsBar(session: s),
             Expanded(
               child: s.finished
                   ? _FinishedView(session: s)
-                  : _PlayerGrid(
-                      session: s,
-                      onRiichi: (p) => notifier.toggleRiichi(sessionId, p),
-                    ),
+                  : table
+                      ? MahjongTableView(
+                          session: s,
+                          onRiichi: (p) => notifier.toggleRiichi(sessionId, p),
+                        )
+                      : _PlayerGrid(
+                          session: s,
+                          onRiichi: (p) => notifier.toggleRiichi(sessionId, p),
+                        ),
             ),
             if (!s.finished)
               Padding(
@@ -406,7 +418,10 @@ Future<bool> _confirm(BuildContext context, String message) async {
 
 class _InfoBar extends StatelessWidget {
   final GameSession session;
-  const _InfoBar({required this.session});
+
+  /// 卓ビューのとき（局・本場・供託は卓の真ん中に出すので、延長戦のお知らせだけ出す）
+  final bool compact;
+  const _InfoBar({required this.session, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -430,16 +445,21 @@ class _InfoBar extends StatelessWidget {
         ],
       ),
     );
+    if (compact && !session.isExtraRound) return const SizedBox.shrink();
     if (session.finished || !session.isExtraRound) return bar;
-    // 西入（南入）の延長戦中は、終わる条件を表示する
+    if (compact) return _extensionNotice(context);
+    return Column(children: [bar, _extensionNotice(context)]);
+  }
+
+  /// 西入（南入）の延長戦中は、終わる条件を表示する
+  Widget _extensionNotice(BuildContext context) {
+    final theme = Theme.of(context);
+    final rules = session.settings;
     final lastName = tr(
         '${GameSession.windNames[(rules.totalRounds ~/ rules.playerCount) % 4]}'
             '${rules.playerCount}局',
         '${windName(rules.totalRounds ~/ rules.playerCount)} ${rules.playerCount}');
-    return Column(
-      children: [
-        bar,
-        Container(
+    return Container(
           width: double.infinity,
           color: theme.colorScheme.tertiaryContainer,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -451,9 +471,7 @@ class _InfoBar extends StatelessWidget {
                     '${formatPoints(rules.returnPoints)} pts (until $lastName at most)'),
             style: TextStyle(color: theme.colorScheme.onTertiaryContainer, fontSize: 13),
           ),
-        ),
-      ],
-    );
+        );
   }
 }
 
