@@ -18,16 +18,48 @@ class MahjongTableView extends StatelessWidget {
   /// 席の「和了」を押したとき（その人を和了者にして和了入力を開く）
   final void Function(int player)? onWin;
 
-  const MahjongTableView(
-      {super.key, required this.session, required this.onRiichi, this.onWin});
+  /// 卓に置いて使う表示: 各席をその人の向きに回す（手前の人から見て、右の人の席は右を向くなど）
+  final bool faceEachPlayer;
 
-  /// 席の位置（0=下, 1=右, 2=上, 3=左）。起家が下で、打つ順番に反時計回り
-  static int positionOf(GameSession s, int player) => player % s.playerCount;
+  /// 手前（画面の下）に座っている人
+  final int bottomPlayer;
+
+  const MahjongTableView(
+      {super.key,
+      required this.session,
+      required this.onRiichi,
+      this.onWin,
+      this.faceEachPlayer = false,
+      this.bottomPlayer = 0});
+
+  /// 卓の辺の数（人数ではない。3人打ちでも卓は四角で、北家の席が空く）
+  static const _sides = 4;
+
+  /// 席の位置（0=下, 1=右, 2=上, 3=左）。[bottom] の人が下で、打つ順番に反時計回り
+  static int positionOf(GameSession s, int player, [int bottom = 0]) =>
+      (player - bottom + _sides) % _sides;
+
+  /// 席を回す量（RotatedBox の quarterTurns）。その席の人から読める向きにする
+  static int quarterTurnsOf(int position) => const [0, 3, 2, 1][position];
 
   @override
   Widget build(BuildContext context) {
     final s = session;
     final rank = s.ranking;
+    Widget seatOf(int p, double scale, {bool wide = false}) => _Seat(
+          key: ValueKey('seat-$p'),
+          scale: scale,
+          wide: wide,
+          name: s.playerNames[p],
+          wind: windName(s.seatWindIndexOf(p)),
+          isDealer: s.dealer == p,
+          score: s.scores[p],
+          rank: rank.indexOf(p) + 1,
+          riichi: s.riichi[p],
+          onTap: !s.finished && (s.riichi[p] || s.scores[p] >= 1000) ? () => onRiichi(p) : null,
+          onWin: onWin == null || s.finished ? null : () => onWin!(p),
+        );
+    if (faceEachPlayer) return _buildFacing(seatOf);
     return Padding(
       padding: const EdgeInsets.all(12),
       child: LayoutBuilder(builder: (context, c) {
@@ -48,20 +80,7 @@ class MahjongTableView extends StatelessWidget {
         final cx = w / 2, cy = h / 2;
         final gap =
             math.min(16.0, (h - centerSize - seatH * 2) / 4).clamp(4.0, 16.0);
-        Widget seat(int p) => _Seat(
-              key: ValueKey('seat-$p'),
-              scale: scale,
-              name: s.playerNames[p],
-              wind: windName(s.seatWindIndexOf(p)),
-              isDealer: s.dealer == p,
-              score: s.scores[p],
-              rank: rank.indexOf(p) + 1,
-              riichi: s.riichi[p],
-              onTap: (s.riichi[p] || s.scores[p] >= 1000)
-                  ? () => onRiichi(p)
-                  : null,
-              onWin: onWin == null ? null : () => onWin!(p),
-            );
+        Widget seat(int p) => seatOf(p, scale);
         final seats = <Widget>[];
         for (var p = 0; p < s.playerCount; p++) {
           final pos = positionOf(s, p);
@@ -143,6 +162,68 @@ class MahjongTableView extends StatelessWidget {
                 child: _CenterPanel(session: s),
               ),
               ...seats,
+            ],
+          ),
+        );
+      }),
+    );
+  }
+}
+
+extension on MahjongTableView {
+  /// 卓に置いて使う表示。各席はその人の向きに回し、横長の形（左に名前と点数、右に立直・和了）にする。
+  /// 左右の席は回すと縦に長い帯になるので、上下の席と重ならない高さにする
+  Widget _buildFacing(Widget Function(int p, double scale, {bool wide}) seatOf) {
+    final s = session;
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: LayoutBuilder(builder: (context, c) {
+        final w = c.maxWidth, h = c.maxHeight;
+        final cx = w / 2, cy = h / 2;
+        final centerSize = math.max(92.0, math.min(math.min(w * 0.27, h * 0.2), 160.0));
+        // 左右の席の帯の太さ（回したあとの高さ）
+        final sideW = math.max(70.0, (w - centerSize) / 2 - 10);
+        // 上下の席の幅
+        final vertW = math.min(w - 24, 340.0);
+        // 横長の席の中身は、倍率1のとき 幅 約214・高さ 約98。4人とも同じ倍率にする
+        var scale = math.min(math.min((sideW - 8) / 98, (vertW - 12) / 214), 1.5);
+        // 左右の帯の長さと、上下の席の高さ（縦に足りなければ倍率を下げる）
+        double sideLen() => 214 * scale + 16;
+        double vertH() => (h - sideLen()) / 2 - 6;
+        while (scale > 0.5 && vertH() < 98 * scale + 12) {
+          scale -= 0.05;
+        }
+        scale = scale.clamp(0.5, 1.5).toDouble();
+        final sl = math.max(sideLen(), centerSize);
+        final vh = math.max(40.0, (h - sl) / 2 - 6);
+
+        Widget placed(int p) {
+          final pos = MahjongTableView.positionOf(s, p, bottomPlayer);
+          final seat = RotatedBox(
+            key: ValueKey('table-player-$p'),
+            quarterTurns: MahjongTableView.quarterTurnsOf(pos),
+            child: seatOf(p, scale, wide: true),
+          );
+          return switch (pos) {
+            0 => Positioned(left: cx - vertW / 2, top: h - vh, width: vertW, height: vh, child: seat),
+            2 => Positioned(left: cx - vertW / 2, top: 0, width: vertW, height: vh, child: seat),
+            1 => Positioned(left: w - sideW, top: cy - sl / 2, width: sideW, height: sl, child: seat),
+            _ => Positioned(left: 0, top: cy - sl / 2, width: sideW, height: sl, child: seat),
+          };
+        }
+
+        return CustomPaint(
+          painter: const _TablePainter([]),
+          child: Stack(
+            children: [
+              Positioned(
+                left: cx - centerSize / 2,
+                top: cy - centerSize / 2,
+                width: centerSize,
+                height: centerSize,
+                child: _CenterPanel(session: s),
+              ),
+              for (var p = 0; p < s.playerCount; p++) placed(p),
             ],
           ),
         );
@@ -313,6 +394,9 @@ class _CenterPanel extends StatelessWidget {
 /// 卓の上の1人分の席。文字の大きさは [scale] で決め、4人とも同じにする
 class _Seat extends StatelessWidget {
   final double scale;
+
+  /// 横長の形（左に名前・点数・順位、右に立直・和了のボタン）。卓に置いて使う表示で使う
+  final bool wide;
   final String name;
   final String wind;
   final bool isDealer;
@@ -325,6 +409,7 @@ class _Seat extends StatelessWidget {
   const _Seat({
     super.key,
     this.onWin,
+    this.wide = false,
     required this.scale,
     required this.name,
     required this.wind,
@@ -335,9 +420,139 @@ class _Seat extends StatelessWidget {
     required this.onTap,
   });
 
+
+  Widget _header(double k, Color fg) => Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 22 * k,
+            height: 22 * k,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isDealer ? AppTheme.vermilionDark : const Color(0x26FFFFFF),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(wind.characters.first,
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13 * k, height: 1)),
+          ),
+          SizedBox(width: 5 * k),
+          Flexible(
+            child: Text(name,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(color: fg, fontSize: 13 * k, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      );
+
+  /// 点数（10万点を超えるような長い数字だけ、はみ出さないよう縮める）
+  Widget _score(double k, Color fg) => FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          formatPoints(score),
+          style: TextStyle(
+            color: fg,
+            fontSize: 26 * k,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
+            height: 1.15,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      );
+
+  Widget _rank(double k) => Text(tr('$rank位', '#$rank'),
+      style: TextStyle(color: const Color(0xCCF7F3EA), fontSize: 12 * k, fontWeight: FontWeight.w700));
+
+  /// 立直の札・和了のボタン（押せることが分かるように、ほかの文字より大きめのボタンの形）
+  Widget _buttons(double k, String action) => Column(mainAxisSize: MainAxisSize.min, children: [
+        _SeatButton(k: k, label: action, filled: riichi, enabled: onTap != null, color: AppTheme.vermilionDark),
+        if (onWin != null) ...[
+          SizedBox(height: 5 * k),
+          Semantics(
+            button: true,
+            label: tr('$name の和了を入力', 'Enter a win for $name'),
+            child: ExcludeSemantics(
+              child: GestureDetector(
+                key: const ValueKey('seat-win'),
+                behavior: HitTestBehavior.opaque,
+                onTap: onWin,
+                child: _SeatButton(
+                  k: k,
+                  label: tr('和了', 'Win'),
+                  filled: true,
+                  enabled: true,
+                  color: const Color(0xFFF1E9D6),
+                  textColor: AppTheme.tableGreen,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ]);
+
+  /// 縦に積む形（ふだんの卓ビュー）
+  Widget _body(double k, String action) {
+    const fg = Color(0xFFF7F3EA);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _header(k, fg),
+        SizedBox(height: 2 * k),
+        _score(k, fg),
+        if (riichi) ...[
+          SizedBox(height: 3 * k),
+          PointStick(width: 60 * k, kind: PointStickKind.thousand),
+        ],
+        SizedBox(height: 5 * k),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _rank(k),
+            SizedBox(width: 6 * k),
+            _buttons(k, action),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  /// 横長の形（卓に置いて使う表示）
+  Widget _wideBody(double k, String action) {
+    const fg = Color(0xFFF7F3EA);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: 100 * k),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _header(k, fg),
+                SizedBox(height: 2 * k),
+                _score(k, fg),
+                SizedBox(height: 3 * k),
+                // 立直していないときも同じ高さを取って、立直で席の大きさが変わらないようにする
+                Opacity(
+                  opacity: riichi ? 1 : 0,
+                  child: PointStick(width: 60 * k, kind: PointStickKind.thousand),
+                ),
+                SizedBox(height: 3 * k),
+                _rank(k),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(width: 12 * k),
+        _buttons(k, action),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    const fg = Color(0xFFF7F3EA);
     final k = scale;
     // 卓ビューの札は短く（立直中の札をもう一度押すと取り消す。読み上げでは取り消せることも伝える）
     final action = riichi ? tr('立直中', 'In riichi') : tr('立直', 'Riichi');
@@ -368,113 +583,7 @@ class _Seat extends StatelessWidget {
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
                           maxWidth: math.max(0, box.maxWidth - 8)),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 22 * k,
-                                height: 22 * k,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: isDealer
-                                      ? AppTheme.vermilionDark
-                                      : const Color(0x26FFFFFF),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(wind.characters.first,
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 13 * k,
-                                        height: 1)),
-                              ),
-                              SizedBox(width: 5 * k),
-                              Flexible(
-                                child: Text(name,
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                    style: TextStyle(
-                                        color: fg,
-                                        fontSize: 13 * k,
-                                        fontWeight: FontWeight.w700)),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 2 * k),
-                          // 点数（10万点を超えるような長い数字だけ、はみ出さないよう縮める）
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              formatPoints(score),
-                              style: TextStyle(
-                                color: fg,
-                                fontSize: 26 * k,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.5,
-                                height: 1.15,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures()
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (riichi) ...[
-                            SizedBox(height: 3 * k),
-                            PointStick(
-                                width: 60 * k, kind: PointStickKind.thousand),
-                          ],
-                          SizedBox(height: 5 * k),
-                          // 順位と、立直の札・和了のボタン（押せることが分かるように、ほかの文字より大きめのボタンの形）
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child:
-                                Row(mainAxisSize: MainAxisSize.min, children: [
-                              Text(tr('$rank位', '#$rank'),
-                                  style: TextStyle(
-                                      color: const Color(0xCCF7F3EA),
-                                      fontSize: 12 * k,
-                                      fontWeight: FontWeight.w700)),
-                              SizedBox(width: 6 * k),
-                              Column(mainAxisSize: MainAxisSize.min, children: [
-                                _SeatButton(
-                                  k: k,
-                                  label: action,
-                                  filled: riichi,
-                                  enabled: onTap != null,
-                                  color: AppTheme.vermilionDark,
-                                ),
-                                if (onWin != null) ...[
-                                  SizedBox(height: 5 * k),
-                                  Semantics(
-                                    button: true,
-                                    label: tr('$name の和了を入力',
-                                        'Enter a win for $name'),
-                                    child: ExcludeSemantics(
-                                      child: GestureDetector(
-                                        key: const ValueKey('seat-win'),
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: onWin,
-                                        child: _SeatButton(
-                                          k: k,
-                                          label: tr('和了', 'Win'),
-                                          filled: true,
-                                          enabled: true,
-                                          color: const Color(0xFFF1E9D6),
-                                          textColor: AppTheme.tableGreen,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ]),
-                            ]),
-                          ),
-                        ],
-                      ),
+                      child: wide ? _wideBody(k, action) : _body(k, action),
                     ),
                   ),
                 ),

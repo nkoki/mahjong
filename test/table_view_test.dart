@@ -6,7 +6,10 @@ import 'package:mahjong_app/features/session/domain/models.dart';
 import 'package:mahjong_app/features/session/domain/session_logic.dart';
 import 'package:mahjong_app/features/session/screen_awake.dart';
 import 'package:mahjong_app/features/session/screens/dashboard_screen.dart';
+import 'package:mahjong_app/features/session/screens/table_layout.dart';
 import 'package:mahjong_app/features/session/screens/table_view_screen.dart';
+import 'package:mahjong_app/features/draw/draw_input_screen.dart';
+import 'package:mahjong_app/features/win/win_input_screen.dart';
 import 'package:mahjong_app/features/session/session_providers.dart';
 
 import 'player_stats_test.dart' show start;
@@ -62,22 +65,93 @@ void main() {
       return (ProviderScope.containerOf(tester.element(find.byWidget(home))), awake, repo);
     }
 
-    testWidgets('全員の点数を、それぞれの向きで表示し、回せる', (tester) async {
+    testWidgets('卓の形で、全員の席をそれぞれの向きで表示し、回せる', (tester) async {
       var s = start('x', ['A', 'B', 'C', 'D']);
       s = SessionLogic.toggleRiichi(s, 1);
       await pump(tester, const TableViewScreen(sessionId: 'x'), s);
       int turns(int p) => tester.widget<RotatedBox>(find.byKey(ValueKey('table-player-$p'))).quarterTurns;
       expect([for (var p = 0; p < 4; p++) turns(p)], [0, 3, 2, 1]);
-      expect(find.text('東 A'), findsOneWidget);
-      expect(find.text('立直'), findsOneWidget);
+      expect(find.byType(MahjongTableView), findsOneWidget);
       expect(find.text('東1局'), findsOneWidget);
-      expect(find.text('0本場  供託1本'), findsOneWidget);
-      expect(find.text('トップ'), findsNWidgets(3), reason: 'A・C・D は 25,000 で同点トップ（B は立直）');
+      expect(find.text('供託 1'), findsOneWidget);
+      expect(find.text('立直中'), findsOneWidget, reason: 'B は立直中');
+      expect(find.text('24,000'), findsOneWidget);
+      // 席の位置: A が手前、B が右、C が向かい、D が左
+      final center = tester.getCenter(find.byType(MahjongTableView));
+      Offset at(int p) => tester.getCenter(find.byKey(ValueKey('table-player-$p')));
+      expect(at(0).dy, greaterThan(center.dy));
+      expect(at(1).dx, greaterThan(center.dx));
+      expect(at(2).dy, lessThan(center.dy));
+      expect(at(3).dx, lessThan(center.dx));
+      expect(tester.takeException(), isNull);
 
       await tester.tap(find.text('回す'));
       await tester.pump();
       expect(turns(1), 0, reason: 'B が手前になる');
       expect(turns(0), 1);
+      expect(at(1).dy, greaterThan(center.dy));
+    });
+
+    testWidgets('卓に置いた表示のまま、席の立直・和了と流局・戻すを押せる', (tester) async {
+      final (c, _, _) = await pump(tester, const TableViewScreen(sessionId: 'x'), start('x', ['A', 'B', 'C', 'D']));
+      // 向かいの C（180度回った席）の立直を押す
+      await tester.tap(find.descendant(of: find.byKey(const ValueKey('seat-2')), matching: find.text('立直')));
+      await tester.pump();
+      expect(c.read(sessionProvider('x'))!.riichi, [false, false, true, false]);
+      expect(find.text('立直中'), findsOneWidget);
+      // もう一度押すと取り消す
+      await tester.tap(find.text('立直中'));
+      await tester.pump();
+      expect(c.read(sessionProvider('x'))!.riichi, [false, false, false, false]);
+
+      // 左の D の和了 → D を和了者にして和了入力を開く
+      await tester.tap(find.descendant(of: find.byKey(const ValueKey('seat-3')), matching: find.byKey(const ValueKey('seat-win'))));
+      await tester.pumpAndSettle();
+      expect(find.byType(WinInputScreen), findsOneWidget);
+      expect(tester.widget<WinInputScreen>(find.byType(WinInputScreen)).initialWinner, 3);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      // 流局
+      await tester.tap(find.byKey(const ValueKey('table-draw')));
+      await tester.pumpAndSettle();
+      expect(find.byType(DrawInputScreen), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      // 戻す: 局を入力するまでは押せず、入力したあとは確認してから取り消す
+      expect(tester.widget<TextButton>(find.byKey(const ValueKey('table-undo'))).onPressed, isNull);
+      c.read(sessionsProvider.notifier).applyDraw('x', type: DrawType.exhaustive, tenpai: [true, false, false, false]);
+      await tester.pump();
+      expect(find.text('28,000'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('table-undo')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('取り消す'));
+      await tester.pumpAndSettle();
+      expect(c.read(sessionProvider('x'))!.records, isEmpty);
+      expect(find.text('28,000'), findsNothing);
+    });
+
+    testWidgets('3人打ち: 北の席が空き、狭い画面でもはみ出さない', (tester) async {
+      await pump(tester, const TableViewScreen(sessionId: 'x'), start('x', ['A', 'B', 'C']));
+      await tester.binding.setSurfaceSize(const Size(320, 560));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('table-player-2')), findsOneWidget);
+      expect(find.byKey(const ValueKey('table-player-3')), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('回す'));
+      await tester.pump();
+      expect(tester.widget<RotatedBox>(find.byKey(const ValueKey('table-player-0'))).quarterTurns, 1,
+          reason: 'B が手前のとき、A は左（北の空席は A の右どなり＝手前から見て向かいの右）');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('終局後は立直・和了を押せない', (tester) async {
+      final s = SessionLogic.finishManually(start('x', ['A', 'B', 'C', 'D']));
+      await pump(tester, const TableViewScreen(sessionId: 'x'), s);
+      expect(find.text('終局しました'), findsOneWidget);
+      expect(find.byKey(const ValueKey('seat-win')), findsNothing);
+      expect(find.byKey(const ValueKey('table-draw')), findsNothing);
     });
 
     testWidgets('対局中は画面を消さず、終局・画面を閉じる・設定をオフにすると元に戻す', (tester) async {

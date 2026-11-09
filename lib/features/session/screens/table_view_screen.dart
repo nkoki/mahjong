@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n.dart';
-import '../../../core/theme.dart';
+import '../../draw/draw_input_screen.dart';
+import '../../win/win_input_screen.dart';
 import '../domain/models.dart';
 import '../session_providers.dart';
+import 'table_layout.dart';
 
 /// 卓の上での位置（手前・右・向かい・左）
 enum TableSide { bottom, right, top, left }
@@ -17,7 +19,7 @@ TableSide tableSideOf(GameSession s, int player, int bottomPlayer) {
   return TableSide.values[offset];
 }
 
-/// 卓の真ん中に置いて、全員が自分の向きで点数を読める表示
+/// 卓の真ん中に置いて、全員が自分の向きで点数を読める表示（卓の形。席の立直・和了も押せる）
 class TableViewScreen extends ConsumerStatefulWidget {
   final String sessionId;
   const TableViewScreen({super.key, required this.sessionId});
@@ -30,102 +32,85 @@ class _TableViewScreenState extends ConsumerState<TableViewScreen> {
   /// 手前（画面の下）に座っている人
   int _bottom = 0;
 
+  void _push(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+
+  Future<void> _undo() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text(tr('直前の局の入力を取り消しますか？', 'Undo the last round entry?')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('キャンセル', 'Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('取り消す', 'Undo'))),
+        ],
+      ),
+    );
+    if (ok == true) ref.read(sessionsProvider.notifier).undo(widget.sessionId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(sessionProvider(widget.sessionId));
     if (s == null) return const Scaffold();
-    final theme = Theme.of(context);
-    final top = s.scores.reduce((a, b) => a > b ? a : b);
-
-    Widget panel(int p) {
-      final side = tableSideOf(s, p, _bottom);
-      final turns = switch (side) {
-        TableSide.bottom => 0,
-        TableSide.right => 3,
-        TableSide.top => 2,
-        TableSide.left => 1,
-      };
-      final diff = s.scores[p] - top;
-      return RotatedBox(
-        key: ValueKey('table-player-$p'),
-        quarterTurns: turns,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('${windName(s.seatWindIndexOf(p))} ${s.playerNames[p]}',
-                  style: theme.textTheme.titleMedium, overflow: TextOverflow.ellipsis),
-              Text(formatPoints(s.scores[p]),
-                  style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-              Text(
-                s.riichi[p]
-                    ? tr('立直', 'Riichi')
-                    : (diff == 0
-                        ? tr('トップ', 'Leader')
-                        : tr('トップとの差 ${formatPoints(-diff)}', '${formatPoints(-diff)} behind leader')),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: s.riichi[p] ? theme.colorScheme.error : null,
-                  fontWeight: s.riichi[p] ? FontWeight.bold : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    Widget at(TableSide side) {
-      for (var p = 0; p < s.playerCount; p++) {
-        if (tableSideOf(s, p, _bottom) == side) return panel(p);
-      }
-      return const SizedBox.shrink(); // 3人打ちの空いた席
-    }
+    final notifier = ref.read(sessionsProvider.notifier);
+    const fg = Color(0xFFF7F3EA);
+    final buttonStyle = TextButton.styleFrom(foregroundColor: fg, disabledForegroundColor: const Color(0x66F7F3EA));
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surfaceContainerLow,
+      backgroundColor: const Color(0xFF16382C),
       body: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            Align(alignment: Alignment.bottomCenter, child: Padding(padding: const EdgeInsets.only(bottom: 56), child: at(TableSide.bottom))),
-            Align(alignment: Alignment.topCenter, child: at(TableSide.top)),
-            Align(alignment: Alignment.centerLeft, child: at(TableSide.left)),
-            Align(alignment: Alignment.centerRight, child: at(TableSide.right)),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(s.finished ? tr('終局', 'Game over') : displayRoundLabel(s.roundName), style: theme.textTheme.titleLarge),
-                    Text(tr('${s.honba}本場  供託${s.riichiSticks}本', '${s.honba} honba  Riichi sticks: ${s.riichiSticks}'), style: theme.textTheme.bodyMedium),
-                  ],
-                ),
+            if (s.finished)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(tr('終局しました', 'Game over'),
+                    style: const TextStyle(color: fg, fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+            // 卓の形で表示。各席はその人の向きに回し、席の「立直」「和了」をそのまま押せる
+            Expanded(
+              child: MahjongTableView(
+                session: s,
+                faceEachPlayer: true,
+                bottomPlayer: _bottom,
+                onRiichi: (p) => notifier.toggleRiichi(widget.sessionId, p),
+                onWin: (p) => _push(WinInputScreen(sessionId: widget.sessionId, initialWinner: p)),
               ),
             ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 4,
+                children: [
+                  if (!s.finished)
                     TextButton.icon(
-                      icon: const Icon(Icons.rotate_right),
-                      label: Text(tr('回す', 'Rotate')),
-                      onPressed: () => setState(() => _bottom = (_bottom + 1) % s.playerCount),
+                      key: const ValueKey('table-draw'),
+                      style: buttonStyle,
+                      icon: const Icon(Icons.water_drop_outlined),
+                      label: Text(tr('流局', 'Draw')),
+                      onPressed: () => _push(DrawInputScreen(sessionId: widget.sessionId)),
                     ),
-                    TextButton.icon(
-                      icon: const Icon(Icons.close),
-                      label: Text(tr('閉じる', 'Close')),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
+                  TextButton.icon(
+                    key: const ValueKey('table-undo'),
+                    style: buttonStyle,
+                    icon: const Icon(Icons.undo),
+                    label: Text(tr('戻す', 'Undo')),
+                    onPressed: s.previous == null ? null : _undo,
+                  ),
+                  TextButton.icon(
+                    style: buttonStyle,
+                    icon: const Icon(Icons.rotate_right),
+                    label: Text(tr('回す', 'Rotate')),
+                    onPressed: () => setState(() => _bottom = (_bottom + 1) % s.playerCount),
+                  ),
+                  TextButton.icon(
+                    style: buttonStyle,
+                    icon: const Icon(Icons.close),
+                    label: Text(tr('閉じる', 'Close')),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
               ),
             ),
           ],
