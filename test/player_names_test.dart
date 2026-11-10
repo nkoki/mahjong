@@ -6,6 +6,7 @@ import 'package:mahjong_app/features/session/domain/models.dart';
 import 'package:mahjong_app/features/session/domain/session_logic.dart';
 import 'package:mahjong_app/features/session/screens/new_session_screen.dart';
 import 'package:mahjong_app/features/session/session_providers.dart';
+import 'package:mahjong_app/shared/widgets/player_name_field.dart';
 
 GameSession game(String id, List<String> names, DateTime at) => GameSession.start(
       id: id,
@@ -42,6 +43,28 @@ void main() {
     });
   });
 
+  group('名前の部分一致', () {
+    const names = ['伊藤', '佐藤', 'たなか', 'Tanaka', '田中', 'タナカ太郎'];
+    test('含む名前を選び、前方一致を先に並べる', () {
+      expect(matchPlayerNames(names, '藤'), ['伊藤', '佐藤']);
+      expect(matchPlayerNames(names, ''), names);
+      expect(matchPlayerNames(names, 'nak'), ['Tanaka']);
+    });
+    test('大文字・小文字、ひらがな・カタカナの違いは無視する', () {
+      expect(matchPlayerNames(names, 'TAN'), ['Tanaka']);
+      expect(matchPlayerNames(names, 'たなか'), ['タナカ太郎'], reason: '入力と同じ名前（たなか）は出さない');
+      expect(matchPlayerNames(names, 'タナ'), ['たなか', 'タナカ太郎']);
+      expect(matchPlayerNames(names, '太郎'), ['タナカ太郎']);
+    });
+    test('ほかの欄に入っている名前は出さない', () {
+      expect(matchPlayerNames(names, '藤', exclude: {'佐藤'}), ['伊藤']);
+    });
+    test('過去の名前はすべて候補にする（上限なし）', () {
+      final many = [for (var i = 0; i < 30; i++) game('m$i', ['P$i', 'Q$i', 'R$i', 'S$i'], DateTime(2026, 1, 1 + i))];
+      expect(SessionLogic.recentPlayerNames(many, limit: null), hasLength(120));
+    });
+  });
+
   group('新規対局の画面', () {
     Future<ProviderContainer> pump(WidgetTester tester, List<GameSession> sessions) async {
       await tester.binding.setSurfaceSize(const Size(420, 2600));
@@ -55,16 +78,49 @@ void main() {
     String nameOf(WidgetTester tester, int i) =>
         tester.widget<TextField>(find.byKey(ValueKey('player-name-$i'))).controller!.text;
 
-    testWidgets('候補をタップすると空いている欄に入り、使った名前は選べなくなる', (tester) async {
+    testWidgets('過去のプレイヤーは画面に並べず、名前の欄を押したときだけ一覧で出る', (tester) async {
       await pump(tester, [old, mid]);
       expect(nameOf(tester, 0), '', reason: '入力欄は空（ヒントで「プレイヤー1」）');
-      await tester.tap(find.widgetWithText(ActionChip, '鈴木'));
-      await tester.pump();
-      await tester.tap(find.widgetWithText(ActionChip, '伊藤'));
-      await tester.pump();
-      expect([nameOf(tester, 0), nameOf(tester, 1), nameOf(tester, 2)], ['鈴木', '伊藤', '']);
-      expect(tester.widget<ActionChip>(find.widgetWithText(ActionChip, '鈴木')).onPressed, isNull);
-      expect(tester.widget<ActionChip>(find.widgetWithText(ActionChip, '高橋')).onPressed, isNotNull);
+      expect(find.text('鈴木'), findsNothing, reason: '欄を押すまでは出さない');
+      expect(find.byType(ActionChip), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('player-name-0')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('player-name-options')), findsOneWidget);
+      expect(find.text('過去のプレイヤー（6人）。文字を入れると絞り込めます'), findsOneWidget);
+      // 新しく使った順（一覧は下へ動かして続きを見る）
+      final scroll = find.descendant(
+          of: find.byKey(const ValueKey('player-name-options')), matching: find.byType(Scrollable));
+      for (final n in ['伊藤', '佐藤', '山本', '鈴木', '高橋', '田中']) {
+        await tester.scrollUntilVisible(find.widgetWithText(ListTile, n), 40, scrollable: scroll);
+        expect(find.widgetWithText(ListTile, n), findsOneWidget);
+      }
+      await tester.scrollUntilVisible(find.widgetWithText(ListTile, '鈴木'), -40, scrollable: scroll);
+      await tester.tap(find.widgetWithText(ListTile, '鈴木'));
+      await tester.pumpAndSettle();
+      expect(nameOf(tester, 0), '鈴木');
+      expect(find.byKey(const ValueKey('player-name-options')), findsNothing, reason: '選んだら一覧を閉じる');
+    });
+
+    testWidgets('文字を入れると部分一致で絞り込み、ほかの欄に入っている名前は出さない', (tester) async {
+      await pump(tester, [old, mid, game('d', ['たなか', 'Tanaka', 'X', 'Y'], DateTime(2026, 4, 1))]);
+      await tester.enterText(find.byKey(const ValueKey('player-name-0')), '藤');
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, '伊藤'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, '佐藤'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, '鈴木'), findsNothing);
+      await tester.tap(find.widgetWithText(ListTile, '佐藤'));
+      await tester.pumpAndSettle();
+      expect(nameOf(tester, 0), '佐藤');
+
+      // 2つ目の欄では、1つ目に入れた佐藤は出ない
+      await tester.tap(find.byKey(const ValueKey('player-name-1')));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, '佐藤'), findsNothing);
+      expect(find.widgetWithText(ListTile, '伊藤'), findsOneWidget);
+      // ▼ を押すと一覧を閉じる
+      await tester.tap(find.byTooltip('過去のプレイヤーから選ぶ').at(1));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('player-name-options')), findsNothing);
     });
 
     testWidgets('前回のメンバーを座順のまま入れて開始できる', (tester) async {

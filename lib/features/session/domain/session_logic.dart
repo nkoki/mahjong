@@ -762,7 +762,7 @@ class SessionLogic {
   static bool isDefaultPlayerName(String name) => _defaultNamePattern.hasMatch(name);
 
   /// 過去の対局で使った名前（最近使った順・重複なし。「プレイヤー1」などは除く）
-  static List<String> recentPlayerNames(List<GameSession> sessions, {int limit = 16}) {
+  static List<String> recentPlayerNames(List<GameSession> sessions, {int? limit = 16}) {
     final sorted = [...sessions]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final names = <String>[];
     for (final s in sorted) {
@@ -770,7 +770,7 @@ class SessionLogic {
         final name = n.trim();
         if (name.isEmpty || isDefaultPlayerName(name) || names.contains(name)) continue;
         names.add(name);
-        if (names.length >= limit) return names;
+        if (limit != null && names.length >= limit) return names;
       }
     }
     return names;

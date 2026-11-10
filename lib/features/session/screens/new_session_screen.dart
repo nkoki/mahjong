@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/l10n.dart';
 import '../../../core/routes.dart';
 import '../../../core/theme.dart';
+import '../../../shared/widgets/player_name_field.dart';
 import '../../../shared/widgets/rule_inputs.dart';
 import '../domain/models.dart';
 import '../domain/session_logic.dart';
@@ -89,19 +90,6 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
   bool get _isValid =>
       _startingError == null && _returnError == null && _umaError == null && _nameError == null;
 
-  /// 名前の候補を、空いている一番上の欄に入れる
-  void _fillName(String name) {
-    for (var i = 0; i < _playerCount; i++) {
-      if (_controllers[i].text.trim().isEmpty) {
-        setState(() => _controllers[i].text = name);
-        return;
-      }
-    }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(tr('空いている欄がありません。入れ替える欄の名前を消してから選んでください', 'No empty field. Clear a name first, then choose'))));
-  }
-
   /// 前回のメンバーを座順のまま入れる
   void _fillMembers(List<String> names) {
     setState(() {
@@ -186,40 +174,19 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
     return r ?? false;
   }
 
-  /// 過去の対局で使った名前の候補と、前回のメンバー
-  List<Widget> _nameSuggestions(BuildContext context) {
-    final sessions = ref.watch(sessionsProvider);
-    final recent = SessionLogic.recentPlayerNames(sessions);
-    final last = SessionLogic.lastMembers(sessions, _playerCount);
-    if (recent.isEmpty && last == null) return const [];
-    final entered = {for (var i = 0; i < _playerCount; i++) _controllers[i].text.trim()};
-    final small = Theme.of(context).textTheme.bodySmall;
-    return [
-      if (last != null)
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            icon: const Icon(Icons.history),
-            label: Text(tr('前回のメンバー（${last.join("・")}）', 'Last members (${last.join(", ")})'), overflow: TextOverflow.ellipsis),
-            onPressed: () => _fillMembers(last),
-          ),
-        ),
-      if (recent.isNotEmpty) ...[
-        Text(tr('最近のプレイヤー（タップすると空いている欄に入ります）', 'Recent players (tap to fill an empty field)'), style: small),
-        const SizedBox(height: 4),
-        Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          children: [
-            for (final n in recent)
-              ActionChip(
-                label: Text(n),
-                onPressed: entered.contains(n) ? null : () => _fillName(n),
-              ),
-          ],
-        ),
-      ],
-    ];
+  /// 前回のメンバー（ボタンを押すと座順のまま入れる）
+  Widget? _lastMembers() {
+    final last = SessionLogic.lastMembers(ref.watch(sessionsProvider), _playerCount);
+    if (last == null) return null;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        icon: const Icon(Icons.history),
+        label: Text(tr('前回のメンバー（${last.join("・")}）', 'Last members (${last.join(", ")})'),
+            overflow: TextOverflow.ellipsis),
+        onPressed: () => _fillMembers(last),
+      ),
+    );
   }
 
   Widget _label(BuildContext context, String text) => Padding(
@@ -235,6 +202,8 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
       tr('西家', 'West'),
       tr('北家', 'North'),
     ];
+    // 過去に入力したことのあるプレイヤーの名前（新しく使った順）
+    final knownNames = SessionLogic.recentPlayerNames(ref.watch(sessionsProvider), limit: null);
     return Scaffold(
       appBar: AppBar(title: Text(tr('新規対局', 'New game'))),
       body: ListView(
@@ -268,25 +237,21 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
           const SizedBox(height: 16),
           Text(tr('プレイヤー', 'Players'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
+          // 名前の欄を押すと、過去のプレイヤーの一覧が開く（文字を入れると部分一致で絞り込む）
           for (var i = 0; i < _playerCount; i++)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: TextField(
-                key: ValueKey('player-name-$i'),
+              child: PlayerNameField(
+                fieldKey: ValueKey('player-name-$i'),
                 controller: _controllers[i],
+                candidates: knownNames,
+                exclude: {
+                  for (var j = 0; j < _playerCount; j++)
+                    if (j != i && _controllers[j].text.trim().isNotEmpty) _controllers[j].text.trim()
+                },
+                labelText: winds[i],
+                hintText: SessionLogic.defaultPlayerName(i),
                 onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: winds[i],
-                  hintText: SessionLogic.defaultPlayerName(i),
-                  border: const OutlineInputBorder(),
-                  suffixIcon: _controllers[i].text.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: tr('名前を消す', 'Clear name'),
-                          icon: const Icon(Icons.clear),
-                          onPressed: () => setState(() => _controllers[i].clear()),
-                        ),
-                ),
               ),
             ),
           if (_nameError != null)
@@ -295,7 +260,7 @@ class _NewSessionScreenState extends ConsumerState<NewSessionScreen> {
               child: Text(_nameError!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
-          ..._nameSuggestions(context),
+          if (_lastMembers() case final w?) w,
           const SizedBox(height: 16),
           Text(tr('ルール', 'Rules'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
