@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
 import '../../core/l10n.dart';
+import 'guided_recognition.dart';
 import 'recognition_pipeline.dart';
 import 'tflite_assets.dart';
 import 'tile_recognizer.dart';
@@ -66,8 +67,8 @@ class WebTileRecognizer implements TileRecognizer {
 
   static List<int> _shape(JSArray<JSNumber> a) => [for (final n in a.toDart) n.toDartInt];
 
-  @override
-  Future<List<Tile>> recognize(Uint8List imageBytes) async {
+  /// モデルを読み込み、写真を開く（どちらも失敗したら [RecognitionException]）
+  Future<(_Loaded, img.Image)> _prepare(Uint8List imageBytes) async {
     final _Loaded loaded;
     try {
       loaded = await (_loaded ??= _load());
@@ -77,16 +78,23 @@ class WebTileRecognizer implements TileRecognizer {
           '認識モデルを読み込めませんでした。通信できる状態で、もう一度試してください（$e）。',
           'Could not load the recognition model. Check your connection and try again ($e).'));
     }
-    // 重い処理の合間に、読み取り中の表示を描き直す時間を作る（Web 版は別の Isolate を使えない）
-    Future<void> pause() => Future<void>.delayed(const Duration(milliseconds: 1));
-    await pause();
+    await _pause();
     final decoded = img.decodeImage(imageBytes);
     if (decoded == null) {
       throw RecognitionException(tr('写真を読み込めませんでした。', 'Could not load the photo.'));
     }
     // スマホの写真は向きの情報（EXIF）で回転していることがあるので、見たままの向きにする
     final photo = img.bakeOrientation(decoded);
-    await pause();
+    await _pause();
+    return (loaded, photo);
+  }
+
+  /// 重い処理の合間に、読み取り中の表示を描き直す時間を作る（Web 版は別の Isolate を使えない）
+  static Future<void> _pause() => Future<void>.delayed(const Duration(milliseconds: 1));
+
+  @override
+  Future<List<Tile>> recognize(Uint8List imageBytes) async {
+    final (loaded, photo) = await _prepare(imageBytes);
     final List<Tile> tiles;
     try {
       tiles = await recognizeTiles(
@@ -96,7 +104,7 @@ class WebTileRecognizer implements TileRecognizer {
         labels: loaded.labels,
         classifierLabels: loaded.classifierLabels,
         detectionThreshold: TileModelAssets.detectionThreshold,
-        pause: pause,
+        pause: _pause,
       );
     } catch (e) {
       throw RecognitionException(tr('読み取りに失敗しました（$e）。', 'Recognition failed ($e).'));
@@ -106,6 +114,28 @@ class WebTileRecognizer implements TileRecognizer {
           'No mahjong tiles found. Retake the photo so the tiles are large and clear.'));
     }
     return tiles;
+  }
+
+  @override
+  Future<List<RegionTiles>> recognizeRegions(Uint8List imageBytes, List<PhotoRegion> regions,
+      {double? viewAspect, bool mirrored = false}) async {
+    final (loaded, photo) = await _prepare(imageBytes);
+    try {
+      return await detectRegions(
+        photo: photo,
+        regions: regions,
+        viewAspect: viewAspect,
+        mirrored: mirrored,
+        runner: loaded.runner,
+        anchors: loaded.anchors,
+        labels: loaded.labels,
+        classifierLabels: loaded.classifierLabels,
+        detectionThreshold: TileModelAssets.detectionThreshold,
+        pause: _pause,
+      );
+    } catch (e) {
+      throw RecognitionException(tr('読み取りに失敗しました（$e）。', 'Recognition failed ($e).'));
+    }
   }
 }
 

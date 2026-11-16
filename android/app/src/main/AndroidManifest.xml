@@ -1,6 +1,14 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- インターネットの権限は付けない（このアプリは通信しない。写真も端末の外に送らない）。
          開発中の hot reload 用の権限は debug / profile の AndroidManifest.xml にある -->
+    <!-- カメラ: 枠つきの撮影画面（アプリの中にカメラの映像を出す）で使う。
+         カメラの無い端末にも入れられるようにする（その端末では「写真から選ぶ」を使う） -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera.any" android:required="false"/>
+    <!-- カメラの部品（camera）が足すマイクと保存の権限は使わないので外す（音は録らない・写真は保存しない） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
     <application
         android:label="麻雀点数計算"
         android:name="${applicationName}"

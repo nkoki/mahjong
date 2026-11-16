@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
 import '../../core/l10n.dart';
+import 'guided_recognition.dart';
 
 /// 読み取りに失敗したときのエラー（[message] は利用者向けの説明）
 class RecognitionException implements Exception {
@@ -17,6 +18,17 @@ class RecognitionException implements Exception {
 abstract class TileRecognizer {
   /// 画像（JPEG/PNG）から牌を左から順に認識する。失敗したら [RecognitionException]
   Future<List<Tile>> recognize(Uint8List imageBytes);
+
+  /// 画像の中の範囲ごとに牌を読み取る（枠つきの撮影用）。答えは [regions] と同じ順。
+  /// 牌が1枚も無い範囲は空で返す（エラーにしない）。写真を読めないときなどは [RecognitionException]。
+  ///
+  /// [viewAspect] を渡すと、[regions] を「その縦横比（幅 ÷ 高さ）のカメラの映像の中の範囲」として、
+  /// 写真の中の位置に直してから読み取る（映像と写真で縦横比が違う端末のため）。
+  ///
+  /// [mirrored] は、写真が鏡のように左右反転しているとき（Web 版で、内側のカメラやパソコンのカメラを使ったとき）。
+  /// 反転を戻してから読み取る（[regions] は、反転した写真＝画面で見えていた映像の中の位置で渡す）
+  Future<List<RegionTiles>> recognizeRegions(Uint8List imageBytes, List<PhotoRegion> regions,
+      {double? viewAspect, bool mirrored = false});
 }
 
 /// 読み取った牌を手牌に入れるときの結果

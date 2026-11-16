@@ -7,6 +7,8 @@ import '../../core/l10n.dart';
 import '../../shared/widgets/tile_palette.dart';
 import '../../shared/widgets/tile_view.dart';
 import '../camera/camera_providers.dart';
+import '../camera/guided_camera_screen.dart';
+import '../camera/guided_recognition.dart';
 import '../camera/tile_recognizer.dart';
 import '../session/domain/models.dart';
 import '../session/domain/session_logic.dart';
@@ -291,8 +293,10 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
 
   /// カメラ（写真）から手牌を読み取る
   Future<void> _readFromCamera(GameSession s) async {
+    // 前の知らせが残っていると、撮影画面の撮影ボタンに重なるので消す
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     final downloadMb = ref.read(cameraFirstUseDownloadMbProvider);
-    final fromCamera = await showModalBottomSheet<bool>(
+    final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -311,20 +315,32 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                       '${downloadMb == null ? '' : '\nThe first use downloads the recognition model (about $downloadMb MB).'}')),
             ),
             ListTile(
+              key: const ValueKey('camera-guided'),
+              leading: const Icon(Icons.crop_free),
+              title: Text(tr('枠に合わせて撮影する', 'Shoot with guide frames')),
+              subtitle: Text(tr('手牌・和了牌・鳴いた牌を、それぞれの枠に入れて撮る（鳴きも読み取る）',
+                  'Put the hand, winning tile and calls in their frames (calls are read too)')),
+              onTap: () => Navigator.pop(ctx, 'guided'),
+            ),
+            ListTile(
               leading: const Icon(Icons.photo_camera),
-              title: Text(tr('撮影する', 'Take photo')),
-              onTap: () => Navigator.pop(ctx, true),
+              title: Text(tr('撮影する（枠なし）', 'Take photo (no frames)')),
+              subtitle: Text(tr('手牌だけを読み取る', 'Reads the hand only')),
+              onTap: () => Navigator.pop(ctx, 'camera'),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: Text(tr('写真から選ぶ', 'Choose from photos')),
-              onTap: () => Navigator.pop(ctx, false),
+              subtitle: Text(tr('手牌だけを読み取る', 'Reads the hand only')),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
             ),
           ],
         ),
       ),
     );
-    if (fromCamera == null || !mounted) return;
+    if (choice == null || !mounted) return;
+    if (choice == 'guided') return _readGuided(s, downloadMb);
+    final fromCamera = choice == 'camera';
 
     final Uint8List? bytes;
     try {
@@ -335,23 +351,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     }
     if (bytes == null || !mounted) return;
 
-    // 読み取り中の表示
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        content: Row(
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(width: 20),
-            Expanded(
-                child: Text(tr(
-                    '牌を読み取っています…${downloadMb == null ? '' : '\n（初めてのときは、認識モデルのダウンロードに時間がかかります）'}',
-                    'Reading tiles…${downloadMb == null ? '' : '\n(The first time, downloading the recognition model takes a while)'}'))),
-          ],
-        ),
-      ),
-    );
+    _showReading(downloadMb);
     final result = await _recognize(bytes);
     if (!mounted) return;
     Navigator.of(context).pop(); // 読み取り中の表示を閉じる
@@ -359,14 +359,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     final error = result.error;
     final tiles = result.tiles;
     if (error != null || tiles == null) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(tr('読み取れませんでした', 'Could not read tiles')),
-          content: Text(error ?? tr('読み取りに失敗しました', 'Recognition failed')),
-          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-        ),
-      );
+      await _showReadError(error ?? tr('読み取りに失敗しました', 'Recognition failed'));
       return;
     }
 
@@ -427,6 +420,8 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     );
     if (apply != true || !mounted) return;
     setState(() {
+      // 翻・符で入力していたときは、読み取った手牌が見えるように手牌の入力に切り替える
+      _quick = false;
       _hand
         ..clear()
         ..addAll(r.hand);
@@ -436,6 +431,186 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
           : (_winTile == null ? _Target.win : _Target.dora);
     });
     _snack(tr('読み取った牌を入れました。間違いがないか確認してください', 'Tiles entered. Please check they are correct'));
+  }
+
+  /// 読み取り中の表示を出す（閉じるときは Navigator.pop）
+  void _showReading(int? downloadMb) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            Expanded(
+                child: Text(tr(
+                    '牌を読み取っています…${downloadMb == null ? '' : '\n（初めてのときは、認識モデルのダウンロードに時間がかかります）'}',
+                    'Reading tiles…${downloadMb == null ? '' : '\n(The first time, downloading the recognition model takes a while)'}'))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showReadError(String message) => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(tr('読み取れませんでした', 'Could not read tiles')),
+          content: Text(message),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ),
+      );
+
+  /// 枠つきの撮影: 手牌・和了牌・鳴いた牌を、それぞれの枠の位置で読み取って入れる
+  Future<void> _readGuided(GameSession s, int? downloadMb) async {
+    final GuidedPhoto? photo;
+    try {
+      photo = await ref.read(guidedCaptureProvider).capture(context);
+    } catch (e) {
+      _snack(tr('写真を取得できませんでした: $e', 'Could not get the photo: $e'));
+      return;
+    }
+    if (photo == null || !mounted) return;
+
+    _showReading(downloadMb);
+    final result = await _recognizeRegions(photo);
+    if (!mounted) return;
+    Navigator.of(context).pop(); // 読み取り中の表示を閉じる
+
+    final regions = result.regions;
+    if (result.error != null || regions == null) {
+      await _showReadError(result.error ?? tr('読み取りに失敗しました', 'Recognition failed'));
+      return;
+    }
+    // GuideFrames.all の順（手牌・和了牌・鳴いた牌）
+    final r = interpretGuided(
+        hand: regions[0],
+        win: regions[1],
+        melds: regions[2],
+        sanma: s.settings.isSanma,
+        redDora: s.settings.redDora);
+    if (r.hand.isEmpty && r.winningTile == null && r.melds.isEmpty) {
+      await _showReadError(tr('枠の中に麻雀牌を見つけられませんでした。牌が枠の中に大きく、はっきり写るように撮り直してください。',
+          'No mahjong tiles found in the frames. Retake the photo so the tiles are large and clear inside the frames.'));
+      return;
+    }
+    final fixedWin = widget.isAdditionalRon;
+    // 槓を暗槓にするかどうか（写真からは分からないので、ここで選ぶ）
+    final closedKan = <int>{};
+    final apply = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDialog) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          title: Text(tr('読み取り結果', 'Recognition result')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(tr('手牌（${r.hand.length}/${r.needHand}枚）', 'Hand (${r.hand.length}/${r.needHand})'),
+                    style: theme.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                TileRow(r.hand, tileWidth: 22),
+                if (r.winningTile != null && !fixedWin) ...[
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Text(tr('和了牌: ', 'Winning tile: '), style: theme.textTheme.titleSmall),
+                    TileView(r.winningTile!, width: 22),
+                  ]),
+                ],
+                const SizedBox(height: 8),
+                Text(tr('鳴き（${r.melds.length}）', 'Calls (${r.melds.length})'), style: theme.textTheme.titleSmall),
+                if (r.melds.isEmpty) Text(tr('なし', 'None'), style: theme.textTheme.bodySmall),
+                for (var i = 0; i < r.melds.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      children: [
+                        Text(_meldLabel(closedKan.contains(i) ? MeldType.ankan : r.melds[i].type)),
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          for (final t in r.melds[i].tiles) TileView(t, width: 20),
+                        ]),
+                        if (r.melds[i].type == MeldType.minkan)
+                          FilterChip(
+                            key: ValueKey('guided-ankan-$i'),
+                            label: Text(tr('暗槓にする', 'Closed kan')),
+                            selected: closedKan.contains(i),
+                            onSelected: (v) => setDialog(() => v ? closedKan.add(i) : closedKan.remove(i)),
+                          ),
+                      ],
+                    ),
+                  ),
+                for (final n in [
+                  ...r.notes,
+                  if (fixedWin && r.winningTile != null)
+                    tr('和了牌は1人目と同じなので、読み取った和了牌は使いません',
+                        'The winning tile is the same as the 1st winner, so the read winning tile is not used'),
+                  if (_melds.isNotEmpty) tr('今入っている鳴きは、読み取った鳴きに置き換えます', 'Calls already entered are replaced with the ones read'),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text('・$n', style: theme.textTheme.bodySmall),
+                  ),
+                const SizedBox(height: 10),
+                Text(
+                    tr(
+                        '読み取りは間違えることがあります（牌を見落としたり、牌でないものを牌と読んだりすることがあります）。'
+                            '入れたあとに、手牌と鳴きをよく確認してください。',
+                        'Recognition can be wrong (it may miss tiles or read non-tiles as tiles). '
+                            'Check the hand and calls carefully after entering them.'),
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('キャンセル', 'Cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('手牌に入れる', 'Use as hand'))),
+          ],
+        );
+      }),
+    );
+    if (apply != true || !mounted) return;
+    setState(() {
+      // 翻・符で入力していたときは、読み取った手牌が見えるように手牌の入力に切り替える
+      _quick = false;
+      _melds
+        ..clear()
+        ..addAll([
+          for (var i = 0; i < r.melds.length; i++)
+            closedKan.contains(i) ? Meld(type: MeldType.ankan, tiles: r.melds[i].tiles) : r.melds[i]
+        ]);
+      if (!_menzen) {
+        // 鳴いた手では立直などはできない（鳴きを手で追加したときと同じ）
+        _riichi = false;
+        _doubleRiichi = false;
+        _ippatsu = false;
+        _tenho = false;
+      }
+      _hand
+        ..clear()
+        ..addAll(r.hand);
+      if (r.winningTile != null && !fixedWin) _winTile = r.winningTile;
+      _target = _hand.length < _needHand ? _Target.hand : (_winTile == null ? _Target.win : _Target.dora);
+    });
+    _snack(tr('読み取った牌を入れました。間違いがないか確認してください', 'Tiles entered. Please check they are correct'));
+  }
+
+  /// 枠ごとに牌を読み取る。読み取れたら regions、失敗したら error（[_recognize] と同じ形）
+  Future<({List<RegionTiles>? regions, String? error})> _recognizeRegions(GuidedPhoto photo) async {
+    try {
+      final regions = await ref
+          .read(tileRecognizerProvider)
+          .recognizeRegions(photo.bytes, GuideFrames.all, viewAspect: photo.viewAspect, mirrored: photo.mirrored);
+      return (regions: regions, error: null);
+    } on RecognitionException catch (e) {
+      return (regions: null, error: e.message);
+    } catch (e) {
+      return (regions: null, error: tr('読み取りに失敗しました: $e', 'Recognition failed: $e'));
+    }
   }
 
   /// 写真から牌を読み取る。読み取れたら tiles、失敗したら error（利用者向けの説明）が入る。

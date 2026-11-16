@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'guided_camera_screen.dart';
 import 'recognizer_factory.dart';
 import 'tile_recognizer.dart';
 
@@ -39,3 +40,6 @@ class ImagePickerPhotoPicker implements PhotoPicker {
 }
 
 final photoPickerProvider = Provider<PhotoPicker>((ref) => const ImagePickerPhotoPicker());
+
+/// 枠つきの撮影（カメラの映像に枠を重ねた撮影画面。テストでは差し替える）
+final guidedCaptureProvider = Provider<GuidedCapture>((ref) => const CameraGuidedCapture());

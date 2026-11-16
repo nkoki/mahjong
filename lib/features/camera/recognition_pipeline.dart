@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 
+import 'guided_recognition.dart';
 import 'tile_classifier.dart';
 import 'tile_detection.dart';
 
@@ -58,6 +59,26 @@ Future<List<Tile>> recognizeTiles({
   required List<String> classifierLabels,
   required double detectionThreshold,
   Future<void> Function()? pause,
+}) async =>
+    arrangeTiles(await detectTiles(
+      photo: photo,
+      runner: runner,
+      anchors: anchors,
+      labels: labels,
+      classifierLabels: classifierLabels,
+      detectionThreshold: detectionThreshold,
+      pause: pause,
+    )).tiles;
+
+/// [recognizeTiles] の 1〜3 まで（並べる前）。見つけた牌を、位置（[photo] を 1 とした割合）つきで返す
+Future<List<TileDetection>> detectTiles({
+  required img.Image photo,
+  required TileModelRunner runner,
+  required Float32List anchors,
+  required List<String> labels,
+  required List<String> classifierLabels,
+  required double detectionThreshold,
+  Future<void> Function()? pause,
 }) async {
   Future<List<TileDetection>> detect(img.Image image) async {
     final prepared = detectorInput(image, runner.detectorSize);
@@ -96,5 +117,41 @@ Future<List<Tile>> recognizeTiles({
     final relabeled = relabelWithClassifier(d, probs, classifierLabels);
     if (relabeled != null) classified.add(relabeled);
   }
-  return arrangeTiles(classified).tiles;
+  return classified;
+}
+
+/// 写真の中の範囲ごとに牌を読み取る（枠つきの撮影用）。範囲を切り抜いて、それぞれ [detectTiles] で読む
+Future<List<RegionTiles>> detectRegions({
+  required img.Image photo,
+  required List<PhotoRegion> regions,
+  double? viewAspect,
+  bool mirrored = false,
+  required TileModelRunner runner,
+  required Float32List anchors,
+  required List<String> labels,
+  required List<String> classifierLabels,
+  required double detectionThreshold,
+  Future<void> Function()? pause,
+}) async {
+  final result = <RegionTiles>[];
+  // 鏡のように反転した写真は、反転を戻してから読む（枠の位置も左右を入れ替える）
+  if (mirrored) photo = img.flipHorizontal(photo.clone());
+  for (final r0 in regions) {
+    final region = mirrored ? r0.mirrored : r0;
+    final r = viewAspect == null ? region : mapViewRegionToPhoto(region, viewAspect, photo.width, photo.height);
+    final px = regionPixels(r, photo.width, photo.height);
+    final crop = img.copyCrop(photo, x: px.x, y: px.y, width: px.width, height: px.height);
+    final detections = await detectTiles(
+      photo: crop,
+      runner: runner,
+      anchors: anchors,
+      labels: labels,
+      classifierLabels: classifierLabels,
+      detectionThreshold: detectionThreshold,
+      pause: pause,
+    );
+    result.add(RegionTiles(px.width, px.height, detections));
+    await pause?.call();
+  }
+  return result;
 }

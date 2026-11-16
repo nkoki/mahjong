@@ -7,6 +7,8 @@ import 'package:mahjong_app/features/about/data_sources.dart';
 import 'package:mahjong_app/features/about/license_screen.dart';
 import 'package:mahjong_app/features/camera/camera_providers.dart';
 import 'package:mahjong_app/features/camera/tile_detection.dart';
+import 'package:mahjong_app/features/camera/guided_camera_screen.dart';
+import 'package:mahjong_app/features/camera/guided_recognition.dart';
 import 'package:mahjong_app/features/camera/tile_recognizer.dart';
 import 'package:mahjong_app/features/session/data/session_repository.dart';
 import 'package:mahjong_app/features/session/domain/models.dart';
@@ -209,6 +211,7 @@ void main() {
   group('画面', () {
     late _FakePicker picker;
     late _FakeRecognizer recognizer;
+    late _FakeGuidedCapture guided;
 
     Future<void> pump(WidgetTester tester, {bool supported = true, int? downloadMb}) async {
       await tester.binding.setSurfaceSize(const Size(420, 2600));
@@ -221,6 +224,7 @@ void main() {
           cameraSupportedProvider.overrideWithValue(supported),
           cameraFirstUseDownloadMbProvider.overrideWithValue(downloadMb),
           photoPickerProvider.overrideWithValue(picker),
+          guidedCaptureProvider.overrideWithValue(guided),
           tileRecognizerProvider.overrideWithValue(recognizer),
         ],
         child: const MaterialApp(home: WinInputScreen(sessionId: 'x')),
@@ -230,6 +234,54 @@ void main() {
     setUp(() {
       picker = _FakePicker();
       recognizer = _FakeRecognizer();
+      guided = _FakeGuidedCapture();
+    });
+
+    testWidgets('枠に合わせて撮影: 手牌・和了牌・鳴きを枠ごとに読み取って入れ、槓は暗槓に変えられる', (tester) async {
+      recognizer.regions = [
+        rowOf(['2m', '3m', '4m', '7p', '8p', '9p', '5s']),
+        rowOf(['5s']),
+        rowOf(['7z', '7z', '7z', '1z', '1z', '1z', '1z'], gaps: {3}),
+      ];
+      await pump(tester);
+      // 翻・符で入力していても、読み取ったら手牌の入力に切り替わる（読み取った牌が見えるように）
+      await tester.tap(find.text('翻・符で入力'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('タップで削除'), findsNothing);
+      await tester.tap(find.byTooltip('カメラで手牌を読み取る'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('camera-guided')));
+      await tester.pumpAndSettle();
+      expect(guided.calls, 1);
+      expect(recognizer.askedRegions, GuideFrames.all);
+      expect(recognizer.askedViewAspect, 0.5625);
+      expect(find.text('読み取り結果'), findsOneWidget);
+      expect(find.text('手牌（7/7枚）'), findsOneWidget);
+      expect(find.text('鳴き（2）'), findsOneWidget);
+      expect(find.text('ポン'), findsOneWidget);
+      expect(find.text('明槓'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('guided-ankan-1')));
+      await tester.pump();
+      expect(find.text('暗槓'), findsOneWidget);
+      await tester.tap(find.text('手牌に入れる'));
+      await tester.pumpAndSettle();
+      expect(find.text('手牌（7/7枚・タップで削除）'), findsOneWidget);
+      expect(find.text('鳴き（2）'), findsOneWidget);
+      expect(find.textContaining('ポン'), findsOneWidget);
+      expect(find.textContaining('暗槓'), findsOneWidget);
+    });
+
+    testWidgets('枠に合わせて撮影: 枠の中に牌が無ければ知らせ、手牌は変えない', (tester) async {
+      await pump(tester);
+      await tester.tap(find.byTooltip('カメラで手牌を読み取る'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('camera-guided')));
+      await tester.pumpAndSettle();
+      expect(find.text('読み取れませんでした'), findsOneWidget);
+      expect(find.textContaining('枠の中に麻雀牌を見つけられませんでした'), findsOneWidget);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(find.text('手牌（0/13枚・タップで削除）'), findsOneWidget);
     });
 
     testWidgets('使えない環境ではカメラボタンを出さず、使えないと表示する', (tester) async {
@@ -258,7 +310,7 @@ void main() {
       await pump(tester);
       await tester.tap(find.byTooltip('カメラで手牌を読み取る'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('撮影する'));
+      await tester.tap(find.text('撮影する（枠なし）'));
       await tester.pumpAndSettle();
       expect(picker.fromCamera, isTrue);
       expect(find.text('読み取り結果'), findsOneWidget);
@@ -305,4 +357,40 @@ class _FakeRecognizer implements TileRecognizer {
     if (error != null) throw error!;
     return result;
   }
+
+  /// 枠つきの撮影の答え（手牌・和了牌・鳴いた牌の順）
+  List<RegionTiles> regions = const [RegionTiles.empty, RegionTiles.empty, RegionTiles.empty];
+  List<PhotoRegion>? askedRegions;
+  double? askedViewAspect;
+
+  @override
+  Future<List<RegionTiles>> recognizeRegions(Uint8List imageBytes, List<PhotoRegion> regions,
+      {double? viewAspect, bool mirrored = false}) async {
+    if (error != null) throw error!;
+    askedRegions = regions;
+    askedViewAspect = viewAspect;
+    return this.regions;
+  }
+}
+
+class _FakeGuidedCapture implements GuidedCapture {
+  var calls = 0;
+
+  @override
+  Future<GuidedPhoto?> capture(BuildContext context) async {
+    calls++;
+    return GuidedPhoto(Uint8List.fromList([1, 2, 3]), 0.5625);
+  }
+}
+
+/// 横一列に並んだ牌（幅 0.05 ずつ、[gaps] の番号の牌の前にすき間を空ける）
+RegionTiles rowOf(List<Tile> tiles, {Set<int> gaps = const {}}) {
+  var x = 0.02;
+  final ds = <TileDetection>[];
+  for (var i = 0; i < tiles.length; i++) {
+    if (gaps.contains(i)) x += 0.05;
+    ds.add(TileDetection(tiles[i], 0.9, x, 0.3, x + 0.05, 0.7));
+    x += 0.052;
+  }
+  return RegionTiles(1000, 180, ds);
 }

@@ -12,8 +12,16 @@ import { chromium } from 'playwright';
 
 const url = process.argv[2] ?? 'http://localhost:8765/mahjong/';
 const shotDir = process.argv[3];
-const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 400, height: 860 } });
+// 枠つきの撮影の確認用に、ブラウザの偽のカメラに fixtures/guided_camera.mjpeg の映像を流す（許可の確認は出さない）
+const fixture = (name) => new URL(`fixtures/${name}`, import.meta.url).pathname;
+const browser = await chromium.launch({
+  args: [
+    '--use-fake-device-for-media-stream',
+    '--use-fake-ui-for-media-stream',
+    `--use-file-for-fake-video-capture=${fixture('guided_camera.mjpeg')}`,
+  ],
+});
+const page = await browser.newPage({ viewport: { width: 400, height: 860 }, permissions: ['camera'] });
 const external = new Set();
 page.on('request', (r) => {
   const u = new URL(r.url());
@@ -89,7 +97,7 @@ await tap('カメラで手牌を読み取る');
 await expectText('初めて使うときだけ、認識モデル');
 const chooser = page.waitForEvent('filechooser');
 await tap('写真から選ぶ', { exact: false });
-await (await chooser).setFiles(new URL('fixtures/hand.jpg', import.meta.url).pathname);
+await (await chooser).setFiles(fixture('hand.jpg'));
 await expectText('読み取った牌（9枚）', 240);
 // 読み取った順（左から）に、牌の読み上げ用の名前が並ぶ
 const read = await page.evaluate(() => {
@@ -105,6 +113,30 @@ if (read !== wantRead) throw new Error(`カメラ認識の結果が違います:
 await shot('camera-result');
 await tap('手牌に入れる');
 await expectText('読み取った牌を入れました');
+
+// 枠つきの撮影（Web 版）: カメラの映像に枠を重ねた画面で撮り、枠ごとに読み取る。
+// 偽のカメラの映像は、鳴いた牌の枠に 中のポン と 2-3-4筒のチー、手牌の枠に7枚、和了牌の枠に 8筒
+await tap('カメラで手牌を読み取る');
+await tap('枠に合わせて撮影する', { exact: false });
+await expectText('鳴いた牌（1組ずつ離す）', 80);
+await page.waitForTimeout(1500); // 映像が出るのを待つ
+await shot('guided-camera');
+await tap('撮影');
+await expectText('手牌（7/7枚）', 240);
+const guided = await page.evaluate(() =>
+  [...document.querySelectorAll('flt-semantics')]
+    .map((e) => e.getAttribute('aria-label') ?? ([...e.children].some((c) => c.tagName.toLowerCase().startsWith('flt-semantics')) ? '' : e.textContent))
+    .filter(Boolean)
+    .join(' '));
+const wantGuided = '手牌（7/7枚） 2萬 3萬 4萬 6筒 7筒 5索 5索 和了牌:  8筒 鳴き（2） チー 2筒 3筒 4筒 ポン 中 中 中';
+if (!guided.replace(/\s+/g, ' ').includes(wantGuided.replace(/\s+/g, ' '))) {
+  throw new Error(`枠つきの撮影の結果が違います: 「${guided}」`);
+}
+await shot('guided-result');
+await tap('手牌に入れる');
+// 鳴きが2組入ったので、手牌は 13 - 3×2 = 7枚になる
+await expectText('手牌（7/7枚・タップで削除）');
+await shot('guided-applied');
 await tap('Back');
 
 // 流局（全員ノーテン）

@@ -1,0 +1,274 @@
+import 'dart:math' as math;
+
+import 'package:mahjong_score_engine/mahjong_score_engine.dart';
+
+import '../../core/l10n.dart';
+import 'tile_detection.dart';
+
+/// 写真の中の範囲（写真の幅・高さを 1 とした割合）
+class PhotoRegion {
+  final double left, top, width, height;
+
+  const PhotoRegion(this.left, this.top, this.width, this.height);
+
+  double get right => left + width;
+  double get bottom => top + height;
+
+  /// 写真全体
+  static const full = PhotoRegion(0, 0, 1, 1);
+
+  /// 左右を反転した写真の中での、同じ場所
+  PhotoRegion get mirrored => PhotoRegion(1 - right, top, width, height);
+
+  @override
+  String toString() => 'PhotoRegion($left, $top, $width, $height)';
+}
+
+/// 枠つきの撮影画面の3つの枠（カメラの映像の幅・高さを 1 とした割合。縦向きで持つ）。
+///
+/// 上に鳴いた牌、下の左に手牌、下の右に和了牌を置く
+class GuideFrames {
+  static const melds = PhotoRegion(0.02, 0.26, 0.96, 0.18);
+  static const hand = PhotoRegion(0.02, 0.52, 0.80, 0.18);
+  static const win = PhotoRegion(0.85, 0.52, 0.13, 0.18);
+
+  /// 読み取りに渡す順（[interpretGuided] に渡す順と同じ）
+  static const all = [hand, win, melds];
+}
+
+/// カメラの映像（縦横比 [viewAspect] = 幅 ÷ 高さ）の中の範囲を、写真（[photoWidth] × [photoHeight]）の中の範囲に直す。
+///
+/// 映像と写真で縦横比が違う端末がある（映像は 16:9、写真は 4:3 など）。そのときは、
+/// 狭いほうが広いほうの真ん中を切り取ったものとして位置を合わせ、写真からはみ出す分は切り捨てる
+PhotoRegion mapViewRegionToPhoto(PhotoRegion r, double viewAspect, int photoWidth, int photoHeight) {
+  final photoAspect = photoWidth / photoHeight;
+  var sx = 1.0, sy = 1.0; // 映像の幅・高さが、写真の幅・高さの何倍か
+  if ((photoAspect - viewAspect).abs() / viewAspect > 0.02) {
+    if (photoAspect > viewAspect) {
+      sx = viewAspect / photoAspect; // 写真のほうが横に広い: 映像は写真の左右を切り取ったもの
+    } else {
+      sy = photoAspect / viewAspect; // 写真のほうが縦に長い: 映像は写真の上下を切り取ったもの
+    }
+  }
+  final left = ((1 - sx) / 2 + r.left * sx).clamp(0.0, 1.0);
+  final top = ((1 - sy) / 2 + r.top * sy).clamp(0.0, 1.0);
+  final right = ((1 - sx) / 2 + r.right * sx).clamp(0.0, 1.0);
+  final bottom = ((1 - sy) / 2 + r.bottom * sy).clamp(0.0, 1.0);
+  return PhotoRegion(left, top, right - left, bottom - top);
+}
+
+/// 範囲を切り抜くピクセルの位置（少なくとも 1 ピクセル）
+({int x, int y, int width, int height}) regionPixels(PhotoRegion r, int photoWidth, int photoHeight) {
+  final x = (r.left * photoWidth).floor().clamp(0, photoWidth - 1);
+  final y = (r.top * photoHeight).floor().clamp(0, photoHeight - 1);
+  final w = (r.width * photoWidth).ceil().clamp(1, photoWidth - x);
+  final h = (r.height * photoHeight).ceil().clamp(1, photoHeight - y);
+  return (x: x, y: y, width: w, height: h);
+}
+
+/// 1つの範囲から読み取った牌。位置は、切り抜いた範囲の幅・高さを 1 とした割合
+class RegionTiles {
+  /// 切り抜いた範囲の大きさ（ピクセル）
+  final int width, height;
+  final List<TileDetection> detections;
+
+  const RegionTiles(this.width, this.height, this.detections);
+
+  static const empty = RegionTiles(1, 1, []);
+}
+
+/// 枠つきの撮影で読み取った内容
+class GuidedReading {
+  /// 手牌（並べ替え済み）
+  final List<Tile> hand;
+  final Tile? winningTile;
+
+  /// 鳴き（槓は明槓として入れる。暗槓かどうかは写真からは分からない）
+  final List<Meld> melds;
+
+  /// 利用者に知らせること
+  final List<String> notes;
+
+  const GuidedReading({required this.hand, required this.winningTile, required this.melds, required this.notes});
+
+  int get needHand => 13 - 3 * melds.length;
+}
+
+/// 鳴いた牌の枠の牌を、鳴き1組ずつに分ける（組にできなかった牌は [leftover] に数える）。
+///
+/// 段（横の列）ごとに左から並べ、牌1枚の幅の半分より広いすき間で区切る。区切りの中は左から順に、
+/// 同じ牌4枚 → 槓、同じ牌3枚 → ポン、同じ色の続きの3枚 → チー、と組にする
+/// （すき間を空けずに並べても、3枚ずつなら分けられる）
+({List<Meld> melds, int leftover}) groupMelds(RegionTiles region) {
+  final ds = region.detections;
+  if (ds.isEmpty) return (melds: const <Meld>[], leftover: 0);
+  final w = region.width.toDouble(), h = region.height.toDouble();
+  double shortSide(TileDetection d) => math.min(d.width * w, d.height * h);
+  final sizes = ds.map(shortSide).toList()..sort();
+  final unit = sizes[sizes.length ~/ 2];
+
+  // 段に分ける（上から）
+  final byY = [...ds]..sort((a, b) => a.centerY.compareTo(b.centerY));
+  final rows = <List<TileDetection>>[
+    [byY.first]
+  ];
+  for (final d in byY.skip(1)) {
+    final row = rows.last;
+    final rowY = row.map((e) => e.centerY * h).reduce((a, b) => a + b) / row.length;
+    if ((d.centerY * h - rowY).abs() < unit * 0.8) {
+      row.add(d);
+    } else {
+      rows.add([d]);
+    }
+  }
+
+  final melds = <Meld>[];
+  var leftover = 0;
+  for (final row in rows) {
+    row.sort((a, b) => a.centerX.compareTo(b.centerX));
+    final groups = <List<Tile>>[
+      [row.first.tile]
+    ];
+    for (var i = 1; i < row.length; i++) {
+      final gap = (row[i].left - row[i - 1].right) * w;
+      if (gap > unit * 0.5) groups.add([]);
+      groups.last.add(row[i].tile);
+    }
+    for (final g in groups) {
+      var i = 0;
+      while (i < g.length) {
+        final m = _meldAt(g, i);
+        if (m == null) {
+          leftover++;
+          i++;
+        } else {
+          melds.add(m);
+          i += m.tiles.length;
+        }
+      }
+    }
+  }
+  return (melds: melds, leftover: leftover);
+}
+
+/// [tiles] の [i] 枚目から始まる鳴き（槓 → ポン → チーの順に試す）。組にならなければ null
+Meld? _meldAt(List<Tile> tiles, int i) {
+  bool same(int n) =>
+      i + n <= tiles.length &&
+      tiles.sublist(i, i + n).every((t) => normalizeTile(t) == normalizeTile(tiles[i]));
+  if (same(4)) return Meld(type: MeldType.minkan, tiles: tiles.sublist(i, i + 4));
+  if (same(3)) return Meld(type: MeldType.pon, tiles: tiles.sublist(i, i + 3));
+  if (i + 3 <= tiles.length) {
+    final three = tiles.sublist(i, i + 3);
+    final suit = tileSuit(three.first);
+    if (suit != 'z' && three.every((t) => tileSuit(t) == suit)) {
+      final sorted = [...three]..sort((a, b) => tileNumber(a).compareTo(tileNumber(b)));
+      if (tileNumber(sorted[1]) == tileNumber(sorted[0]) + 1 && tileNumber(sorted[2]) == tileNumber(sorted[0]) + 2) {
+        return Meld(type: MeldType.chi, tiles: sorted);
+      }
+    }
+  }
+  return null;
+}
+
+/// 枠つきの撮影で読み取った牌を、今のルールに合わせて手牌・和了牌・鳴きに分ける。
+///
+/// - 鳴きは4組まで。3人打ちではチーを使わない
+/// - 3人打ちでは二萬〜八萬を除く。赤ドラなしなら赤5は普通の5にする
+/// - 同じ牌が5枚以上（鳴きの牌も数える）なら、5枚目からは除く
+/// - 手牌は 13 - 3×鳴きの数 枚。和了牌の枠が空で、手牌の枠に1枚多くあれば、右端を和了牌にする
+GuidedReading interpretGuided({
+  required RegionTiles hand,
+  required RegionTiles win,
+  required RegionTiles melds,
+  bool sanma = false,
+  bool redDora = true,
+}) {
+  final notes = <String>[];
+  final counts = <String, int>{};
+  var removedSanma = 0, removedOver = 0, normalizedRed = 0;
+
+  /// ルールで使えない牌を除く・直す。使えなければ null
+  Tile? usable(Tile t, {bool count = true}) {
+    if (sanma && tileSuit(t) == 'm' && tileNumber(t) >= 2 && tileNumber(t) <= 8) {
+      removedSanma++;
+      return null;
+    }
+    if (isRedDora(t) && (!redDora || (sanma && tileSuit(t) == 'm'))) {
+      t = normalizeTile(t);
+      normalizedRed++;
+    }
+    if (count) {
+      final key = normalizeTile(t);
+      if ((counts[key] ?? 0) >= 4) {
+        removedOver++;
+        return null;
+      }
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return t;
+  }
+
+  // 鳴き
+  final grouped = groupMelds(melds);
+  final resultMelds = <Meld>[];
+  var droppedChi = 0, droppedMelds = 0;
+  for (final m in grouped.melds) {
+    if (sanma && m.type == MeldType.chi) {
+      droppedChi++;
+      continue;
+    }
+    if (resultMelds.length >= 4) {
+      droppedMelds++;
+      continue;
+    }
+    final tiles = [for (final t in m.tiles) usable(t)];
+    if (tiles.contains(null)) {
+      droppedMelds++;
+      continue;
+    }
+    resultMelds.add(Meld(type: m.type, tiles: tiles.cast<Tile>()));
+  }
+  if (grouped.leftover > 0) {
+    notes.add(tr('鳴いた牌の枠に、組にできない牌が${grouped.leftover}枚ありました（3枚か4枚ずつ、少し離して並べてください）',
+        '${grouped.leftover} tiles in the calls frame could not be grouped (place them in sets of 3 or 4 with small gaps)'));
+  }
+  if (droppedChi > 0) notes.add(tr('3人打ちではチーができないので、チー$droppedChi組は入れませんでした', 'Chi is not allowed in 3-player, so $droppedChi chi were not entered'));
+  if (droppedMelds > 0) notes.add(tr('入れられない鳴きが$droppedMelds組ありました', '$droppedMelds calls could not be entered'));
+  if (resultMelds.any((m) => m.type == MeldType.minkan)) {
+    notes.add(tr('槓は明槓として入れます。暗槓のときは、下の「暗槓にする」を押してください',
+        'Kans are entered as open kans. For a closed kan, press "Closed kan" below'));
+  }
+
+  // 手牌と和了牌
+  final needHand = 13 - 3 * resultMelds.length;
+  final handTiles = <Tile>[
+    for (final t in arrangeTiles(hand.detections).tiles)
+      if (usable(t) case final u?) u
+  ];
+  Tile? winningTile;
+  if (win.detections.isNotEmpty) {
+    // 和了牌の枠にいくつか見つかったら、いちばん確信度の高いもの
+    final best = win.detections.reduce((a, b) => a.score >= b.score ? a : b);
+    winningTile = usable(best.tile);
+  }
+  if (winningTile == null && handTiles.length == needHand + 1) {
+    winningTile = handTiles.removeLast();
+    notes.add(tr('和了牌の枠が空だったので、手牌の右端の牌を和了牌にしました', 'The winning tile frame was empty, so the rightmost hand tile is used as the winning tile'));
+  }
+  if (removedSanma > 0) notes.add(tr('3人打ちでは使わない二萬〜八萬を$removedSanma枚除きました', 'Removed $removedSanma tiles of 2m-8m (not used in 3-player)'));
+  if (normalizedRed > 0) notes.add(tr('赤5を$normalizedRed枚、普通の5として入れました', 'Entered $normalizedRed red fives as normal fives'));
+  if (removedOver > 0) notes.add(tr('同じ牌が5枚以上あったので、$removedOver枚除きました', 'Removed $removedOver tiles (5+ copies of the same tile)'));
+
+  if (handTiles.length > needHand) {
+    notes.add(tr('手牌の枠の牌が多すぎたので、右の${handTiles.length - needHand}枚は使いませんでした',
+        'Too many tiles in the hand frame; the rightmost ${handTiles.length - needHand} were not used'));
+    handTiles.removeRange(needHand, handTiles.length);
+  } else if (handTiles.length < needHand) {
+    notes.add(tr('手牌が${needHand - handTiles.length}枚足りません。残りは手で入力してください',
+        'Hand is ${needHand - handTiles.length} tiles short. Enter the rest manually'));
+  }
+  if (winningTile == null) notes.add(tr('和了牌は手で選んでください', 'Select the winning tile manually'));
+
+  return GuidedReading(hand: sortTiles(handTiles), winningTile: winningTile, melds: resultMelds, notes: notes);
+}

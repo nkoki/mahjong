@@ -8,6 +8,7 @@ import 'package:mahjong_score_engine/mahjong_score_engine.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 import '../../core/l10n.dart';
+import 'guided_recognition.dart';
 import 'tile_classifier.dart';
 import 'tile_detection.dart';
 import 'tile_recognizer.dart';
@@ -71,6 +72,46 @@ class TfliteTileRecognizer implements TileRecognizer {
     }
     return result.tiles;
   }
+
+  @override
+  Future<List<RegionTiles>> recognizeRegions(Uint8List imageBytes, List<PhotoRegion> regions,
+      {double? viewAspect, bool mirrored = false}) async {
+    final _ModelFiles files;
+    try {
+      files = await _load();
+    } catch (e) {
+      throw RecognitionException(tr('認識モデルを読み込めませんでした（$e）。', 'Could not load the recognition model ($e).'));
+    }
+    final result = await Isolate.run(() => _runRegions(files, imageBytes, regions, viewAspect, mirrored));
+    if (result == null) throw RecognitionException(tr(_photoLoadError, 'Could not load the photo.'));
+    return result;
+  }
+}
+
+/// 写真の中の範囲ごとに読み取る（枠つきの撮影用）。写真を読み込めなければ null
+List<RegionTiles>? _runRegions(
+    _ModelFiles files, Uint8List bytes, List<PhotoRegion> regions, double? viewAspect, bool mirrored) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) return null;
+  var photo = img.bakeOrientation(decoded);
+  // 鏡のように反転した写真は、反転を戻してから読む（枠の位置も左右を入れ替える）
+  if (mirrored) photo = img.flipHorizontal(photo);
+  final interpreter = Interpreter.fromBuffer(files.model, options: InterpreterOptions()..threads = 2);
+  try {
+    final size = interpreter.getInputTensor(0).shape[1];
+    return [
+      for (final r0 in regions)
+        () {
+          final region = mirrored ? r0.mirrored : r0;
+          final r = viewAspect == null ? region : mapViewRegionToPhoto(region, viewAspect, photo.width, photo.height);
+          final px = regionPixels(r, photo.width, photo.height);
+          final crop = img.copyCrop(photo, x: px.x, y: px.y, width: px.width, height: px.height);
+          return RegionTiles(px.width, px.height, _detectAndClassify(interpreter, files, crop, size));
+        }()
+    ];
+  } finally {
+    interpreter.close();
+  }
 }
 
 class _ModelFiles {
@@ -102,6 +143,16 @@ _Result _run(_ModelFiles files, Uint8List bytes) {
   final interpreter = Interpreter.fromBuffer(files.model, options: InterpreterOptions()..threads = 2);
   try {
     final size = interpreter.getInputTensor(0).shape[1];
+    final arranged = arrangeTiles(_detectAndClassify(interpreter, files, photo, size));
+    return _Result(arranged.tiles);
+  } finally {
+    interpreter.close();
+  }
+}
+
+/// 画像1枚から牌を見つけ、種類を見分ける（位置は [photo] を 1 とした割合）
+List<TileDetection> _detectAndClassify(Interpreter interpreter, _ModelFiles files, img.Image photo, int size) {
+  {
     // 1回目: 写真全体から牌を探す
     var detections = _detect(interpreter, files, photo, size);
     // 2回目: 牌が写っている所だけを切り抜いて、大きくしてからもう一度読み取る
@@ -120,11 +171,7 @@ _Result _run(_ModelFiles files, Uint8List bytes) {
       }
     }
     // 3回目: 見つけた牌を1枚ずつ切り抜いて大きくし、分類モデルで種類を見分け直す（牌でないものは捨てる）
-    detections = _classify(files, photo, detections);
-    final arranged = arrangeTiles(detections);
-    return _Result(arranged.tiles);
-  } finally {
-    interpreter.close();
+    return _classify(files, photo, detections);
   }
 }
 
