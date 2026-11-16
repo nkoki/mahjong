@@ -29,11 +29,12 @@ class PhotoRegion {
 /// 上から、ドラ表示牌（上の段）と裏ドラ表示牌（下の段）、鳴いた牌、手牌（左）と和了牌（右）
 class GuideFrames {
   // 映像の全体を、少しのすき間を空けて3段に分ける（置く場所に余裕を持たせる）
-  // ドラ表示牌のエリアは、上の段にドラ表示牌、下の段に裏ドラ表示牌を置けるように高めにする
-  static const dora = PhotoRegion(0.02, 0.02, 0.96, 0.30);
-  static const melds = PhotoRegion(0.02, 0.34, 0.96, 0.28);
-  static const hand = PhotoRegion(0.02, 0.64, 0.78, 0.34);
-  static const win = PhotoRegion(0.82, 0.64, 0.16, 0.34);
+  // 手牌（と、そのとなりの和了牌）のエリアをいちばん大きくする。
+  // ドラ表示牌のエリアは、上の段にドラ表示牌、下の段に裏ドラ表示牌を置く
+  static const dora = PhotoRegion(0.02, 0.02, 0.96, 0.24);
+  static const melds = PhotoRegion(0.02, 0.28, 0.96, 0.24);
+  static const hand = PhotoRegion(0.02, 0.54, 0.78, 0.44);
+  static const win = PhotoRegion(0.82, 0.54, 0.16, 0.44);
 
   /// 読み取りに渡す順（[interpretGuided] に渡す順と同じ）
   static const all = [hand, win, melds, dora];

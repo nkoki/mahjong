@@ -164,11 +164,13 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
                 tr(
                     '牌が色の付いたエリアの中に大きく写るように合わせます。牌同士は離さなくてかまいません。'
                         '使わないエリア（鳴きがないときなど）は空けておきます。'
-                        '裏ドラ表示牌は、ドラ表示牌のエリアの下の段に置きます。裏返した牌（暗槓）は読み取れません。写真はどこにも送りません。'
+                        '裏ドラ表示牌は、ドラ表示牌のエリアの下の段に、上の段から少し離して置きます（上下にくっつけると、2枚を1枚と読み間違えることがあります）。'
+                        '裏返した牌（暗槓）は読み取れません。写真はどこにも送りません。'
                         '${_mirrored(c) ? '\nこのカメラの映像は、鏡のように左右が反転して見えます（読み取るときに元に戻します）。' : ''}',
                     'Fit the tiles inside the colored areas. Tiles may touch each other. '
                         'Leave unused areas empty. '
-                        'Put ura dora indicators in the row below the dora indicators. Face-down tiles (closed kan) are not read. The photo is not sent anywhere.'
+                        'Put ura dora indicators in a row below the dora indicators, slightly apart (rows that touch may be misread as one tile). '
+                        'Face-down tiles (closed kan) are not read. The photo is not sent anywhere.'
                         '${_mirrored(c) ? '\nThis camera is shown mirrored (it is flipped back when reading).' : ''}'),
                 style: const TextStyle(color: Color(0xCCF7F3EA), fontSize: 12),
               ),

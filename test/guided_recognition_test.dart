@@ -31,6 +31,12 @@ void main() {
       expect(GuideFrames.win.left, greaterThan(GuideFrames.hand.right));
       expect(GuideFrames.melds.bottom, lessThan(GuideFrames.hand.top));
       expect(GuideFrames.dora.bottom, lessThan(GuideFrames.melds.top), reason: 'ドラ表示牌はいちばん上');
+      // 手牌のエリアがいちばん大きい
+      double areaOf(PhotoRegion r) => r.width * r.height;
+      for (final other in [GuideFrames.win, GuideFrames.melds, GuideFrames.dora]) {
+        expect(areaOf(GuideFrames.hand), greaterThan(areaOf(other)));
+        expect(GuideFrames.hand.height, greaterThanOrEqualTo(other.height));
+      }
       expect(GuideFrames.all, [GuideFrames.hand, GuideFrames.win, GuideFrames.melds, GuideFrames.dora]);
     });
 

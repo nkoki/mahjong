@@ -36,12 +36,12 @@ def row(labels, left, top, height, tile_w, gaps=()):
         canvas.paste(crop(l).resize((tile_w, th), Image.LANCZOS), (int(W - x - tile_w), y)); x += tile_w + 2
 tw = int(0.78 * W / 14.5)
 # エリアの位置は lib/features/camera/guided_recognition.dart の GuideFrames と同じ（左・上・高さ）
-small = int(tw * 0.8)  # ドラ表示牌のエリアは2段に置くので、少し小さく写る
-row(['4p', '5s'], 0.02, 0.02, 0.15, small)                                   # ドラ表示牌 2枚（上の段）
-row(['6p'], 0.02, 0.17, 0.15, small)                                         # 裏ドラ表示牌 1枚（下の段）
-row(['7z', '7z', '7z', '2p', '3p', '4p'], 0.02, 0.34, 0.28, tw)              # 鳴いた牌（離さない）: 中のポン、2-3-4筒のチー
-row(['2m', '3m', '4m', '5s', '5s', '6p', '7p'], 0.02, 0.64, 0.34, tw)        # 手牌 7枚
-row(['8p'], 0.82, 0.64, 0.34, tw)                                            # 和了牌
+small = int(tw * 0.62)  # ドラ表示牌のエリアは2段に置く。横長の映像では低いので小さめに置き、上下の段の間を空ける
+row(['4p', '5s'], 0.02, 0.02, 0.12, small)                                   # ドラ表示牌 2枚（上の段）
+row(['6p'], 0.02, 0.14, 0.12, small)                                         # 裏ドラ表示牌 1枚（下の段）
+row(['7z', '7z', '7z', '2p', '3p', '4p'], 0.02, 0.28, 0.24, tw)              # 鳴いた牌（離さない）: 中のポン、2-3-4筒のチー
+row(['2m', '3m', '4m', '5s', '5s', '6p', '7p'], 0.02, 0.54, 0.44, tw)        # 手牌 7枚
+row(['8p'], 0.82, 0.54, 0.44, tw)                                            # 和了牌
 canvas.save(out / 'frame.jpg', quality=90)
 data = (out / 'frame.jpg').read_bytes()
 (out / 'frame.jpg').unlink()
