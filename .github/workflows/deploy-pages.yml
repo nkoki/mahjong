@@ -25,9 +25,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Flutter の版は、手元でチェックを通した版（3.47 系）に固定する。
+      # 「stable の最新」のままだと、新しい版が出たときに、アプリを変えていなくても解析やテストの結果が変わる
+      # （3.47 の次の版では package:flutter/material.dart が非推奨になり、flutter analyze が失敗した）。
+      # 版を上げるときは、手元でチェック（analyze・test・ゴールデン）を通してからここを変える
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.x
           cache: true
 
       # 静的解析はリポジトリ全体（点数計算エンジンのテストも含む）を調べるので、
