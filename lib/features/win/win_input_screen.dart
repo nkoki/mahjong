@@ -634,7 +634,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     try {
       final regions = await ref
           .read(tileRecognizerProvider)
-          .recognizeRegions(photo.bytes, GuideFrames.all, viewAspect: photo.viewAspect, mirrored: photo.mirrored);
+          .recognizeRegions(photo.bytes, photo.regions, viewAspect: photo.viewAspect, mirrored: photo.mirrored);
       return (regions: regions, error: null);
     } on RecognitionException catch (e) {
       return (regions: null, error: e.message);

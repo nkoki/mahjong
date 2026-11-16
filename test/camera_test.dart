@@ -261,8 +261,11 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('camera-guided')));
       await tester.pumpAndSettle();
       expect(guided.calls, 1);
-      expect(recognizer.askedRegions, GuideFrames.all);
+      // 撮影画面が決めたエリアの位置（映像を画面いっぱいに出した中での位置）で読み取る
+      expect(recognizer.askedRegions!.map((r) => r.toString()),
+          guideRegionsInView(360, 640, 52, 118).map((r) => r.toString()));
       expect(recognizer.askedViewAspect, 0.5625);
+      expect(recognizer.askedMirrored, isTrue);
       expect(find.text('読み取り結果'), findsOneWidget);
       expect(find.text('手牌（7/7枚）'), findsOneWidget);
       expect(find.text('鳴き（2）'), findsOneWidget);
@@ -376,6 +379,7 @@ class _FakeRecognizer implements TileRecognizer {
   List<RegionTiles> regions = const [RegionTiles.empty, RegionTiles.empty, RegionTiles.empty, RegionTiles.empty];
   List<PhotoRegion>? askedRegions;
   double? askedViewAspect;
+  bool? askedMirrored;
 
   @override
   Future<List<RegionTiles>> recognizeRegions(Uint8List imageBytes, List<PhotoRegion> regions,
@@ -383,6 +387,7 @@ class _FakeRecognizer implements TileRecognizer {
     if (error != null) throw error!;
     askedRegions = regions;
     askedViewAspect = viewAspect;
+    askedMirrored = mirrored;
     return this.regions;
   }
 }
@@ -393,7 +398,8 @@ class _FakeGuidedCapture implements GuidedCapture {
   @override
   Future<GuidedPhoto?> capture(BuildContext context) async {
     calls++;
-    return GuidedPhoto(Uint8List.fromList([1, 2, 3]), 0.5625);
+    return GuidedPhoto(Uint8List.fromList([1, 2, 3]), 0.5625,
+        regions: guideRegionsInView(360, 640, 52, 118), mirrored: true);
   }
 }
 

@@ -43,9 +43,21 @@ class GuideFrames {
   static const maxDora = 5;
 }
 
+/// 撮影画面（幅 [viewWidth] × 高さ [viewHeight]。カメラの映像を画面いっぱいに出している）の中で、
+/// 上の [topInset]・下の [bottomInset]（閉じるボタンや撮影ボタンを重ねる所）を除いた範囲に4つのエリアを置く。
+/// そのときの各エリアの位置を、撮影画面の幅・高さを 1 とした割合で返す（[GuideFrames.all] の順）
+List<PhotoRegion> guideRegionsInView(double viewWidth, double viewHeight, double topInset, double bottomInset) {
+  final guideHeight = math.max(1.0, viewHeight - topInset - bottomInset);
+  return [
+    for (final f in GuideFrames.all)
+      PhotoRegion(f.left, (topInset + f.top * guideHeight) / viewHeight, f.width, f.height * guideHeight / viewHeight)
+  ];
+}
+
 /// カメラの映像（縦横比 [viewAspect] = 幅 ÷ 高さ）の中の範囲を、写真（[photoWidth] × [photoHeight]）の中の範囲に直す。
 ///
-/// 映像と写真で縦横比が違う端末がある（映像は 16:9、写真は 4:3 など）。そのときは、
+/// 撮影画面は映像を画面いっぱいに広げるので、映像の端は画面からはみ出して見えない。
+/// また、映像と写真で縦横比が違う端末もある（映像は 16:9、写真は 4:3 など）。どちらのときも、
 /// 狭いほうが広いほうの真ん中を切り取ったものとして位置を合わせ、写真からはみ出す分は切り捨てる
 PhotoRegion mapViewRegionToPhoto(PhotoRegion r, double viewAspect, int photoWidth, int photoHeight) {
   final photoAspect = photoWidth / photoHeight;

@@ -10,14 +10,17 @@ import 'guided_recognition.dart';
 class GuidedPhoto {
   final Uint8List bytes;
 
-  /// 撮影画面に出していたカメラの映像の縦横比（幅 ÷ 高さ）。枠の位置を写真の中の位置に直すのに使う
+  /// 撮影画面（映像を画面いっぱいに出した範囲）の縦横比（幅 ÷ 高さ）。エリアの位置を写真の中の位置に直すのに使う
   final double viewAspect;
+
+  /// 4つのエリアの位置（撮影画面の幅・高さを 1 とした割合。[GuideFrames.all] の順）
+  final List<PhotoRegion> regions;
 
   /// 写真が鏡のように左右反転しているか。
   /// Web 版は、外側（背面）でないカメラ（スマホの内側のカメラ・パソコンのカメラ）の映像と写真を左右反転する
   final bool mirrored;
 
-  const GuidedPhoto(this.bytes, this.viewAspect, {this.mirrored = false});
+  const GuidedPhoto(this.bytes, this.viewAspect, {this.regions = GuideFrames.all, this.mirrored = false});
 }
 
 /// 枠つきの撮影（テストでは差し替える）
@@ -35,9 +38,9 @@ class CameraGuidedCapture implements GuidedCapture {
       .push<GuidedPhoto>(MaterialPageRoute(fullscreenDialog: true, builder: (_) => const GuidedCameraScreen()));
 }
 
-/// カメラの映像の上に、手牌・和了牌・鳴いた牌を置く場所の枠を重ねた撮影画面。
+/// カメラの映像を画面いっぱいに出し、その上に手牌・和了牌・鳴いた牌・ドラ表示牌を置くエリアを重ねた撮影画面。
 ///
-/// 撮った写真は、枠の位置で切り分けて読み取る（guided_recognition.dart）。
+/// 撮った写真は、エリアの位置で切り分けて読み取る（guided_recognition.dart）。
 /// 写真はこの端末の中だけで使い、保存も送信もしない
 class GuidedCameraScreen extends StatefulWidget {
   const GuidedCameraScreen({super.key});
@@ -92,13 +95,9 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
     super.dispose();
   }
 
-  /// 画面に出しているカメラの映像の縦横比（幅 ÷ 高さ）。
-  /// アプリ版は縦向きに固定していて、映像の大きさは横向きで届くので入れ替える。Web 版は見たままの大きさで届く
-  double _viewAspect(CameraController c) {
-    final size = c.value.previewSize;
-    if (size == null || size.width <= 0 || size.height <= 0) return 9 / 16;
-    return kIsWeb ? size.width / size.height : size.height / size.width;
-  }
+  /// 撮影画面の大きさと、エリアを置かない上下の幅（build のときに覚えておき、撮影のときに使う）
+  Size _viewSize = Size.zero;
+  double _topInset = 0, _bottomInset = 0;
 
   /// 映像と写真が鏡のように左右反転しているか（Web 版で、外側（背面）でないカメラを使っているとき）
   bool _mirrored(CameraController? c) =>
@@ -112,7 +111,12 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
       final file = await c.takePicture();
       final bytes = await file.readAsBytes();
       if (!mounted) return;
-      Navigator.of(context).pop(GuidedPhoto(bytes, _viewAspect(c), mirrored: _mirrored(c)));
+      Navigator.of(context).pop(GuidedPhoto(
+        bytes,
+        _viewSize.width / _viewSize.height,
+        regions: guideRegionsInView(_viewSize.width, _viewSize.height, _topInset, _bottomInset),
+        mirrored: _mirrored(c),
+      ));
     } catch (e) {
       if (!mounted) return;
       setState(() => _taking = false);
@@ -121,74 +125,157 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
     }
   }
 
+  String _helpText(CameraController? c) => tr(
+      '牌が色の付いたエリアの中に大きく写るように合わせます。牌同士は離さなくてかまいません。'
+          '使わないエリア（鳴きがないときなど）は空けておきます。'
+          '裏ドラ表示牌は、ドラ表示牌のエリアの下の段に、上の段から少し離して置きます（上下にくっつけると、2枚を1枚と読み間違えることがあります）。'
+          '裏返した牌（暗槓）は読み取れません。写真はどこにも送りません。'
+          '${_mirrored(c) ? '\nこのカメラの映像は、鏡のように左右が反転して見えます（読み取るときに元に戻します）。' : ''}',
+      'Fit the tiles inside the colored areas. Tiles may touch each other. '
+          'Leave unused areas empty. '
+          'Put ura dora indicators in a row below the dora indicators, slightly apart (rows that touch may be misread as one tile). '
+          'Face-down tiles (closed kan) are not read. The photo is not sent anywhere.'
+          '${_mirrored(c) ? '\nThis camera is shown mirrored (it is flipped back when reading).' : ''}');
+
+  void _showHelp() => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(tr('撮り方', 'How to shoot')),
+          content: SingleChildScrollView(child: Text(_helpText(_controller))),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ),
+      );
+
+  /// カメラの映像を、画面いっぱいに広げて出す（縦横比は保ち、はみ出す分は切る）
+  Widget _fullPreview(CameraController c) {
+    // Web 版の映像は、置いた場所いっぱいに自分で広がる（はみ出す分は切れる）
+    if (kIsWeb) return c.buildPreview();
+    // アプリ版は縦向きに固定していて、映像の大きさは横向きで届くので、幅と高さを入れ替える
+    final size = c.value.previewSize;
+    if (size == null || size.width <= 0 || size.height <= 0) return CameraPreview(c);
+    return ClipRect(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(width: size.height, height: size.width, child: CameraPreview(c)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = _controller;
     const fg = Color(0xFFF7F3EA);
+    const scrim = Color(0x73000000);
+    final pad = MediaQuery.paddingOf(context);
+    // エリアを置かない上下の幅: 上は閉じるボタンと題名、下は説明と撮影ボタン
+    final topInset = pad.top + 52, bottomInset = pad.bottom + 118;
+    const shadows = [Shadow(color: Colors.black, blurRadius: 4)];
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: fg,
-        title: Text(tr('エリアに合わせて撮影', 'Fit tiles to the areas')),
-      ),
-      body: SafeArea(
-        child: Column(
+      body: LayoutBuilder(builder: (context, box) {
+        _viewSize = Size(box.maxWidth, box.maxHeight);
+        _topInset = topInset;
+        _bottomInset = bottomInset;
+        return Stack(
+          fit: StackFit.expand,
           children: [
-            Expanded(
-              child: Center(
-                child: _error != null
-                    ? Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(_error!, key: const ValueKey('guided-error'), style: const TextStyle(color: fg)),
-                      )
-                    : c == null
-                        ? const CircularProgressIndicator()
-                        : AspectRatio(
-                            aspectRatio: _viewAspect(c),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                // アプリ版は CameraPreview が向きを合わせる。Web 版は映像をそのまま置く
-                                // （CameraPreview は Web 版で縦横比を取り違えることがあり、枠と写真がずれる）
-                                if (kIsWeb) c.buildPreview() else CameraPreview(c),
-                                const GuideOverlay(),
-                              ],
+            if (c != null) Positioned.fill(key: const ValueKey('guided-preview'), child: _fullPreview(c)),
+            if (_error != null)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(_error!, key: const ValueKey('guided-error'), style: const TextStyle(color: fg)),
+                ),
+              )
+            else if (c == null)
+              const Center(child: CircularProgressIndicator())
+            else
+              Positioned(left: 0, right: 0, top: topInset, bottom: bottomInset, child: const GuideOverlay()),
+            // 上の帯: 閉じる・題名・撮り方
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: topInset,
+              child: ColoredBox(
+                color: scrim,
+                child: Padding(
+                  padding: EdgeInsets.only(top: pad.top),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: tr('閉じる', 'Close'),
+                        icon: const Icon(Icons.close, color: fg),
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      ),
+                      Expanded(
+                        child: Text(tr('エリアに合わせて撮影', 'Fit tiles to the areas'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: fg, fontSize: 17, fontWeight: FontWeight.w700)),
+                      ),
+                      IconButton(
+                        key: const ValueKey('guided-help'),
+                        tooltip: tr('撮り方', 'How to shoot'),
+                        icon: const Icon(Icons.help_outline, color: fg),
+                        onPressed: _showHelp,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // 下の帯: 短い説明と撮影ボタン
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: bottomInset,
+              child: ColoredBox(
+                color: scrim,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(12, 6, 12, pad.bottom + 8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        tr(
+                            '牌をエリアに合わせます（離さなくてOK）。写真は送りません。くわしくは右上の「？」'
+                                '${_mirrored(c) ? '\n映像は鏡のように左右反転して見えます' : ''}',
+                            'Fit tiles to the areas (they may touch). The photo is not sent. See "?" for details'
+                                '${_mirrored(c) ? '\nThe view is mirrored' : ''}'),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: fg, fontSize: 12, shadows: shadows),
+                      ),
+                      SizedBox(
+                        width: 64,
+                        height: 64,
+                        child: Semantics(
+                          button: true,
+                          label: tr('撮影', 'Shoot'),
+                          child: Material(
+                            key: const ValueKey('guided-shutter'),
+                            color: c == null || _taking ? Colors.white38 : Colors.white,
+                            shape: const CircleBorder(side: BorderSide(color: AppTheme.vermilion, width: 4)),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: c == null || _taking ? null : _shoot,
+                              child: const ExcludeSemantics(
+                                  child: Icon(Icons.photo_camera, color: AppTheme.vermilion, size: 30)),
                             ),
                           ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Text(
-                tr(
-                    '牌が色の付いたエリアの中に大きく写るように合わせます。牌同士は離さなくてかまいません。'
-                        '使わないエリア（鳴きがないときなど）は空けておきます。'
-                        '裏ドラ表示牌は、ドラ表示牌のエリアの下の段に、上の段から少し離して置きます（上下にくっつけると、2枚を1枚と読み間違えることがあります）。'
-                        '裏返した牌（暗槓）は読み取れません。写真はどこにも送りません。'
-                        '${_mirrored(c) ? '\nこのカメラの映像は、鏡のように左右が反転して見えます（読み取るときに元に戻します）。' : ''}',
-                    'Fit the tiles inside the colored areas. Tiles may touch each other. '
-                        'Leave unused areas empty. '
-                        'Put ura dora indicators in a row below the dora indicators, slightly apart (rows that touch may be misread as one tile). '
-                        'Face-down tiles (closed kan) are not read. The photo is not sent anywhere.'
-                        '${_mirrored(c) ? '\nThis camera is shown mirrored (it is flipped back when reading).' : ''}'),
-                style: const TextStyle(color: Color(0xCCF7F3EA), fontSize: 12),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12, top: 4),
-              child: FilledButton.icon(
-                key: const ValueKey('guided-shutter'),
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.vermilion, foregroundColor: Colors.white, minimumSize: const Size(180, 56)),
-                icon: const Icon(Icons.photo_camera),
-                label: Text(tr('撮影', 'Shoot')),
-                onPressed: c == null || _taking ? null : _shoot,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
-        ),
-      ),
+        );
+      }),
     );
   }
 }

@@ -29,19 +29,45 @@ canvas = Image.new('RGB', (W, H), fill)
 def crop(label):
     x, y, w, h = by[best][label][0]
     return img.crop((int(x), int(y), int(x + w), int(y + h)))
-def row(labels, left, top, height, tile_w, gaps=()):
-    x = left * W + tile_w * 0.3; th = int(tile_w * 1.36); y = int(top * H + (height * H - th) / 2)
-    for i, l in enumerate(labels):
-        if i in gaps: x += tile_w * 0.8
+
+# 撮影画面の作り（lib/features/camera/guided_camera_screen.dart・guided_recognition.dart と同じ計算）。
+# 確認のときのブラウザの画面は 幅 800 × 高さ 860。映像は画面いっぱいに広げ、はみ出す左右は見えない。
+# エリアは、上 52・下 118 を除いた範囲に GuideFrames の割合で置く
+VIEW_W, VIEW_H, TOP, BOTTOM = 800, 860, 52, 118
+FRAMES = {  # GuideFrames（左, 上, 幅, 高さ）
+    'dora': (0.02, 0.02, 0.96, 0.24),
+    'melds': (0.02, 0.28, 0.96, 0.24),
+    'hand': (0.02, 0.54, 0.78, 0.44),
+    'win': (0.82, 0.54, 0.16, 0.44),
+}
+def photo_rect(name):
+    """エリアが写真の中で占める範囲（ピクセル: 左, 上, 幅, 高さ）"""
+    l, t, w, h = FRAMES[name]
+    gh = VIEW_H - TOP - BOTTOM
+    t, h = (TOP + t * gh) / VIEW_H, h * gh / VIEW_H          # guideRegionsInView
+    view_aspect, photo_aspect = VIEW_W / VIEW_H, W / H
+    sx = sy = 1.0                                             # mapViewRegionToPhoto
+    if photo_aspect > view_aspect: sx = view_aspect / photo_aspect
+    else: sy = photo_aspect / view_aspect
+    return (((1 - sx) / 2 + l * sx) * W, ((1 - sy) / 2 + t * sy) * H, w * sx * W, h * sy * H)
+
+def row(labels, name, tile_w, part=(0.0, 1.0)):
+    """エリア [name] の中に牌を左から並べる。part は、エリアの高さのうち使う範囲（上の段・下の段）"""
+    left, top, width, height = photo_rect(name)
+    th = int(tile_w * 1.36)
+    y = int(top + height * part[0] + (height * (part[1] - part[0]) - th) / 2)
+    x = left + min(tile_w * 0.3, max(0, (width - tile_w) / 2))
+    for l in labels:
+        # 偽のカメラは鏡のように左右反転して表示されるので、左右を入れ替えた位置に置く
         canvas.paste(crop(l).resize((tile_w, th), Image.LANCZOS), (int(W - x - tile_w), y)); x += tile_w + 2
-tw = int(0.78 * W / 14.5)
-# エリアの位置は lib/features/camera/guided_recognition.dart の GuideFrames と同じ（左・上・高さ）
-small = int(tw * 0.62)  # ドラ表示牌のエリアは2段に置く。横長の映像では低いので小さめに置き、上下の段の間を空ける
-row(['4p', '5s'], 0.02, 0.02, 0.12, small)                                   # ドラ表示牌 2枚（上の段）
-row(['6p'], 0.02, 0.14, 0.12, small)                                         # 裏ドラ表示牌 1枚（下の段）
-row(['7z', '7z', '7z', '2p', '3p', '4p'], 0.02, 0.28, 0.24, tw)              # 鳴いた牌（離さない）: 中のポン、2-3-4筒のチー
-row(['2m', '3m', '4m', '5s', '5s', '6p', '7p'], 0.02, 0.54, 0.44, tw)        # 手牌 7枚
-row(['8p'], 0.82, 0.54, 0.44, tw)                                            # 和了牌
+
+tw = int(photo_rect('hand')[2] / 9)
+small = int(tw * 0.62)  # ドラ表示牌のエリアは2段に置くので小さめに置き、上下の段の間を空ける
+row(['4p', '5s'], 'dora', small, part=(0.0, 0.5))                 # ドラ表示牌 2枚（上の段）
+row(['6p'], 'dora', small, part=(0.5, 1.0))                       # 裏ドラ表示牌 1枚（下の段）
+row(['7z', '7z', '7z', '2p', '3p', '4p'], 'melds', tw)            # 鳴いた牌（離さない）: 中のポン、2-3-4筒のチー
+row(['2m', '3m', '4m', '5s', '5s', '6p', '7p'], 'hand', tw)       # 手牌 7枚
+row(['8p'], 'win', tw)                                            # 和了牌
 canvas.save(out / 'frame.jpg', quality=90)
 data = (out / 'frame.jpg').read_bytes()
 (out / 'frame.jpg').unlink()

@@ -116,9 +116,13 @@ await expectText('読み取った牌を入れました');
 
 // 枠つきの撮影（Web 版）: カメラの映像に4つのエリアを重ねた画面で撮り、エリアごとに読み取る。
 // 偽のカメラの映像は、ドラ表示牌に2枚、鳴いた牌に 中のポン と 2-3-4筒のチー（離さずに並べる）、手牌に7枚、和了牌に 8筒
+// 映像は画面いっぱいに広げて出す。確認用の映像（fixtures/make_guided_camera.py）は、画面が 幅 800 × 高さ 860 のときに
+// 牌がエリアに入るように作ってあるので、撮影の間だけ画面の大きさを合わせる
+await page.setViewportSize({ width: 800, height: 860 });
+await page.waitForTimeout(500);
 await tap('カメラで手牌を読み取る');
 await tap('エリアに合わせて撮影する', { exact: false });
-await expectText('ドラ表示牌', 80);
+await expectText('ドラ表示牌（下の段に裏ドラ）', 80);
 await page.waitForTimeout(1500); // 映像が出るのを待つ
 await shot('guided-camera');
 await tap('撮影');
@@ -134,6 +138,8 @@ if (!guided.replace(/\s+/g, ' ').includes(wantGuided.replace(/\s+/g, ' '))) {
 }
 await shot('guided-result');
 await tap('手牌に入れる');
+await page.setViewportSize({ width: 400, height: 860 });
+await page.waitForTimeout(500);
 // 鳴きが2組入ったので、手牌は 13 - 3×2 = 7枚になる
 await expectText('手牌（7/7枚・タップで削除）');
 await shot('guided-applied');

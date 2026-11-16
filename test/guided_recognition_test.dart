@@ -40,6 +40,28 @@ void main() {
       expect(GuideFrames.all, [GuideFrames.hand, GuideFrames.win, GuideFrames.melds, GuideFrames.dora]);
     });
 
+    test('撮影画面の上下（ボタンを重ねる所）を除いた範囲に、エリアを置く', () {
+      final regions = guideRegionsInView(400, 800, 50, 150);
+      expect(regions, hasLength(GuideFrames.all.length));
+      final hand = regions[0], dora = regions[3];
+      // エリアを置く範囲は、上から 50〜650（高さ 600）
+      expect(dora.top, closeTo((50 + GuideFrames.dora.top * 600) / 800, 1e-9));
+      expect(hand.bottom, closeTo((50 + GuideFrames.hand.bottom * 600) / 800, 1e-9));
+      expect(hand.bottom, lessThanOrEqualTo(650 / 800));
+      expect(hand.left, GuideFrames.hand.left);
+      expect(hand.width, GuideFrames.hand.width);
+    });
+
+    test('映像を画面いっぱいに広げたとき、画面からはみ出した左右の分を足して写真の位置にする', () {
+      // 画面 400×800（縦横比 0.5）に、写真 1080×1920（0.5625）を高さいっぱいで出す → 左右が切れる
+      final r = mapViewRegionToPhoto(const PhotoRegion(0, 0.25, 1, 0.5), 0.5, 1080, 1920);
+      const visible = 0.5 / 0.5625; // 写真の幅のうち、画面に見えている割合
+      expect(r.left, closeTo((1 - visible) / 2, 1e-9));
+      expect(r.width, closeTo(visible, 1e-9));
+      expect(r.top, closeTo(0.25, 1e-9));
+      expect(r.height, closeTo(0.5, 1e-9));
+    });
+
     test('映像と写真の縦横比が同じなら、枠の位置はそのまま', () {
       final r = mapViewRegionToPhoto(GuideFrames.hand, 9 / 16, 1080, 1920);
       expect(r.left, closeTo(GuideFrames.hand.left, 1e-9));
