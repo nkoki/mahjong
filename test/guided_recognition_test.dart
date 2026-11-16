@@ -12,7 +12,7 @@ import 'camera_test.dart' show rowOf;
 /// 枠つきの撮影（手牌・和了牌・鳴いた牌を枠ごとに読み取る）
 void main() {
   group('枠', () {
-    test('3つの枠は映像の中に収まり、重ならない', () {
+    test('4つのエリアは映像の中に収まり、重ならない', () {
       const frames = GuideFrames.all;
       for (final f in frames) {
         expect(f.left, greaterThanOrEqualTo(0));
@@ -30,6 +30,8 @@ void main() {
       // 手牌の右どなりに和了牌、上に鳴いた牌
       expect(GuideFrames.win.left, greaterThan(GuideFrames.hand.right));
       expect(GuideFrames.melds.bottom, lessThan(GuideFrames.hand.top));
+      expect(GuideFrames.dora.bottom, lessThan(GuideFrames.melds.top), reason: 'ドラ表示牌はいちばん上');
+      expect(GuideFrames.all, [GuideFrames.hand, GuideFrames.win, GuideFrames.melds, GuideFrames.dora]);
     });
 
     test('映像と写真の縦横比が同じなら、枠の位置はそのまま', () {
@@ -66,6 +68,35 @@ void main() {
       expect(r.melds.map((m) => m.type), [MeldType.pon, MeldType.chi, MeldType.minkan]);
       expect(r.melds[1].tiles, ['2p', '3p', '4p'], reason: 'チーは小さい順に並べる');
       expect(r.melds[2].tiles, hasLength(4));
+    });
+
+    test('離さずに並べたとき、余りがいちばん少ない分け方を選ぶ（槓に見える4枚を、ポンとチーに分ける）', () {
+      final r = groupMelds(rowOf(['3s', '3s', '3s', '3s', '4s', '5s']));
+      expect(r.leftover, 0);
+      expect(r.melds.map((m) => m.type), [MeldType.pon, MeldType.chi]);
+      expect(r.melds[1].tiles, ['3s', '4s', '5s']);
+      // 続きが重なる並び: 2筒3筒4筒 4筒4筒4筒 5筒6筒7筒
+      final r2 = groupMelds(rowOf(['2p', '3p', '4p', '4p', '4p', '4p', '5p', '6p', '7p']));
+      expect(r2.leftover, 0);
+      expect(r2.melds.map((m) => m.type), [MeldType.chi, MeldType.pon, MeldType.chi]);
+      // 4枚だけなら槓
+      expect(groupMelds(rowOf(['3s', '3s', '3s', '3s'])).melds.single.type, MeldType.minkan);
+      // 離さずに4組
+      final r3 = groupMelds(rowOf(['1z', '1z', '1z', '7m', '8m', '9m', '5z', '5z', '5z', '5z', '1p', '2p', '3p']));
+      expect(r3.melds.map((m) => m.type), [MeldType.pon, MeldType.chi, MeldType.minkan, MeldType.chi]);
+      expect(r3.leftover, 0);
+    });
+
+    test('離さずに並べると分けられないときは、すき間で区切った分け方を使う', () {
+      // 9萬 | 9萬 9萬 9萬 の順に読めても、すき間があれば 余り1枚＋ポン。すき間がなくても同じ結果になる
+      // 1索2索 | 3索 3索 3索: 離さないと 1-2-3 のチー＋余り2枚、すき間で区切ると 余り2枚＋ポン（余りが同じなら離さない分け方）
+      final r = groupMelds(rowOf(['4m', '5m', '6m', '6m', '7m', '8m', '8m'], gaps: {3}));
+      expect(r.melds.map((m) => m.tiles.join()), ['4m5m6m', '6m7m8m']);
+      expect(r.leftover, 1);
+      // すき間で区切ったほうが余りが少ない例: 2筒3筒 | 4筒4筒4筒 … 離さないと 2-3-4＋余り2、区切ると 余り2＋ポン → 同じなので離さない分け方
+      final r2 = groupMelds(rowOf(['7z', '1s', '2s', '3s', '4s', '5s', '6s'], gaps: {1}));
+      expect(r2.leftover, 1);
+      expect(r2.melds, hasLength(2));
     });
 
     test('すき間を空けずに並べても、3枚ずつなら分けられる', () {
@@ -169,6 +200,27 @@ void main() {
       expect(r.notes.join(), contains('和了牌は手で選んでください'));
     });
 
+    test('ドラ表示牌は左から順に入れる。5枚まで。同じ牌の枚数にも数える', () {
+      final r = interpretGuided(
+        hand: rowOf(['2m', '3m', '4m', '7p', '8p', '9p', '5s', '5s', '6s', '7s', '1z', '1z', '1z']),
+        win: rowOf(['8s']),
+        melds: RegionTiles.empty,
+        dora: rowOf(['9s', '3z', '1z', '1z']),
+      );
+      expect(r.dora, ['9s', '3z', '1z'], reason: '東は手牌に3枚あるので、ドラ表示牌に入れられるのは1枚');
+      expect(r.notes.join(), contains('同じ牌が5枚以上'));
+      final many = interpretGuided(
+        hand: RegionTiles.empty,
+        win: RegionTiles.empty,
+        melds: RegionTiles.empty,
+        dora: rowOf(['1m', '2m', '3m', '4m', '5m', '6m', '7m']),
+      );
+      expect(many.dora, ['1m', '2m', '3m', '4m', '5m']);
+      expect(many.notes.join(), contains('ドラ表示牌が多すぎた'));
+      // 渡さなければ空
+      expect(interpretGuided(hand: RegionTiles.empty, win: RegionTiles.empty, melds: RegionTiles.empty).dora, isEmpty);
+    });
+
     test('和了牌の枠にいくつか見つかったら、確信度の高いものを使う', () {
       const win = RegionTiles(100, 100, [
         TileDetection('3p', 0.4, 0.1, 0.1, 0.4, 0.9),
@@ -179,20 +231,32 @@ void main() {
     });
   });
 
-  group('撮影画面の枠', () {
-    testWidgets('3つの枠の名前を出し、枠は GuideFrames の位置に置く', (tester) async {
+  group('撮影画面のエリア', () {
+    testWidgets('4つのエリアを薄い色で塗って名前を出し、GuideFrames の位置に置く', (tester) async {
       await tester.pumpWidget(const MaterialApp(
           home: Center(child: SizedBox(width: 360, height: 480, child: GuideOverlay()))));
       expect(find.text('手牌'), findsOneWidget);
       expect(find.text('和了牌'), findsOneWidget);
-      expect(find.textContaining('鳴いた牌'), findsOneWidget);
-      final origin = tester.getTopLeft(find.byType(GuideOverlay));
-      final boxes = tester.widgetList<Positioned>(
-          find.descendant(of: find.byType(GuideOverlay), matching: find.byType(Positioned)));
-      final hand = boxes.firstWhere((p) => p.width != null && (p.width! - GuideFrames.hand.width * 360).abs() < 0.01);
-      expect(hand.left, closeTo(GuideFrames.hand.left * 360, 0.01));
-      expect(hand.top, closeTo(GuideFrames.hand.top * 480, 0.01));
-      expect(origin, isNotNull);
+      expect(find.text('鳴いた牌'), findsOneWidget);
+      expect(find.text('ドラ表示牌'), findsOneWidget);
+      for (final (key, frame) in [
+        ('area-hand', GuideFrames.hand),
+        ('area-win', GuideFrames.win),
+        ('area-melds', GuideFrames.melds),
+        ('area-dora', GuideFrames.dora),
+      ]) {
+        final p = tester.widget<Positioned>(find.byKey(ValueKey(key)));
+        expect(p.left, closeTo(frame.left * 360, 0.01));
+        expect(p.top, closeTo(frame.top * 480, 0.01));
+        expect(p.width, closeTo(frame.width * 360, 0.01));
+        expect(p.height, closeTo(frame.height * 480, 0.01));
+        // 線の枠ではなく、薄い色（下の牌が見える）で塗る
+        final box = tester.widget<DecoratedBox>(
+            find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(DecoratedBox)));
+        final deco = box.decoration as BoxDecoration;
+        expect(deco.border, isNull);
+        expect(deco.color!.a, inInclusiveRange(0.1, 0.35));
+      }
       expect(tester.takeException(), isNull);
     });
   });

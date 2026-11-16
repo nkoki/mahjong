@@ -81,8 +81,8 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
       setState(() => _error = denied
           ? tr('カメラを使う許可がありません。端末（ブラウザ）の設定でカメラを許可するか、前の画面の「写真から選ぶ」を使ってください。',
               'Camera permission was denied. Allow the camera in the device (browser) settings, or use "Choose from photos" on the previous screen.')
-          : tr('カメラを使えませんでした（$e）。前の画面の「撮影する（枠なし）」か「写真から選ぶ」を使ってください。',
-              'Could not use the camera ($e). Use "Take photo (no frames)" or "Choose from photos" on the previous screen.'));
+          : tr('カメラを使えませんでした（$e）。前の画面の「撮影する（エリアなし）」か「写真から選ぶ」を使ってください。',
+              'Could not use the camera ($e). Use "Take photo (no areas)" or "Choose from photos" on the previous screen.'));
     }
   }
 
@@ -127,7 +127,7 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: fg,
-        title: Text(tr('枠に合わせて撮影', 'Fit tiles to the frames')),
+        title: Text(tr('エリアに合わせて撮影', 'Fit tiles to the areas')),
       ),
       body: SafeArea(
         child: Column(
@@ -171,10 +171,12 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
               child: Text(
                 tr(
-                    '牌が枠の中に大きく写るように合わせます。鳴いた牌は、1組ずつ少し離して並べてください（鳴きがなければ空けておきます）。'
-                        '裏返した牌（暗槓）は読み取れません。写真はどこにも送りません。',
-                    'Fit the tiles inside the frames. Place each call slightly apart (leave the frame empty if there are none). '
-                        'Face-down tiles (closed kan) cannot be read. The photo is not sent anywhere.'),
+                    '牌が色の付いたエリアの中に大きく写るように合わせます。牌同士は離さなくてかまいません。'
+                        '使わないエリア（鳴きがないときなど）は空けておきます。'
+                        '裏返した牌（暗槓）と裏ドラは読み取れません。写真はどこにも送りません。',
+                    'Fit the tiles inside the colored areas. Tiles may touch each other. '
+                        'Leave unused areas empty. '
+                        'Face-down tiles (closed kan) and ura dora are not read. The photo is not sent anywhere.'),
                 style: const TextStyle(color: Color(0xCCF7F3EA), fontSize: 12),
               ),
             ),
@@ -196,7 +198,8 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
   }
 }
 
-/// カメラの映像の上に重ねる枠（[GuideFrames] の3つ）と、その名前
+/// カメラの映像の上に重ねるエリア（[GuideFrames] の4つ）と、その名前。
+/// 牌が見えるように、薄い色で塗って場所を示す（線の枠ではなく、色の付いた区画）
 class GuideOverlay extends StatelessWidget {
   const GuideOverlay({super.key});
 
@@ -204,46 +207,51 @@ class GuideOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
       final w = box.maxWidth, h = box.maxHeight;
-      Widget frame(PhotoRegion r, String label, Color color, {bool labelBelow = false}) => Positioned(
-            left: r.left * w,
-            top: r.top * h,
-            width: r.width * w,
-            height: r.height * h,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: color, width: 2),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+      // 名前は、牌に重ならないように置く: 牌は左から並べるので右上の角に。和了牌は幅が狭いので、エリアの下に出す
+      Widget area(PhotoRegion r, String label, Color color, Key key, {bool labelBelow = false}) {
+        final text = Text(label,
+            maxLines: 1,
+            softWrap: false,
+            style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+                shadows: const [Shadow(color: Colors.black, blurRadius: 3)]));
+        return Positioned(
+          key: key,
+          left: r.left * w,
+          top: r.top * h,
+          width: r.width * w,
+          height: r.height * h,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: color.withAlpha(56),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                Positioned(
-                  left: 0,
-                  top: labelBelow ? null : -22,
-                  bottom: labelBelow ? -22 : null,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
-                    child: Text(label,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: const TextStyle(
-                            color: Color(0xFF1B1B1B), fontSize: 12, fontWeight: FontWeight.w800, height: 1.2)),
-                  ),
-                ),
-              ],
-            ),
-          );
+              ),
+              if (labelBelow)
+                Positioned(right: 0, bottom: -18, child: text)
+              else
+                Positioned(right: 6, top: 2, child: text),
+            ],
+          ),
+        );
+      }
+
       return IgnorePointer(
         child: MediaQuery.withNoTextScaling(
           child: Stack(
             children: [
-              frame(GuideFrames.melds, tr('鳴いた牌（1組ずつ離す）', 'Calls (leave gaps)'), const Color(0xFF8FD3FF)),
-              frame(GuideFrames.hand, tr('手牌', 'Hand'), const Color(0xFFFFE08A)),
-              frame(GuideFrames.win, tr('和了牌', 'Win'), const Color(0xFFFF9C8F), labelBelow: true),
+              area(GuideFrames.dora, tr('ドラ表示牌', 'Dora indicators'), const Color(0xFFB9F6A5), const ValueKey('area-dora')),
+              area(GuideFrames.melds, tr('鳴いた牌', 'Calls'), const Color(0xFF8FD3FF), const ValueKey('area-melds')),
+              area(GuideFrames.hand, tr('手牌', 'Hand'), const Color(0xFFFFE08A), const ValueKey('area-hand')),
+              area(GuideFrames.win, tr('和了牌', 'Win'), const Color(0xFFFF9C8F), const ValueKey('area-win'), labelBelow: true),
             ],
           ),
         ),

@@ -35,8 +35,9 @@ def row(labels, left, top, height, tile_w, gaps=()):
         if i in gaps: x += tile_w * 0.8
         canvas.paste(crop(l).resize((tile_w, th), Image.LANCZOS), (int(W - x - tile_w), y)); x += tile_w + 2
 tw = int(0.80 * W / 14.5)
-# 枠の位置は lib/features/camera/guided_recognition.dart の GuideFrames と同じ
-row(['7z', '7z', '7z', '2p', '3p', '4p'], 0.02, 0.26, 0.18, tw, gaps={3})   # 鳴いた牌: 中のポン、2-3-4筒のチー
+# エリアの位置は lib/features/camera/guided_recognition.dart の GuideFrames と同じ
+row(['4p', '5s'], 0.02, 0.08, 0.18, tw)                                      # ドラ表示牌 2枚
+row(['7z', '7z', '7z', '2p', '3p', '4p'], 0.02, 0.30, 0.18, tw)              # 鳴いた牌（離さない）: 中のポン、2-3-4筒のチー
 row(['2m', '3m', '4m', '5s', '5s', '6p', '7p'], 0.02, 0.52, 0.18, tw)        # 手牌 7枚
 row(['8p'], 0.85, 0.52, 0.18, tw)                                            # 和了牌
 canvas.save(out / 'frame.jpg', quality=90)

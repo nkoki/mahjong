@@ -114,11 +114,11 @@ await shot('camera-result');
 await tap('手牌に入れる');
 await expectText('読み取った牌を入れました');
 
-// 枠つきの撮影（Web 版）: カメラの映像に枠を重ねた画面で撮り、枠ごとに読み取る。
-// 偽のカメラの映像は、鳴いた牌の枠に 中のポン と 2-3-4筒のチー、手牌の枠に7枚、和了牌の枠に 8筒
+// 枠つきの撮影（Web 版）: カメラの映像に4つのエリアを重ねた画面で撮り、エリアごとに読み取る。
+// 偽のカメラの映像は、ドラ表示牌に2枚、鳴いた牌に 中のポン と 2-3-4筒のチー（離さずに並べる）、手牌に7枚、和了牌に 8筒
 await tap('カメラで手牌を読み取る');
-await tap('枠に合わせて撮影する', { exact: false });
-await expectText('鳴いた牌（1組ずつ離す）', 80);
+await tap('エリアに合わせて撮影する', { exact: false });
+await expectText('ドラ表示牌', 80);
 await page.waitForTimeout(1500); // 映像が出るのを待つ
 await shot('guided-camera');
 await tap('撮影');
@@ -128,7 +128,7 @@ const guided = await page.evaluate(() =>
     .map((e) => e.getAttribute('aria-label') ?? ([...e.children].some((c) => c.tagName.toLowerCase().startsWith('flt-semantics')) ? '' : e.textContent))
     .filter(Boolean)
     .join(' '));
-const wantGuided = '手牌（7/7枚） 2萬 3萬 4萬 6筒 7筒 5索 5索 和了牌:  8筒 鳴き（2） チー 2筒 3筒 4筒 ポン 中 中 中';
+const wantGuided = '手牌（7/7枚） 2萬 3萬 4萬 6筒 7筒 5索 5索 和了牌:  8筒 鳴き（2） チー 2筒 3筒 4筒 ポン 中 中 中 ドラ表示牌（2） 5索 4筒';
 if (!guided.replace(/\s+/g, ' ').includes(wantGuided.replace(/\s+/g, ' '))) {
   throw new Error(`枠つきの撮影の結果が違います: 「${guided}」`);
 }

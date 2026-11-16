@@ -317,14 +317,14 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
             ListTile(
               key: const ValueKey('camera-guided'),
               leading: const Icon(Icons.crop_free),
-              title: Text(tr('枠に合わせて撮影する', 'Shoot with guide frames')),
-              subtitle: Text(tr('手牌・和了牌・鳴いた牌を、それぞれの枠に入れて撮る（鳴きも読み取る）',
-                  'Put the hand, winning tile and calls in their frames (calls are read too)')),
+              title: Text(tr('エリアに合わせて撮影する', 'Shoot with guide areas')),
+              subtitle: Text(tr('手牌・和了牌・鳴いた牌・ドラ表示牌を、それぞれのエリアに置いて撮る',
+                  'Put the hand, winning tile, calls and dora indicators in their areas')),
               onTap: () => Navigator.pop(ctx, 'guided'),
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera),
-              title: Text(tr('撮影する（枠なし）', 'Take photo (no frames)')),
+              title: Text(tr('撮影する（エリアなし）', 'Take photo (no areas)')),
               subtitle: Text(tr('手牌だけを読み取る', 'Reads the hand only')),
               onTap: () => Navigator.pop(ctx, 'camera'),
             ),
@@ -483,16 +483,17 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
       await _showReadError(result.error ?? tr('読み取りに失敗しました', 'Recognition failed'));
       return;
     }
-    // GuideFrames.all の順（手牌・和了牌・鳴いた牌）
+    // GuideFrames.all の順（手牌・和了牌・鳴いた牌・ドラ表示牌）
     final r = interpretGuided(
         hand: regions[0],
         win: regions[1],
         melds: regions[2],
+        dora: regions[3],
         sanma: s.settings.isSanma,
         redDora: s.settings.redDora);
-    if (r.hand.isEmpty && r.winningTile == null && r.melds.isEmpty) {
-      await _showReadError(tr('枠の中に麻雀牌を見つけられませんでした。牌が枠の中に大きく、はっきり写るように撮り直してください。',
-          'No mahjong tiles found in the frames. Retake the photo so the tiles are large and clear inside the frames.'));
+    if (r.hand.isEmpty && r.winningTile == null && r.melds.isEmpty && r.dora.isEmpty) {
+      await _showReadError(tr('エリアの中に麻雀牌を見つけられませんでした。牌がエリアの中に大きく、はっきり写るように撮り直してください。',
+          'No mahjong tiles found in the areas. Retake the photo so the tiles are large and clear inside the areas.'));
       return;
     }
     final fixedWin = widget.isAdditionalRon;
@@ -544,11 +545,20 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                       ],
                     ),
                   ),
+                if (r.dora.isNotEmpty && !fixedWin) ...[
+                  const SizedBox(height: 8),
+                  Text(tr('ドラ表示牌（${r.dora.length}）', 'Dora indicators (${r.dora.length})'),
+                      style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  TileRow(r.dora, tileWidth: 22),
+                ],
                 for (final n in [
                   ...r.notes,
-                  if (fixedWin && r.winningTile != null)
-                    tr('和了牌は1人目と同じなので、読み取った和了牌は使いません',
-                        'The winning tile is the same as the 1st winner, so the read winning tile is not used'),
+                  if (fixedWin && (r.winningTile != null || r.dora.isNotEmpty))
+                    tr('和了牌とドラ表示牌は1人目と同じなので、読み取ったものは使いません',
+                        'The winning tile and dora indicators are the same as the 1st winner, so the ones read are not used'),
+                  if (!fixedWin && r.dora.isNotEmpty && _dora.isNotEmpty)
+                    tr('今入っているドラ表示牌は、読み取ったものに置き換えます', 'Dora indicators already entered are replaced with the ones read'),
                   if (_melds.isNotEmpty) tr('今入っている鳴きは、読み取った鳴きに置き換えます', 'Calls already entered are replaced with the ones read'),
                 ])
                   Padding(
@@ -594,6 +604,11 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
         ..clear()
         ..addAll(r.hand);
       if (r.winningTile != null && !fixedWin) _winTile = r.winningTile;
+      if (r.dora.isNotEmpty && !fixedWin) {
+        _dora
+          ..clear()
+          ..addAll(r.dora);
+      }
       _target = _hand.length < _needHand ? _Target.hand : (_winTile == null ? _Target.win : _Target.dora);
     });
     _snack(tr('読み取った牌を入れました。間違いがないか確認してください', 'Tiles entered. Please check they are correct'));
