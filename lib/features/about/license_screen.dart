@@ -33,10 +33,12 @@ class LicenseScreen extends StatelessWidget {
           const SizedBox(height: 6),
           Text(tr(
               '手牌の写真の読み取りは、アプリに入っている認識モデルで、この端末の中で行います。'
-                  '写真はどこにも送らず、料金もかかりません（Android・iOS のアプリ版のみ。Web 版では使えません）。'
+                  '写真はどこにも送らず、料金もかかりません。'
+                  'Web 版では、同じ認識モデルをブラウザの中で動かします（初めて使うときにだけ、認識モデルをダウンロードします）。'
                   '認識モデルは、次のデータを使って学習させたものです。',
               'Hand photos are read on this device by the recognition model built into the app. '
-                  'Photos are never sent anywhere and it is free (Android and iOS apps only; not available on the web version). '
+                  'Photos are never sent anywhere and it is free. '
+                  'The web version runs the same model inside the browser (the model is downloaded on first use only). '
                   'The model was trained with the following data.')),
           const SizedBox(height: 12),
           Text(tr('学習データ', 'Training data'), style: theme.textTheme.titleSmall),
@@ -49,6 +51,7 @@ class LicenseScreen extends StatelessWidget {
           const SizedBox(height: 6),
           Text(tr('Flutter や、アプリに組み込んでいるパッケージ（TensorFlow Lite など）のライセンスです。',
               'Licenses of Flutter and the packages built into the app (such as TensorFlow Lite).')),
+          for (final s in runtimeSources) _SourceCard(s),
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerLeft,

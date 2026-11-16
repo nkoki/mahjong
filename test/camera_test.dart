@@ -210,7 +210,7 @@ void main() {
     late _FakePicker picker;
     late _FakeRecognizer recognizer;
 
-    Future<void> pump(WidgetTester tester, {bool supported = true}) async {
+    Future<void> pump(WidgetTester tester, {bool supported = true, int? downloadMb}) async {
       await tester.binding.setSurfaceSize(const Size(420, 2600));
       final repo = InMemorySessionRepository([
         GameSession.start(id: 'x', playerNames: ['A', 'B', 'C', 'D'], settings: const GameSettings()),
@@ -219,6 +219,7 @@ void main() {
         overrides: [
           sessionRepositoryProvider.overrideWithValue(repo),
           cameraSupportedProvider.overrideWithValue(supported),
+          cameraFirstUseDownloadMbProvider.overrideWithValue(downloadMb),
           photoPickerProvider.overrideWithValue(picker),
           tileRecognizerProvider.overrideWithValue(recognizer),
         ],
@@ -231,10 +232,25 @@ void main() {
       recognizer = _FakeRecognizer();
     });
 
-    testWidgets('Web 版（使えない端末）ではカメラボタンを出さず、アプリ版で使えると表示する', (tester) async {
+    testWidgets('使えない環境ではカメラボタンを出さず、使えないと表示する', (tester) async {
       await pump(tester, supported: false);
       expect(find.byTooltip('カメラで手牌を読み取る'), findsNothing);
-      expect(find.textContaining('スマホのアプリ版（Android・iOS）で使えます'), findsOneWidget);
+      expect(find.textContaining('この環境では、カメラで手牌を読み取る機能は使えません'), findsOneWidget);
+    });
+
+    testWidgets('Web 版: 初めて使うときにダウンロードがあることを、写真を選ぶ前に知らせる', (tester) async {
+      await pump(tester, downloadMb: 11);
+      await tester.tap(find.byTooltip('カメラで手牌を読み取る'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('初めて使うときだけ、認識モデル（約11MB）をダウンロードします'), findsOneWidget);
+      expect(find.textContaining('写真はどこにも送りません'), findsOneWidget);
+    });
+
+    testWidgets('アプリ版: ダウンロードの知らせは出さない', (tester) async {
+      await pump(tester);
+      await tester.tap(find.byTooltip('カメラで手牌を読み取る'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('ダウンロード'), findsNothing);
     });
 
     testWidgets('撮影して読み取った牌を手牌と和了牌に入れる', (tester) async {

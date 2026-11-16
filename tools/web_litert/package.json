@@ -1,0 +1,15 @@
+{
+  "name": "mahjong-web-litert",
+  "private": true,
+  "description": "Web 版のカメラ認識で使う LiteRT.js（ブラウザで .tflite を動かす仕組み）を web/litert/ に用意する",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@litertjs/core": "2.6.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}

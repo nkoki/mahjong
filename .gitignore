@@ -10,3 +10,7 @@ pubspec.lock
 # Python
 __pycache__/
 test/golden/failures/
+
+# Web 版のカメラ認識で使う LiteRT.js（tools/web_litert で作る）
+web/litert/
+node_modules/

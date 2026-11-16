@@ -7,3 +7,6 @@ import 'tile_recognizer.dart';
 bool get cameraRecognitionSupported => Platform.isAndroid || Platform.isIOS;
 
 TileRecognizer createTileRecognizer() => TfliteTileRecognizer();
+
+/// 認識モデルはアプリに入っているので、ダウンロードはない
+int? get cameraFirstUseDownloadMb => null;

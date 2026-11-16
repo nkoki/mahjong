@@ -1,6 +1,7 @@
 // Web 版を実際のブラウザで動かして、主な操作が通るかを確かめる（E2E テスト）。
 //
 // 使い方（リポジトリのいちばん上で）:
+//   (cd tools/web_litert && npm ci && npm run build)   # カメラ認識（Web 版）で使う LiteRT.js を web/litert/ に作る
 //   flutter build web --release --no-web-resources-cdn --base-href /mahjong/
 //   mkdir -p /tmp/site && cp -r build/web /tmp/site/mahjong && (cd /tmp/site && python3 -m http.server 8765 &)
 //   cd e2e && npm ci && npx playwright install chromium && node smoke.mjs http://localhost:8765/mahjong/
@@ -16,6 +17,8 @@ const page = await browser.newPage({ viewport: { width: 400, height: 860 } });
 const external = new Set();
 page.on('request', (r) => {
   const u = new URL(r.url());
+  // blob: や data:（選んだ写真など、ブラウザの中だけのもの）は通信ではないので数えない
+  if (!u.protocol.startsWith('http')) return;
   if (u.hostname !== new URL(url).hostname) external.add(u.hostname);
 });
 page.on('pageerror', (e) => { throw e; });
@@ -40,8 +43,8 @@ async function tap(name, opts = {}) {
   await (await find(opts.role ?? 'button', name, opts)).click();
   await page.waitForTimeout(500);
 }
-async function expectText(text) {
-  for (let i = 0; i < 20; i++) {
+async function expectText(text, tries = 20) {
+  for (let i = 0; i < tries; i++) {
     const html = await page.content();
     if (html.includes(text)) return;
     await page.waitForTimeout(250);
@@ -78,6 +81,31 @@ await expectText('東2局 0本場');
 await expectText('30,200');
 await expectText('19,800');
 await shot('after-win');
+
+// カメラ認識（Web 版）: 写真を選ぶと、ブラウザの中で認識モデル（LiteRT.js）が動いて牌を読み取る。
+// 写真は fixtures/hand.jpg（左から 白 6索 1萬 3筒 3索 3萬 1筒 白 9萬）
+await tap('和了');
+await tap('カメラで手牌を読み取る');
+await expectText('初めて使うときだけ、認識モデル');
+const chooser = page.waitForEvent('filechooser');
+await tap('写真から選ぶ', { exact: false });
+await (await chooser).setFiles(new URL('fixtures/hand.jpg', import.meta.url).pathname);
+await expectText('読み取った牌（9枚）', 240);
+// 読み取った順（左から）に、牌の読み上げ用の名前が並ぶ
+const read = await page.evaluate(() => {
+  const labels = [...document.querySelectorAll('flt-semantics')]
+    .map((e) => e.getAttribute('aria-label') ?? ([...e.children].some((c) => c.tagName.toLowerCase().startsWith('flt-semantics')) ? '' : e.textContent))
+    .filter(Boolean);
+  const a = labels.findIndex((t) => t.startsWith('読み取った牌'));
+  const b = labels.findIndex((t, i) => i > a && t.startsWith('手牌（'));
+  return labels.slice(a + 1, b).join(' ');
+});
+const wantRead = '白 6索 1萬 3筒 3索 3萬 1筒 白 9萬';
+if (read !== wantRead) throw new Error(`カメラ認識の結果が違います: 「${read}」（正しくは「${wantRead}」）`);
+await shot('camera-result');
+await tap('手牌に入れる');
+await expectText('読み取った牌を入れました');
+await tap('Back');
 
 // 流局（全員ノーテン）
 await tap('流局');

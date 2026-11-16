@@ -6,8 +6,11 @@ import 'package:image_picker/image_picker.dart';
 import 'recognizer_factory.dart';
 import 'tile_recognizer.dart';
 
-/// この端末でカメラ認識を使えるか（Android・iOS のアプリ版だけ。テストでは差し替える）
+/// この端末でカメラ認識を使えるか（Android・iOS のアプリ版と Web 版。テストでは差し替える）
 final cameraSupportedProvider = Provider<bool>((ref) => cameraRecognitionSupported);
+
+/// 初めてカメラ認識を使うときにダウンロードする大きさ（MB）。Web 版だけ値があり、アプリ版は null
+final cameraFirstUseDownloadMbProvider = Provider<int?>((ref) => cameraFirstUseDownloadMb);
 
 /// 牌の読み取り（端末の中で動く認識モデル。テストでは差し替える）
 final tileRecognizerProvider = Provider<TileRecognizer>((ref) => createTileRecognizer());

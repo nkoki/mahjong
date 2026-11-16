@@ -291,6 +291,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
 
   /// カメラ（写真）から手牌を読み取る
   Future<void> _readFromCamera(GameSession s) async {
+    final downloadMb = ref.read(cameraFirstUseDownloadMbProvider);
     final fromCamera = await showModalBottomSheet<bool>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -302,10 +303,12 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
               subtitle: Text(tr(
                   '牌を横一列に並べ、全部の牌が大きくはっきり写るように撮ってください。'
                       '和了牌は一番右に置くと、和了牌として入ります。'
-                      '読み取りはこの端末の中で行い、写真はどこにも送りません。',
+                      '読み取りはこの端末の中で行い、写真はどこにも送りません。'
+                      '${downloadMb == null ? '' : '\n初めて使うときだけ、認識モデル（約${downloadMb}MB）をダウンロードします。通信量にご注意ください。'}',
                   'Line the tiles up in one row and make every tile large and clear. '
                       'Put the winning tile at the far right to enter it as the winning tile. '
-                      'Recognition runs on this device; the photo is not sent anywhere.')),
+                      'Recognition runs on this device; the photo is not sent anywhere.'
+                      '${downloadMb == null ? '' : '\nThe first use downloads the recognition model (about $downloadMb MB).'}')),
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera),
@@ -341,36 +344,33 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(width: 20),
-            Expanded(child: Text(tr('牌を読み取っています…', 'Reading tiles…'))),
+            Expanded(
+                child: Text(tr(
+                    '牌を読み取っています…${downloadMb == null ? '' : '\n（初めてのときは、認識モデルのダウンロードに時間がかかります）'}',
+                    'Reading tiles…${downloadMb == null ? '' : '\n(The first time, downloading the recognition model takes a while)'}'))),
           ],
         ),
       ),
     );
-    List<Tile>? tiles;
-    String? error;
-    try {
-      tiles = await ref.read(tileRecognizerProvider).recognize(bytes);
-    } on RecognitionException catch (e) {
-      error = e.message;
-    } catch (e) {
-      error = tr('読み取りに失敗しました: $e', 'Recognition failed: $e');
-    }
+    final result = await _recognize(bytes);
     if (!mounted) return;
     Navigator.of(context).pop(); // 読み取り中の表示を閉じる
 
-    if (error != null) {
+    final error = result.error;
+    final tiles = result.tiles;
+    if (error != null || tiles == null) {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text(tr('読み取れませんでした', 'Could not read tiles')),
-          content: Text(error!),
+          content: Text(error ?? tr('読み取りに失敗しました', 'Recognition failed')),
           actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
         ),
       );
       return;
     }
 
-    final r = applyRecognition(tiles!,
+    final r = applyRecognition(tiles,
         needHand: _needHand, sanma: s.settings.isSanma, redDora: s.settings.redDora);
     final fixedWin = widget.isAdditionalRon;
     final apply = await showDialog<bool>(
@@ -384,7 +384,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tr('読み取った牌（${tiles!.length}枚）', 'Tiles read (${tiles.length})'), style: theme.textTheme.titleSmall),
+                Text(tr('読み取った牌（${tiles.length}枚）', 'Tiles read (${tiles.length})'), style: theme.textTheme.titleSmall),
                 const SizedBox(height: 4),
                 TileRow(tiles, tileWidth: 22),
                 const SizedBox(height: 12),
@@ -438,6 +438,20 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
     _snack(tr('読み取った牌を入れました。間違いがないか確認してください', 'Tiles entered. Please check they are correct'));
   }
 
+  /// 写真から牌を読み取る。読み取れたら tiles、失敗したら error（利用者向けの説明）が入る。
+  ///
+  /// 結果を1つの値で返す形にしている: 「try の中で変数に入れ、あとでその変数を画面の部品から使う」書き方だと、
+  /// Web 版（dart2js）で、読み取れたのに失敗の表示へ進んでしまった
+  Future<({List<Tile>? tiles, String? error})> _recognize(Uint8List bytes) async {
+    try {
+      return (tiles: await ref.read(tileRecognizerProvider).recognize(bytes), error: null);
+    } on RecognitionException catch (e) {
+      return (tiles: null, error: e.message);
+    } catch (e) {
+      return (tiles: null, error: tr('読み取りに失敗しました: $e', 'Recognition failed: $e'));
+    }
+  }
+
   void _snack(String msg) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -456,7 +470,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
             ? tr('2人目の和了入力', '2nd winner')
             : tr('和了入力  ${s.roundLabel}', 'Win  ${displayRoundLabel(s.roundLabel)}')),
         actions: [
-          // カメラ認識は Android・iOS のアプリ版だけ（Web 版ではボタンを出さない）
+          // カメラ認識（Android・iOS のアプリ版と Web 版。使えない環境ではボタンを出さない）
           if (ref.watch(cameraSupportedProvider))
             IconButton(
               tooltip: tr('カメラで手牌を読み取る', 'Read hand with camera'),
@@ -560,7 +574,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                   if (!ref.watch(cameraSupportedProvider))
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: Text(tr('カメラで手牌を読み取る機能は、スマホのアプリ版（Android・iOS）で使えます', 'Reading the hand with the camera is available in the phone app (Android/iOS)'),
+                      child: Text(tr('この環境では、カメラで手牌を読み取る機能は使えません', 'Reading the hand with the camera is not available in this environment'),
                           style: theme.textTheme.bodySmall),
                     ),
                   _section(theme, tr('和了牌', 'Winning tile')),

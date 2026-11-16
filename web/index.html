@@ -42,6 +42,23 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <!--
+    カメラ認識（Web 版）: 牌の認識モデルを動かす LiteRT.js を、初めて使うときにだけ読み込む。
+    ふだんの起動では何も読み込まない。場所はこのページからの相対（GitHub Pages の /<リポジトリ名>/ の下でも動くように）。
+    web/litert/ は tools/web_litert で作る（README の「カメラ認識について」）。
+  -->
+  <script>
+    window.mahjongLoadTileModels = function () {
+      if (!window.mahjongTileModelsLoading) {
+        var base = document.baseURI;
+        window.mahjongTileModelsLoading = import(new URL('litert/tile_models.js', base).href)
+          .then(function () { return window.mahjongTileModels.init(new URL('litert/', base).href); })
+          .then(function () { return window.mahjongTileModels; })
+          .catch(function (e) { window.mahjongTileModelsLoading = null; throw e; });
+      }
+      return window.mahjongTileModelsLoading;
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

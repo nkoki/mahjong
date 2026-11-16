@@ -34,7 +34,8 @@ class PrivacyPolicy {
     (
       '3. カメラと写真',
       'カメラ認識で撮影した写真や選んだ写真は、端末の中にある認識モデルで牌を読み取るためだけに使い、'
-          '保存も送信もしません。カメラや写真は、利用者がカメラ認識のボタンを押したときだけ使います。',
+          '保存も送信もしません。カメラや写真は、利用者がカメラ認識のボタンを押したときだけ使います。'
+          'Web 版でも読み取りはブラウザの中で行います（認識モデルは、初めて使うときに GitHub Pages からブラウザに読み込みます）。',
     ),
     (
       '4. 通信',
@@ -94,7 +95,8 @@ class PrivacyPolicy {
       '3. Camera and photos',
       'Photos taken or selected for camera recognition are used only to read tiles with the recognition model on '
           'the device, and are neither saved nor sent. The camera and photos are used only when you press the camera '
-          'recognition button.',
+          'recognition button. On the web version, recognition also runs inside the browser (the recognition model is '
+          'loaded into the browser from GitHub Pages on first use).',
     ),
     (
       '4. Network communication',

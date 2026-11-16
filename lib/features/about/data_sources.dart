@@ -82,6 +82,18 @@ const modelToolSources = [
   ),
 ];
 
+/// Web 版で認識モデルを動かすのに使っているソフトウェア（Dart のパッケージではないので、ここに書く）
+const runtimeSources = [
+  DataSource(
+    title: 'LiteRT.js（@litertjs/core）',
+    author: 'Google',
+    url: 'https://github.com/google-ai-edge/LiteRT',
+    license: 'Apache License 2.0',
+    licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0',
+    changes: 'Web 版のカメラ認識で、牌の認識モデルをブラウザの中（WebAssembly）で動かすために、そのまま使っています。',
+  ),
+];
+
 /// 標準のライセンス画面にも出典を載せる（main で1回だけ呼ぶ）
 void registerDataSourceLicenses() {
   LicenseRegistry.addLicense(() async* {
@@ -90,6 +102,9 @@ void registerDataSourceLicenses() {
     }
     for (final s in modelToolSources) {
       yield LicenseEntryWithLineBreaks(['牌の認識モデルの作成'], s.licenseText);
+    }
+    for (final s in runtimeSources) {
+      yield LicenseEntryWithLineBreaks(['LiteRT.js'], s.licenseText);
     }
   });
 }
