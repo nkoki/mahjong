@@ -221,6 +221,29 @@ void main() {
       expect(interpretGuided(hand: RegionTiles.empty, win: RegionTiles.empty, melds: RegionTiles.empty).dora, isEmpty);
     });
 
+    test('ドラ表示牌のエリアの上の段はドラ表示牌、下の段は裏ドラ表示牌', () {
+      RegionTiles twoRows(List<Tile> top, List<Tile> bottom) => RegionTiles(1000, 400, [
+            // 下の段を先に渡しても、上の段がドラ表示牌になる
+            for (final d in rowOf(bottom).detections)
+              TileDetection(d.tile, d.score, d.left, d.top * 0.45 + 0.5, d.right, d.bottom * 0.45 + 0.5),
+            for (final d in rowOf(top).detections)
+              TileDetection(d.tile, d.score, d.left, d.top * 0.45, d.right, d.bottom * 0.45),
+          ]);
+      final r = interpretGuided(
+        hand: RegionTiles.empty,
+        win: RegionTiles.empty,
+        melds: RegionTiles.empty,
+        dora: twoRows(['9s', '3z'], ['1p', '7z']),
+      );
+      expect(r.dora, ['9s', '3z']);
+      expect(r.ura, ['1p', '7z']);
+      // 1段だけならドラ表示牌だけ
+      final one = interpretGuided(
+          hand: RegionTiles.empty, win: RegionTiles.empty, melds: RegionTiles.empty, dora: rowOf(['2m']));
+      expect(one.dora, ['2m']);
+      expect(one.ura, isEmpty);
+    });
+
     test('和了牌の枠にいくつか見つかったら、確信度の高いものを使う', () {
       const win = RegionTiles(100, 100, [
         TileDetection('3p', 0.4, 0.1, 0.1, 0.4, 0.9),
@@ -238,7 +261,7 @@ void main() {
       expect(find.text('手牌'), findsOneWidget);
       expect(find.text('和了牌'), findsOneWidget);
       expect(find.text('鳴いた牌'), findsOneWidget);
-      expect(find.text('ドラ表示牌'), findsOneWidget);
+      expect(find.text('ドラ表示牌（下の段に裏ドラ）'), findsOneWidget);
       for (final (key, frame) in [
         ('area-hand', GuideFrames.hand),
         ('area-win', GuideFrames.win),

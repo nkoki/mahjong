@@ -244,7 +244,12 @@ void main() {
         rowOf(['5s']),
         // 鳴いた牌は離さずに並べてある
         rowOf(['7z', '7z', '7z', '1z', '1z', '1z', '1z']),
-        rowOf(['3m', '9s']),
+        // ドラ表示牌のエリア: 上の段にドラ表示牌2枚、下の段に裏ドラ表示牌1枚
+        const RegionTiles(1000, 400, [
+          TileDetection('3m', 0.9, 0.02, 0.1, 0.07, 0.4),
+          TileDetection('9s', 0.9, 0.08, 0.1, 0.13, 0.4),
+          TileDetection('4z', 0.9, 0.02, 0.6, 0.07, 0.9),
+        ]),
       ];
       await pump(tester);
       // 翻・符で入力していても、読み取ったら手牌の入力に切り替わる（読み取った牌が見えるように）
@@ -264,6 +269,8 @@ void main() {
       expect(find.text('ポン'), findsOneWidget);
       expect(find.text('明槓'), findsOneWidget);
       expect(find.text('ドラ表示牌（2）'), findsOneWidget);
+      expect(find.text('裏ドラ表示牌（1）'), findsOneWidget);
+      expect(find.textContaining('裏ドラは、立直しているときだけ計算に使います'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('guided-ankan-1')));
       await tester.pump();
       expect(find.text('暗槓'), findsOneWidget);

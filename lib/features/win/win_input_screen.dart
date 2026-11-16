@@ -318,7 +318,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
               key: const ValueKey('camera-guided'),
               leading: const Icon(Icons.crop_free),
               title: Text(tr('エリアに合わせて撮影する', 'Shoot with guide areas')),
-              subtitle: Text(tr('手牌・和了牌・鳴いた牌・ドラ表示牌を、それぞれのエリアに置いて撮る',
+              subtitle: Text(tr('手牌・和了牌・鳴いた牌・ドラ表示牌（裏ドラも）を、それぞれのエリアに置いて撮る',
                   'Put the hand, winning tile, calls and dora indicators in their areas')),
               onTap: () => Navigator.pop(ctx, 'guided'),
             ),
@@ -491,7 +491,7 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
         dora: regions[3],
         sanma: s.settings.isSanma,
         redDora: s.settings.redDora);
-    if (r.hand.isEmpty && r.winningTile == null && r.melds.isEmpty && r.dora.isEmpty) {
+    if (r.hand.isEmpty && r.winningTile == null && r.melds.isEmpty && r.dora.isEmpty && r.ura.isEmpty) {
       await _showReadError(tr('エリアの中に麻雀牌を見つけられませんでした。牌がエリアの中に大きく、はっきり写るように撮り直してください。',
           'No mahjong tiles found in the areas. Retake the photo so the tiles are large and clear inside the areas.'));
       return;
@@ -552,13 +552,23 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
                   const SizedBox(height: 4),
                   TileRow(r.dora, tileWidth: 22),
                 ],
+                if (r.ura.isNotEmpty && !fixedWin) ...[
+                  const SizedBox(height: 8),
+                  Text(tr('裏ドラ表示牌（${r.ura.length}）', 'Ura dora indicators (${r.ura.length})'),
+                      style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  TileRow(r.ura, tileWidth: 22),
+                ],
                 for (final n in [
                   ...r.notes,
-                  if (fixedWin && (r.winningTile != null || r.dora.isNotEmpty))
-                    tr('和了牌とドラ表示牌は1人目と同じなので、読み取ったものは使いません',
+                  if (!fixedWin && r.ura.isNotEmpty)
+                    tr('裏ドラは、立直しているときだけ計算に使います', 'Ura dora is only counted when riichi is declared'),
+                  if (fixedWin && (r.winningTile != null || r.dora.isNotEmpty || r.ura.isNotEmpty))
+                    tr('和了牌とドラ表示牌（裏ドラも）は1人目と同じなので、読み取ったものは使いません',
                         'The winning tile and dora indicators are the same as the 1st winner, so the ones read are not used'),
-                  if (!fixedWin && r.dora.isNotEmpty && _dora.isNotEmpty)
-                    tr('今入っているドラ表示牌は、読み取ったものに置き換えます', 'Dora indicators already entered are replaced with the ones read'),
+                  if (!fixedWin && (r.dora.isNotEmpty && _dora.isNotEmpty || r.ura.isNotEmpty && _ura.isNotEmpty))
+                    tr('今入っているドラ表示牌・裏ドラ表示牌は、読み取ったものに置き換えます',
+                        'Dora / ura dora indicators already entered are replaced with the ones read'),
                   if (_melds.isNotEmpty) tr('今入っている鳴きは、読み取った鳴きに置き換えます', 'Calls already entered are replaced with the ones read'),
                 ])
                   Padding(
@@ -608,6 +618,11 @@ class _WinInputScreenState extends ConsumerState<WinInputScreen> {
         _dora
           ..clear()
           ..addAll(r.dora);
+      }
+      if (r.ura.isNotEmpty && !fixedWin) {
+        _ura
+          ..clear()
+          ..addAll(r.ura);
       }
       _target = _hand.length < _needHand ? _Target.hand : (_winTile == null ? _Target.win : _Target.dora);
     });

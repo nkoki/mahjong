@@ -26,13 +26,14 @@ class PhotoRegion {
 
 /// 枠つきの撮影画面の4つのエリア（カメラの映像の幅・高さを 1 とした割合。縦向きで持つ）。
 ///
-/// 上から、ドラ表示牌、鳴いた牌、手牌（左）と和了牌（右）
+/// 上から、ドラ表示牌（上の段）と裏ドラ表示牌（下の段）、鳴いた牌、手牌（左）と和了牌（右）
 class GuideFrames {
   // 映像の全体を、少しのすき間を空けて3段に分ける（置く場所に余裕を持たせる）
-  static const dora = PhotoRegion(0.02, 0.02, 0.96, 0.25);
-  static const melds = PhotoRegion(0.02, 0.29, 0.96, 0.32);
-  static const hand = PhotoRegion(0.02, 0.63, 0.78, 0.35);
-  static const win = PhotoRegion(0.82, 0.63, 0.16, 0.35);
+  // ドラ表示牌のエリアは、上の段にドラ表示牌、下の段に裏ドラ表示牌を置けるように高めにする
+  static const dora = PhotoRegion(0.02, 0.02, 0.96, 0.30);
+  static const melds = PhotoRegion(0.02, 0.34, 0.96, 0.28);
+  static const hand = PhotoRegion(0.02, 0.64, 0.78, 0.34);
+  static const win = PhotoRegion(0.82, 0.64, 0.16, 0.34);
 
   /// 読み取りに渡す順（[interpretGuided] に渡す順と同じ）
   static const all = [hand, win, melds, dora];
@@ -94,11 +95,19 @@ class GuidedReading {
   /// ドラ表示牌（左から順）
   final List<Tile> dora;
 
+  /// 裏ドラ表示牌（左から順。ドラ表示牌のエリアの下の段）
+  final List<Tile> ura;
+
   /// 利用者に知らせること
   final List<String> notes;
 
   const GuidedReading(
-      {required this.hand, required this.winningTile, required this.melds, this.dora = const [], required this.notes});
+      {required this.hand,
+      required this.winningTile,
+      required this.melds,
+      this.dora = const [],
+      this.ura = const [],
+      required this.notes});
 
   int get needHand => 13 - 3 * melds.length;
 }
@@ -110,32 +119,13 @@ class GuidedReading {
 /// （例: 3索 3索 3索 3索 4索 5索 は、槓＋余り2枚ではなく、ポン＋チーにする）。
 /// 組にできない牌が残り、牌の間に広いすき間があるときは、すき間で区切った分け方も試して、余りの少ないほうを使う
 ({List<Meld> melds, int leftover}) groupMelds(RegionTiles region) {
-  final ds = region.detections;
-  if (ds.isEmpty) return (melds: const <Meld>[], leftover: 0);
-  final w = region.width.toDouble(), h = region.height.toDouble();
-  double shortSide(TileDetection d) => math.min(d.width * w, d.height * h);
-  final sizes = ds.map(shortSide).toList()..sort();
-  final unit = sizes[sizes.length ~/ 2];
-
-  // 段に分ける（上から）
-  final byY = [...ds]..sort((a, b) => a.centerY.compareTo(b.centerY));
-  final rows = <List<TileDetection>>[
-    [byY.first]
-  ];
-  for (final d in byY.skip(1)) {
-    final row = rows.last;
-    final rowY = row.map((e) => e.centerY * h).reduce((a, b) => a + b) / row.length;
-    if ((d.centerY * h - rowY).abs() < unit * 0.8) {
-      row.add(d);
-    } else {
-      rows.add([d]);
-    }
-  }
+  if (region.detections.isEmpty) return (melds: const <Meld>[], leftover: 0);
+  final w = region.width.toDouble();
+  final unit = _tileUnit(region);
 
   final melds = <Meld>[];
   var leftover = 0;
-  for (final row in rows) {
-    row.sort((a, b) => a.centerX.compareTo(b.centerX));
+  for (final row in tileRows(region)) {
     final tiles = [for (final d in row) d.tile];
     var best = _partition(tiles);
     if (best.leftover > 0) {
@@ -160,6 +150,38 @@ class GuidedReading {
     leftover += best.leftover;
   }
   return (melds: melds, leftover: leftover);
+}
+
+/// 牌1枚の大きさのめやす（短いほうの辺の中央値。ピクセル）
+double _tileUnit(RegionTiles region) {
+  final w = region.width.toDouble(), h = region.height.toDouble();
+  final sizes = region.detections.map((d) => math.min(d.width * w, d.height * h)).toList()..sort();
+  return sizes[sizes.length ~/ 2];
+}
+
+/// エリアの中の牌を、段（横の列）に分ける。段は上から順、段の中は左から順
+List<List<TileDetection>> tileRows(RegionTiles region) {
+  final ds = region.detections;
+  if (ds.isEmpty) return const [];
+  final h = region.height.toDouble();
+  final unit = _tileUnit(region);
+  final byY = [...ds]..sort((a, b) => a.centerY.compareTo(b.centerY));
+  final rows = <List<TileDetection>>[
+    [byY.first]
+  ];
+  for (final d in byY.skip(1)) {
+    final row = rows.last;
+    final rowY = row.map((e) => e.centerY * h).reduce((a, b) => a + b) / row.length;
+    if ((d.centerY * h - rowY).abs() < unit * 0.8) {
+      row.add(d);
+    } else {
+      rows.add([d]);
+    }
+  }
+  for (final row in rows) {
+    row.sort((a, b) => a.centerX.compareTo(b.centerX));
+  }
+  return rows;
 }
 
 /// 左から並んだ牌を鳴きに分ける。組にできない牌がいちばん少ない分け方（同じなら、先に槓・ポンを取る分け方）
@@ -300,15 +322,27 @@ GuidedReading interpretGuided({
     winningTile = handTiles.removeLast();
     notes.add(tr('和了牌のエリアが空だったので、手牌の右端の牌を和了牌にしました', 'The winning tile area was empty, so the rightmost hand tile is used as the winning tile'));
   }
-  // ドラ表示牌（左から順。5枚まで）
-  final doraTiles = <Tile>[
-    for (final t in arrangeTiles(dora.detections).tiles)
-      if (usable(t) case final u?) u
-  ];
-  if (doraTiles.length > GuideFrames.maxDora) {
-    notes.add(tr('ドラ表示牌が多すぎたので、右の${doraTiles.length - GuideFrames.maxDora}枚は使いませんでした',
-        'Too many dora indicators; the rightmost ${doraTiles.length - GuideFrames.maxDora} were not used'));
-    doraTiles.removeRange(GuideFrames.maxDora, doraTiles.length);
+  // ドラ表示牌（上の段）と裏ドラ表示牌（下の段）。どちらも左から順に5枚まで
+  final doraRows = tileRows(dora);
+  List<Tile> indicators(int row, String ja, String en) {
+    if (doraRows.length <= row) return [];
+    final tiles = <Tile>[
+      for (final d in doraRows[row])
+        if (usable(d.tile) case final u?) u
+    ];
+    if (tiles.length > GuideFrames.maxDora) {
+      notes.add(tr('$jaが多すぎたので、右の${tiles.length - GuideFrames.maxDora}枚は使いませんでした',
+          'Too many $en; the rightmost ${tiles.length - GuideFrames.maxDora} were not used'));
+      tiles.removeRange(GuideFrames.maxDora, tiles.length);
+    }
+    return tiles;
+  }
+
+  final doraTiles = indicators(0, 'ドラ表示牌', 'dora indicators');
+  final uraTiles = indicators(1, '裏ドラ表示牌', 'ura dora indicators');
+  if (doraRows.length > 2) {
+    notes.add(tr('ドラ表示牌のエリアに3段以上の牌がありました。上の2段（ドラ表示牌・裏ドラ表示牌）だけを使いました',
+        'The dora area had 3 or more rows; only the top two (dora and ura dora indicators) were used'));
   }
   if (removedSanma > 0) notes.add(tr('3人打ちでは使わない二萬〜八萬を$removedSanma枚除きました', 'Removed $removedSanma tiles of 2m-8m (not used in 3-player)'));
   if (normalizedRed > 0) notes.add(tr('赤5を$normalizedRed枚、普通の5として入れました', 'Entered $normalizedRed red fives as normal fives'));
@@ -325,5 +359,10 @@ GuidedReading interpretGuided({
   if (winningTile == null) notes.add(tr('和了牌は手で選んでください', 'Select the winning tile manually'));
 
   return GuidedReading(
-      hand: sortTiles(handTiles), winningTile: winningTile, melds: resultMelds, dora: doraTiles, notes: notes);
+      hand: sortTiles(handTiles),
+      winningTile: winningTile,
+      melds: resultMelds,
+      dora: doraTiles,
+      ura: uraTiles,
+      notes: notes);
 }

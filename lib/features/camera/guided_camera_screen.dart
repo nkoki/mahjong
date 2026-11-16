@@ -164,11 +164,11 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
                 tr(
                     '牌が色の付いたエリアの中に大きく写るように合わせます。牌同士は離さなくてかまいません。'
                         '使わないエリア（鳴きがないときなど）は空けておきます。'
-                        '裏返した牌（暗槓）と裏ドラは読み取れません。写真はどこにも送りません。'
+                        '裏ドラ表示牌は、ドラ表示牌のエリアの下の段に置きます。裏返した牌（暗槓）は読み取れません。写真はどこにも送りません。'
                         '${_mirrored(c) ? '\nこのカメラの映像は、鏡のように左右が反転して見えます（読み取るときに元に戻します）。' : ''}',
                     'Fit the tiles inside the colored areas. Tiles may touch each other. '
                         'Leave unused areas empty. '
-                        'Face-down tiles (closed kan) and ura dora are not read. The photo is not sent anywhere.'
+                        'Put ura dora indicators in the row below the dora indicators. Face-down tiles (closed kan) are not read. The photo is not sent anywhere.'
                         '${_mirrored(c) ? '\nThis camera is shown mirrored (it is flipped back when reading).' : ''}'),
                 style: const TextStyle(color: Color(0xCCF7F3EA), fontSize: 12),
               ),
@@ -241,7 +241,7 @@ class GuideOverlay extends StatelessWidget {
         child: MediaQuery.withNoTextScaling(
           child: Stack(
             children: [
-              area(GuideFrames.dora, tr('ドラ表示牌', 'Dora indicators'), const Color(0xFFB9F6A5), const ValueKey('area-dora')),
+              area(GuideFrames.dora, tr('ドラ表示牌（下の段に裏ドラ）', 'Dora (ura dora in the row below)'), const Color(0xFFB9F6A5), const ValueKey('area-dora')),
               area(GuideFrames.melds, tr('鳴いた牌', 'Calls'), const Color(0xFF8FD3FF), const ValueKey('area-melds')),
               area(GuideFrames.hand, tr('手牌', 'Hand'), const Color(0xFFFFE08A), const ValueKey('area-hand')),
               area(GuideFrames.win, tr('和了牌', 'Win'), const Color(0xFFFF9C8F), const ValueKey('area-win')),
