@@ -100,6 +100,10 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
     return kIsWeb ? size.width / size.height : size.height / size.width;
   }
 
+  /// 映像と写真が鏡のように左右反転しているか（Web 版で、外側（背面）でないカメラを使っているとき）
+  bool _mirrored(CameraController? c) =>
+      kIsWeb && c != null && c.description.lensDirection != CameraLensDirection.back;
+
   Future<void> _shoot() async {
     final c = _controller;
     if (c == null || _taking) return;
@@ -108,8 +112,7 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
       final file = await c.takePicture();
       final bytes = await file.readAsBytes();
       if (!mounted) return;
-      Navigator.of(context).pop(GuidedPhoto(bytes, _viewAspect(c),
-          mirrored: kIsWeb && c.description.lensDirection != CameraLensDirection.back));
+      Navigator.of(context).pop(GuidedPhoto(bytes, _viewAspect(c), mirrored: _mirrored(c)));
     } catch (e) {
       if (!mounted) return;
       setState(() => _taking = false);
@@ -150,18 +153,6 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
                                 // （CameraPreview は Web 版で縦横比を取り違えることがあり、枠と写真がずれる）
                                 if (kIsWeb) c.buildPreview() else CameraPreview(c),
                                 const GuideOverlay(),
-                                if (kIsWeb && c.description.lensDirection != CameraLensDirection.back)
-                                  Positioned(
-                                    left: 8,
-                                    right: 8,
-                                    bottom: 8,
-                                    child: Text(
-                                        tr('このカメラの映像は、鏡のように左右が反転して見えます（読み取るときに元に戻します）。',
-                                            'This camera is shown mirrored (it is flipped back when reading).'),
-                                        style: const TextStyle(color: fg, fontSize: 12, shadows: [
-                                          Shadow(color: Colors.black, blurRadius: 4),
-                                        ])),
-                                  ),
                               ],
                             ),
                           ),
@@ -173,10 +164,12 @@ class _GuidedCameraScreenState extends State<GuidedCameraScreen> {
                 tr(
                     '牌が色の付いたエリアの中に大きく写るように合わせます。牌同士は離さなくてかまいません。'
                         '使わないエリア（鳴きがないときなど）は空けておきます。'
-                        '裏返した牌（暗槓）と裏ドラは読み取れません。写真はどこにも送りません。',
+                        '裏返した牌（暗槓）と裏ドラは読み取れません。写真はどこにも送りません。'
+                        '${_mirrored(c) ? '\nこのカメラの映像は、鏡のように左右が反転して見えます（読み取るときに元に戻します）。' : ''}',
                     'Fit the tiles inside the colored areas. Tiles may touch each other. '
                         'Leave unused areas empty. '
-                        'Face-down tiles (closed kan) and ura dora are not read. The photo is not sent anywhere.'),
+                        'Face-down tiles (closed kan) and ura dora are not read. The photo is not sent anywhere.'
+                        '${_mirrored(c) ? '\nThis camera is shown mirrored (it is flipped back when reading).' : ''}'),
                 style: const TextStyle(color: Color(0xCCF7F3EA), fontSize: 12),
               ),
             ),
@@ -251,7 +244,7 @@ class GuideOverlay extends StatelessWidget {
               area(GuideFrames.dora, tr('ドラ表示牌', 'Dora indicators'), const Color(0xFFB9F6A5), const ValueKey('area-dora')),
               area(GuideFrames.melds, tr('鳴いた牌', 'Calls'), const Color(0xFF8FD3FF), const ValueKey('area-melds')),
               area(GuideFrames.hand, tr('手牌', 'Hand'), const Color(0xFFFFE08A), const ValueKey('area-hand')),
-              area(GuideFrames.win, tr('和了牌', 'Win'), const Color(0xFFFF9C8F), const ValueKey('area-win'), labelBelow: true),
+              area(GuideFrames.win, tr('和了牌', 'Win'), const Color(0xFFFF9C8F), const ValueKey('area-win')),
             ],
           ),
         ),

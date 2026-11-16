@@ -28,10 +28,11 @@ class PhotoRegion {
 ///
 /// 上から、ドラ表示牌、鳴いた牌、手牌（左）と和了牌（右）
 class GuideFrames {
-  static const dora = PhotoRegion(0.02, 0.08, 0.62, 0.18);
-  static const melds = PhotoRegion(0.02, 0.30, 0.96, 0.18);
-  static const hand = PhotoRegion(0.02, 0.52, 0.80, 0.18);
-  static const win = PhotoRegion(0.85, 0.52, 0.13, 0.18);
+  // 映像の全体を、少しのすき間を空けて3段に分ける（置く場所に余裕を持たせる）
+  static const dora = PhotoRegion(0.02, 0.02, 0.96, 0.25);
+  static const melds = PhotoRegion(0.02, 0.29, 0.96, 0.32);
+  static const hand = PhotoRegion(0.02, 0.63, 0.78, 0.35);
+  static const win = PhotoRegion(0.82, 0.63, 0.16, 0.35);
 
   /// 読み取りに渡す順（[interpretGuided] に渡す順と同じ）
   static const all = [hand, win, melds, dora];
